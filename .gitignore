@@ -1,0 +1,10 @@
+# Dev
+/.vscode
+
+# Ruby
+/.bundle
+/vendor
+
+# Dependabot
+/git.store
+/tmp

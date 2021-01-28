@@ -1,0 +1,14 @@
+{
+  "image": "dependabot/dependabot-core:0.130.3",
+
+  "settings": {
+    "terminal.integrated.shell.linux": "/bin/bash",
+    "solargraph.useBundler": true
+  },
+
+  "extensions": ["rebornix.ruby", "castwide.solargraph"],
+
+  "forwardPorts": [],
+
+  "postCreateCommand": "bundle install --jobs=8 --path vendor; bundle exec yard gems"
+}
