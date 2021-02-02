@@ -3,23 +3,31 @@
 To run this, simply execute the following after creating and pasting your GitHub access token:
 
 ```bash
-docker pull dependabot/dependabot-core:0.130.3
+docker-compose up
 
-docker run -v "$(pwd):/home/dependabot/depends-db" \
-    -w /home/dependabot/depends-db \
-    dependabot/dependabot-core:0.130.3 \
+docker build -t it-depends .
+
+docker run -v "$(pwd):/home/dependabot/it-depends" \
+    -w /home/dependabot/it-depends \
+    it-depends \
     bundle install --jobs=8 --path vendor
 
-docker run -v "$(pwd):/home/dependabot/depends-db" \
-    -w /home/dependabot/depends-db \
+docker run -v "$(pwd):/home/dependabot/it-depends" \
+    -w /home/dependabot/it-depends \
     -e "GITHUB_ACCESS_TOKEN=YOUR_TOKEN" \
-    dependabot/dependabot-core:0.130.3 \
-    bundle exec ruby ./dependabot.rb --directory "/" --repo-name "ethereum/go-ethereum"
+    it-depends \
+    bundle exec ruby ./dependabot.rb --directory "/" --repo-name "ethereum/go-ethereum" --use-database
 ```
+
+To login to the Neo4j instance, go to `http://localhost:7474/` with username `neo4j` and password `password`. After running the above, type in some [Cypher](https://neo4j.com/developer/cypher/) (start with `MATCH (a) RETURN a` to see everything) to start querying the database.
+
+## Options
 
 The `--directory` option is to help point dependabot to the directory where the dependency file(s) reside.
 
 The `--repo-name` option is the path to a GitHub repo. More directions on how to look at other repos will be updated later.
+
+The `--use-database` option will try to connect to the database started through `docker-compose`.
 
 By default, the script tries looking for all dependabot-supported dependency files.
 
@@ -29,7 +37,7 @@ Use VS Code and select to reopen in dev container when it pops up.
 
 ## TODO for this script
 
-* Save results in a database of some kind.
+* Save results in a database of some kind. DONE in neo4j
 
 * Figure out the best way to process a large number of GitHub repos:
 

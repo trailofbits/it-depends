@@ -1,5 +1,10 @@
 # General Notes
 
+## Issues
+
+- Better graph display - // https://github.com/neo4j/neo4j-browser/issues/171
+
+
 ## Supported dependencies
 
 Found in https://github.com/dependabot/dependabot-core/blob/main/omnibus/lib/dependabot/omnibus.rb
@@ -53,3 +58,30 @@ Ideally, we'd want to travel back in time to answer at least two questions:
 * How long was a specific version of an application exposed to a vulnerable dependency before it was fixed?
 
 As a follow-up to each, how would this vulnerability be resolved? Implicit update (just re-deploy and updated dependency is automatically pulled in) or explicit update (dependency version constraints were such that manual changes to dependency file was required)
+
+
+## Graph DB
+
+### Nodes
+
+#### Project
+
+Has edges to Versions
+
+#### Version
+
+Has edges to dependencies
+
+### Edges
+
+Edges are made between Nodes and Versions
+
+* Incoming edges to versions is from parent project
+
+* Outgoing edges to projects is to dependencies at that version
+
+Edges in graphdb hold metadata information like the following:
+
+* symbolic constraints on versions
+
+* Earliest valid date for connection, latest valid date for connection
