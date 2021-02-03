@@ -80,7 +80,7 @@ Edges are made between Nodes and Versions
 
 * Outgoing edges to projects is to dependencies at that version
 
-Edges in graphdb hold metadata information like the following:
+Edges in graphdb should hold metadata information like the following:
 
 * symbolic constraints on versions
 
