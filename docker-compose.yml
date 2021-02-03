@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+
+  db:
+    # Ruby activegraph lib only supports 4.0 right now
+    image: neo4j:4.0.10
+    # If issues start ocurring, might want to downgrade
+    # image: neo4j:3.5.26
+    restart: always
+    environment:
+      - NEO4J_AUTH=neo4j/password
+    ports:
+      - 7474:7474
+      - 7687:7687

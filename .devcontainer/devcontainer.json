@@ -1,5 +1,8 @@
 {
-  "image": "dependabot/dependabot-core:0.130.3",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "."
+  },
 
   "settings": {
     "terminal.integrated.shell.linux": "/bin/bash",
