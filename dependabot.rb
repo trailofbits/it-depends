@@ -113,35 +113,6 @@ if use_database
     has_one :in, :project, origin: :versions
     has_many :out, :dependencies, type: :DEPENDS_ON, model_class: :Project, unique: :all
   end
-
-  # Check if database exists
-  # ret = conn.exec %Q{
-  #         SELECT datname
-  #         FROM pg_catalog.pg_database
-  #         WHERE lower(datname) = lower('%s')
-  #       } % [ database_name ]
-
-  # # If no results are returned, then we need to create the database
-  # if ret.ntuples == 0
-  #   puts("Creating database: #{database_name} ...")
-  #   # TODO(ek) Check for error?
-  #   conn.exec %Q{
-  #     CREATE DATABASE "%s"
-  #   } % [ database_name ]
-  #   puts("Created database.")
-  # end
-
-  # conn.exec %Q{
-  #   CONNECT TO "%s"
-  # } % [ database_name ]
-
-  # # Make sure our table exists
-  # conn.exec %Q{
-  #   SELECT EXISTS
-  #     (. SELECT
-  #       FROM
-  #         pg_catalog.pg_class c. JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace. WHERE n.nspname = 'dependabot'. AND c.relname = 'table_name'. AND c.relkind = 'r'. );
-  # }
 end
 
 if ENV["GITHUB_ENTERPRISE_ACCESS_TOKEN"]
