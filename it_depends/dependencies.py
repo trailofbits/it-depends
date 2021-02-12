@@ -86,5 +86,5 @@ class DependencyClassifier(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def classify(self, path: str) -> List[Package]:
+    def classify(self, path: str) -> Iterable[Package]:
         raise NotImplementedError()
