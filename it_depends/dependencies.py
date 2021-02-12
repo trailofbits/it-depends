@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import json
 from typing import Dict, Iterable, List, Optional, Union
 
@@ -50,3 +51,40 @@ class Package:
             version=serialized["version"],
             dependencies=[Dependency.load(d) for d in serialized["dependencies"]]
         )
+
+
+CLASSIFIERS_BY_NAME: Dict[str, "DependencyClassifier"] = {}
+
+
+class ClassifierAvailability:
+    def __init__(self, is_available: bool, reason: str = ""):
+        if not is_available and not reason:
+            raise ValueError("You must provide a reason if `not is_available`")
+        self.is_available: bool = is_available
+        self.reason: str = reason
+
+    def __bool__(self):
+        return self.is_available
+
+
+class DependencyClassifier(ABC):
+    name: str
+    description: str
+
+    def __init_subclass__(cls, **kwargs):
+        if not hasattr(cls, "name") or cls.name is None:
+            raise TypeError(f"{cls.__name__} must define a `name` class member")
+        elif not hasattr(cls, "description") or cls.description is None:
+            raise TypeError(f"{cls.__name__} must define a `description` class member")
+        CLASSIFIERS_BY_NAME[cls.name] = cls()
+
+    def is_available(self) -> ClassifierAvailability:
+        return ClassifierAvailability(True)
+
+    @abstractmethod
+    def can_classify(self, path: str) -> bool:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def classify(self, path: str) -> List[Package]:
+        raise NotImplementedError()

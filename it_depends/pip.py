@@ -1,4 +1,5 @@
 from os import chdir, getcwd
+from pathlib import Path
 from typing import List
 
 from pip._internal.commands.install import (
@@ -12,7 +13,7 @@ from pip._internal.commands.install import (
 
 from pip._internal.utils.temp_dir import global_tempdir_manager, tempdir_registry
 
-from .dependencies import Dependency, Package
+from .dependencies import DependencyClassifier, Package
 
 
 def get_dependencies(pip_package_path: str) -> List[Package]:
@@ -119,3 +120,15 @@ def get_dependencies(pip_package_path: str) -> List[Package]:
             return [Package.load(package) for package in package_map.values()]
     finally:
         chdir(orig_dir)
+
+
+class PipClassifier(DependencyClassifier):
+    name = "pip"
+    description = "classifies the dependencies of Python packages using pip"
+
+    def can_classify(self, path: str) -> bool:
+        p = Path(path)
+        return (p / "setup.py").exists() or (p / "requirements.txt").exists()
+
+    def classify(self, path: str) -> List[Package]:
+        return get_dependencies(path)
