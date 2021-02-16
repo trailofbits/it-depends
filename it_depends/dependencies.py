@@ -1,56 +1,102 @@
 from abc import ABC, abstractmethod
+from itertools import chain
 import json
-from typing import Dict, Iterable, List, Optional, Union
+from typing import Dict, Iterable, Iterator, Optional, Union
+
+from semantic_version import SimpleSpec, Version
+from semantic_version.base import BaseSpec as SemanticVersion
 
 
 class Dependency:
-    def __init__(self, package: str, version: Optional[str] = None, locked: bool = False):
+    def __init__(self, package: str, semantic_version: SemanticVersion = SimpleSpec("*")):
         self.package: str = package
-        self.version: Optional[str] = version
-        self.locked: bool = locked
-
-    def to_obj(self) -> Dict[str, Union[Optional[str], bool]]:
-        return {
-            "package": self.package,
-            "version": self.version,
-            "locked": self.locked
-        }
-
-    def dumps(self) -> str:
-        return json.dumps(self.to_obj())
-
-    @staticmethod
-    def load(serialized: Union[str, Dict[str, Union[Optional[str], bool]]]) -> "Dependency":
-        if isinstance(serialized, str):
-            serialized = json.loads(serialized)
-        return Dependency(package=serialized["package"], version=serialized["version"], locked=serialized["locked"])
+        self.semantic_version: SemanticVersion = semantic_version
 
 
 class Package:
-    def __init__(self, name: str, version: Optional[str] = None, dependencies: Iterable[Dependency] = ()):
+    def __init__(
+            self,
+            name: str,
+            version: Version,
+            dependencies: Iterable[Dependency] = (),
+            source: Optional[str] = None
+    ):
         self.name: str = name
-        self.version: Optional[str] = version
-        self.dependencies: List[Dependency] = list(dependencies)
-
-    def to_obj(self) -> Dict[str, Union[Optional[str], bool]]:
-        return {
-            "package": self.name,
-            "version": self.version,
-            "dependencies": [d.to_obj() for d in self.dependencies]
+        self.version: Version = version
+        self.dependencies: Dict[str, Dependency] = {
+            dep.package: dep for dep in dependencies
         }
+        self.source: Optional[str] = source
+
+    def to_obj(self) -> Dict[str, Union[str, Dict[str, str]]]:
+        ret = {
+            "name": self.name,
+            "version": str(self.version),
+            "dependencies": {
+                package: str(dep.semantic_version) for package, dep in self.dependencies.items()
+            }
+        }
+        if self.source is not None:
+            ret["source"] = self.source
+        return ret
 
     def dumps(self) -> str:
         return json.dumps(self.to_obj())
 
-    @staticmethod
-    def load(serialized: Union[str, Dict[str, Union[Optional[str], bool]]]) -> "Package":
-        if isinstance(serialized, str):
-            serialized = json.loads(serialized)
-        return Package(
-            name=serialized["package"],
-            version=serialized["version"],
-            dependencies=[Dependency.load(d) for d in serialized["dependencies"]]
-        )
+    def __eq__(self, other):
+        return isinstance(other, Package) and self.name == other.name and self.version == other.version
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.name, self.version))
+
+
+class DependencyResolver:
+    def __init__(self, packages: Iterable[Package] = ()):
+        self.packages: Dict[str, Dict[Version, Package]] = {}
+        for package in packages:
+            self.add(package)
+        self._entries: int = 0
+
+    def open(self):
+        pass
+
+    def close(self):
+        pass
+
+    def __enter__(self) -> "DependencyResolver":
+        self._entries += 1
+        if self._entries == 1:
+            self.open()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._entries -= 1
+        if self._entries == 0:
+            self.close()
+
+    def __len__(self):
+        return sum(map(len, self.packages.values()))
+
+    def __iter__(self) -> Iterator[Package]:
+        return chain(*(p.values() for p in self.packages.values()))
+
+    def add(self, package: Package):
+        self.packages.setdefault(package.name, {})[package.version] = package
+
+    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
+        return iter(())
+
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
+        yielded = False
+        for version, package in self.packages.get(dependency.package, default={}).items():
+            if version in dependency.semantic_version:
+                yield package
+                yielded = True
+        if not yielded:
+            yield from self.resolve_missing(dependency)
 
 
 CLASSIFIERS_BY_NAME: Dict[str, "DependencyClassifier"] = {}
@@ -86,5 +132,5 @@ class DependencyClassifier(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def classify(self, path: str) -> Iterable[Package]:
+    def classify(self, path: str) -> DependencyResolver:
         raise NotImplementedError()

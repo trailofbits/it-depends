@@ -10,7 +10,9 @@ setup(
     packages=find_packages(exclude=["test"]),
     python_requires=">=3.6",
     install_requires=[
-        "pip~=21.0.1"
+        "johnnydep~=1.7",
+        "pip~=21.0.1",
+        "semantic_version~=2.8.5"
     ],
     entry_points={
         "console_scripts": [
