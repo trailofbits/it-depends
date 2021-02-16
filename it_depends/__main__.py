@@ -35,7 +35,8 @@ def main():
     deps = []
     for classifier in CLASSIFIERS_BY_NAME.values():
         if classifier.is_available() and classifier.can_classify(args.PATH):
-            deps.extend(classifier.classify(args.PATH))
+            with classifier.classify(args.PATH) as resolver:
+                deps.extend(resolver)
     dep_objs = [dep.to_obj() for dep in deps]
     print(json.dumps(dep_objs, indent=4))
 

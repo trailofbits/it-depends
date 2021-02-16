@@ -91,12 +91,36 @@ class DependencyResolver:
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         yielded = False
-        for version, package in self.packages.get(dependency.package, default={}).items():
+        for version, package in self.packages.get(dependency.package, {}).items():
             if version in dependency.semantic_version:
                 yield package
                 yielded = True
         if not yielded:
             yield from self.resolve_missing(dependency)
+
+    def contains(self, package_name: str, version: Union[SemanticVersion, Version]):
+        if package_name not in self.packages:
+            return False
+        elif isinstance(version, Version):
+            return version in self.packages[package_name]
+        else:
+            for actual_version in self.packages[package_name].keys():
+                if actual_version in version:
+                    return True
+            return False
+
+    # def resolve_unsatisfied(self):
+    #     processed = set()
+    #     packages_before = 0
+    #     while packages_before < len(self):
+    #         packages_before = len(self)
+    #         for package in self:
+    #             if package in processed:
+    #                 continue
+    #             processed.add(package)
+    #             for dep in package.dependencies.values():
+    #                 for _ in self.resolve(dep):
+    #                     pass
 
 
 CLASSIFIERS_BY_NAME: Dict[str, "DependencyClassifier"] = {}

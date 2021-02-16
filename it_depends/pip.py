@@ -1,81 +1,130 @@
 from pathlib import Path
-from tempfile import mkdtemp, NamedTemporaryFile
+from tempfile import TemporaryDirectory
 import subprocess
 import sys
-from typing import Iterator, Optional
+from typing import Iterable, Iterator, Optional
 
 from johnnydep import JohnnyDist
 
-from .dependencies import Dependency, DependencyClassifier, DependencyResolver, Package, SimpleSpec, Version
+from .dependencies import (
+    Dependency, DependencyClassifier, DependencyResolver, Package, SemanticVersion, SimpleSpec, Version
+)
 
 
 class PipResolver(DependencyResolver):
-    def __init__(self, package_name_or_path: str):
+    def __init__(self, package_spec_or_path: str):
         super().__init__()
-        if (Path(package_name_or_path) / "setup.py").exists():
-            self.path: Optional[str] = package_name_or_path
-            self.package_name: Optional[str] = None
+        if (Path(package_spec_or_path) / "setup.py").exists():
+            self.path: Optional[str] = package_spec_or_path
+            self.package_spec: Optional[str] = None
         else:
             self.path = None
-            self.package_name = package_name_or_path
-        self.tmp_dir: Optional[Path] = None
-        self.wheel: Optional[Path] = None
-        with self:
-            dist = JohnnyDist(str(self.wheel))
-            specifier = dist.specifier
-            if specifier.startswith("=="):
-                version = Version(specifier[2:])
+            self.package_spec = package_spec_or_path
+        self._dist: Optional[JohnnyDist] = None
+
+    @property
+    def dist(self) -> JohnnyDist:
+        if self._dist is None:
+            if self.package_spec is not None:
+                self._dist = JohnnyDist(self.package_spec)
             else:
-                raise ValueError(f"Unexpected version specifier for {self.wheel.name}: {specifier!s}")
-            package = Package(
-                name=dist.name,
-                version=version,
-                dependencies=[
-                    Dependency(package=child.name, semantic_version=SimpleSpec(child.specifier))
-                    for child in dist.children
-                ],
-                source="pip"
-            )
-            self.add(package)
+                with TemporaryDirectory() as tmp_dir:
+                    subprocess.check_call([
+                        sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", tmp_dir, self.path
+                    ])
+                    wheel = None
+                    for whl in Path(tmp_dir).glob("*.whl"):
+                        if wheel is not None:
+                            raise ValueError(f"`pip wheel --no-deps {self.path}` produced mutliple wheel files!")
+                        wheel = whl
+                    if wheel is None:
+                        raise ValueError(f"`pip wheel --no-deps {self.path}` did not produce a wheel file!")
+                    self._dist = JohnnyDist(str(wheel))
+                    # force JohnnyDist to read the dependencies before deleting the wheel:
+                    _ = self._dist.children
+            # add a package for the root dist
+            self.resolve_dist(self._dist)
+        return self._dist
+
+    @staticmethod
+    def _get_specifier(dist: JohnnyDist) -> SimpleSpec:
+        try:
+            return SimpleSpec(dist.specifier)
+        except ValueError:
+            return SimpleSpec("*")
+
+    @staticmethod
+    def _get_version(version_str: str, none_default: Optional[Version] = None) -> Optional[Version]:
+        if version_str == "none":
+            # this will happen if the dist is for a local wheel:
+            return none_default
+        else:
+            try:
+                return Version.coerce(version_str)
+            except ValueError:
+                components = version_str.split(".")
+                if len(components) == 4:
+                    try:
+                        # assume the version component after the last period is the release
+                        return Version(
+                            major=int(components[0]),
+                            minor=int(components[1]),
+                            patch=int(components[2]),
+                            prerelease=components[3]
+                        )
+                    except ValueError:
+                        pass
+                # TODO: Figure out a better way to handle invalid version strings
+            return None
+
+    def resolve_dist(
+            self, dist: JohnnyDist, recurse: bool = True, version: SemanticVersion = SimpleSpec("*")
+    ) -> Iterable[Package]:
+        queue = [(dist, version)]
+        packages = []
+        while queue:
+            dist, sem_version = queue.pop()
+            for version in sem_version.filter(
+                    filter(
+                        lambda v: v is not None,
+                        (
+                                PipResolver._get_version(v_str, none_default=Version.coerce(dist.version_installed))
+                                for v_str in dist.versions_available
+                        )
+                    )
+            ):
+                if self.contains(dist.name, version):
+                    continue
+                package = Package(
+                    name=dist.name,
+                    version=version,
+                    dependencies=[
+                        Dependency(package=child.name, semantic_version=self._get_specifier(child))
+                        for child in dist.children
+                    ],
+                    source="pip"
+                )
+                self.add(package)
+                packages.append(package)
+                if not recurse:
+                    break
+                queue.extend((child, self._get_specifier(child)) for child in dist.children)
+        return packages
+
+    def __iter__(self):
+        if self._dist is None:
+            _ = self.dist
+        return super().__iter__()
+
+    def __len__(self):
+        if self._dist is None:
+            _ = self.dist
+        return super().__len__()
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
-        dist = JohnnyDist(f"{dependency.package}{dependency.semantic_version}")
-        print(dist.versions_available)
-        package = Package(
-            name=dist.name,
-            version=Version(dist.specifier),
-            dependencies=[
-                Dependency(package=child.name, semantic_version=child.specifier) for child in dist.children
-            ],
-            source="pip"
-        )
-        self.add(package)
-        yield package
-
-    def open(self):
-        if self.path is not None:
-            tmp_file = NamedTemporaryFile("wb", prefix="wheel", suffix=".whl", delete=False)
-            tmp_file.close()
-            self.wheel = Path(tmp_file.name)
-            self.tmp_dir = Path(mkdtemp())
-            subprocess.check_call([
-                sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", str(self.tmp_dir), self.path
-            ])
-            found_wheel = False
-            for whl in self.tmp_dir.glob("*.whl"):
-                if found_wheel:
-                    raise ValueError(f"`pip wheel --no-deps {self.path}` produced mutliple wheel files!")
-                self.wheel = whl
-                found_wheel = True
-            if not found_wheel:
-                raise ValueError(f"`pip wheel --no-deps {self.path}` did not produce a wheel file!")
-
-    def close(self):
-        if self.tmp_dir is not None:
-            self.wheel.unlink()
-            self.wheel = None
-            self.tmp_dir.rmdir()
-            self.tmp_dir = None
+        return iter(self.resolve_dist(
+            JohnnyDist(f"{dependency.package}{dependency.semantic_version}", version=dependency.semantic_version)
+        ))
 
 
 class PipClassifier(DependencyClassifier):
