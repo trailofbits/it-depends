@@ -10,6 +10,7 @@ setup(
     packages=find_packages(exclude=["test"]),
     python_requires=">=3.6",
     install_requires=[
+        "docker>=4.4.0",
         "johnnydep~=1.7",
         "pip~=21.0.1",
         "semantic_version~=2.8.5",

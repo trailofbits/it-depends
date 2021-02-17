@@ -1,7 +1,8 @@
-from inspect import isclass
+from importlib import import_module
 from pkgutil import iter_modules
 from pathlib import Path
-from importlib import import_module
+
+from .it_depends import *
 
 # Automatically load all modules in the `it_depends` package,
 # so all DependencyClassifiers will auto-register themselves:
