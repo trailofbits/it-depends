@@ -3,9 +3,31 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Iterable, List
+from typing import Iterable
 
-from .dependencies import ClassifierAvailability, Dependency, DependencyClassifier, Package
+from semantic_version.base import Always, BaseSpec
+
+from .dependencies import (
+    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, SimpleSpec, Version
+)
+
+
+@BaseSpec.register_syntax
+class CargoSpec(SimpleSpec):
+    SYNTAX = 'cargo'
+
+    class Parser(SimpleSpec.Parser):
+        @classmethod
+        def parse(cls, expression):
+            # The only difference here is that cargo clauses can have whitespace, so we need to strip each block:
+            blocks = [b.strip() for b in expression.split(',')]
+            clause = Always()
+            for block in blocks:
+                if not cls.NAIVE_SPEC.match(block):
+                    raise ValueError("Invalid simple block %r" % block)
+                clause &= cls.parse_block(block)
+
+            return clause
 
 
 def get_dependencies(cargo_package_path: str, check_for_cargo: bool = True) -> Iterable[Package]:
@@ -23,18 +45,19 @@ def get_dependencies(cargo_package_path: str, check_for_cargo: bool = True) -> I
     for package in metadata["packages"]:
         yield Package(
             name=package["name"],
-            version=package["version"],
+            version=Version.coerce(package["version"]),
+            source="cargo",
             dependencies=[
                 Dependency(
                     package=dep["name"],
-                    version=dep["req"]
+                    semantic_version=CargoSpec(dep["req"])
                 )
                 for dep in package["dependencies"]
             ]
         )
 
 
-class PipClassifier(DependencyClassifier):
+class CargoClassifier(DependencyClassifier):
     name = "cargo"
     description = "classifies the dependencies of Rust packages using `cargo metadata`"
 
@@ -47,5 +70,5 @@ class PipClassifier(DependencyClassifier):
     def can_classify(self, path: str) -> bool:
         return (Path(path) / "Cargo.toml").exists()
 
-    def classify(self, path: str) -> List[Package]:
-        return get_dependencies(path, check_for_cargo=False)
+    def classify(self, path: str) -> DependencyResolver:
+        return DependencyResolver(get_dependencies(path, check_for_cargo=False))
