@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 import concurrent.futures
 from itertools import chain
 import json
+from multiprocessing import cpu_count
 from typing import Dict, Iterable, Iterator, List, Optional, Set, Union
 
 from semantic_version import SimpleSpec, Version
@@ -163,16 +164,21 @@ class DependencyResolver:
             ret.extend(self.resolve(dep))
         return ret
 
-    def resolve_unsatisfied(self):
+    def resolve_unsatisfied(self, max_workers: Optional[int] = None):
         """
         Resolves any packages dependencies that have not yet been resolved.
 
         This is expensive and may reproduce work. In general, it should only be called from subclasses with knowledge
         of specifically when it needs to be called.
         """
+        if max_workers is None:
+            try:
+                max_workers = cpu_count()
+            except NotImplementedError:
+                max_workers = 5
         expanded_packages: Set[Package] = set(self)
         with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=len(expanded_packages)) as t:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
                     executor.submit(self._resolve_unsatisfied, package) for package in expanded_packages
                 }
