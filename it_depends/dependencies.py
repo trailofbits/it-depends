@@ -60,6 +60,24 @@ class DependencyResolver:
             self.add(package)
         self._entries: int = 0
 
+    def to_obj(self):
+        def package_to_dict(package):
+            ret = {
+                "dependencies": {
+                    package: str(dep.semantic_version) for package, dep in package.dependencies.items()
+                }
+            }
+            if package.source is not None:
+                ret["source"] = package.source
+            return ret
+
+        return {
+            package_name: {
+                str(version): package_to_dict(package) for version, package in versions.items()
+            }
+            for package_name, versions in self.packages.items()
+        }
+
     def open(self):
         pass
 
@@ -86,6 +104,10 @@ class DependencyResolver:
     def add(self, package: Package):
         self.packages.setdefault(package.name, {})[package.version] = package
 
+    def extend(self, packages: Iterable[Package]):
+        for package in packages:
+            self.add(package)
+
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         return iter(())
 
@@ -108,19 +130,6 @@ class DependencyResolver:
                 if actual_version in version:
                     return True
             return False
-
-    # def resolve_unsatisfied(self):
-    #     processed = set()
-    #     packages_before = 0
-    #     while packages_before < len(self):
-    #         packages_before = len(self)
-    #         for package in self:
-    #             if package in processed:
-    #                 continue
-    #             processed.add(package)
-    #             for dep in package.dependencies.values():
-    #                 for _ in self.resolve(dep):
-    #                     pass
 
 
 CLASSIFIERS_BY_NAME: Dict[str, "DependencyClassifier"] = {}
