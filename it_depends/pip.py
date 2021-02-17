@@ -123,8 +123,8 @@ class PipResolver(DependencyResolver):
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         return iter(self.resolve_dist(
-            JohnnyDist(f"{dependency.package}{dependency.semantic_version}", version=dependency.semantic_version)
-        ))
+            JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version)
+        )
 
 
 class PipClassifier(DependencyClassifier):
