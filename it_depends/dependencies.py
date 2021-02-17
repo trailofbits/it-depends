@@ -1,16 +1,28 @@
 from abc import ABC, abstractmethod
+import concurrent.futures
 from itertools import chain
 import json
-from typing import Dict, Iterable, Iterator, Optional, Union
+from typing import Dict, Iterable, Iterator, List, Optional, Set, Union
 
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
+from tqdm import tqdm
 
 
 class Dependency:
     def __init__(self, package: str, semantic_version: SemanticVersion = SimpleSpec("*")):
         self.package: str = package
         self.semantic_version: SemanticVersion = semantic_version
+
+    def __eq__(self, other):
+        return isinstance(other, Dependency) and self.package == other.package and \
+               self.semantic_version == other.semantic_version
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash((self.package, self.semantic_version))
 
 
 class Package:
@@ -59,6 +71,7 @@ class DependencyResolver:
         for package in packages:
             self.add(package)
         self._entries: int = 0
+        self.resolved_dependencies: Dict[Dependency, Set[Package]] = {}
 
     def to_obj(self):
         def package_to_dict(package):
@@ -101,7 +114,13 @@ class DependencyResolver:
     def __iter__(self) -> Iterator[Package]:
         return chain(*(p.values() for p in self.packages.values()))
 
+    def __contains__(self, package: Package):
+        return package.name in self.packages and package.version in self.packages[package.name]
+
     def add(self, package: Package):
+        if package in self:
+            if len(self.packages[package.name][package.version].dependencies) > len(package.dependencies):
+                raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
         self.packages.setdefault(package.name, {})[package.version] = package
 
     def extend(self, packages: Iterable[Package]):
@@ -109,16 +128,73 @@ class DependencyResolver:
             self.add(package)
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
+        """
+        Forces a resolution of a missing dependency
+
+        This implementation simply yields nothing. Extending classes can extend this function to perform a custom
+        resolution of the dependency. The dependency should not already have been resolved.
+        """
         return iter(())
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        yielded = False
+        """Yields all previously resolved packages that satisfy the given dependency"""
+        if dependency in self.resolved_dependencies:
+            yield from iter(self.resolved_dependencies[dependency])
+            return
+        matched = set()
         for version, package in self.packages.get(dependency.package, {}).items():
             if version in dependency.semantic_version:
+                matched.add(package)
                 yield package
-                yielded = True
-        if not yielded:
-            yield from self.resolve_missing(dependency)
+        if dependency not in self.resolved_dependencies:
+            # we never tried to resolve this dependency before, so do a manual resolution
+            for package in self.resolve_missing(dependency):
+                if package not in matched:
+                    matched.add(package)
+                    self.add(package)
+                    yield package
+            self.resolved_dependencies[dependency] = matched
+
+    def _resolve_unsatisfied(self, package: Package) -> List[Package]:
+        ret = []
+        for dep in package.dependencies.values():
+            if dep in self.resolved_dependencies:
+                continue
+            ret.extend(self.resolve(dep))
+        return ret
+
+    def resolve_unsatisfied(self):
+        """
+        Resolves any packages dependencies that have not yet been resolved.
+
+        This is expensive and may reproduce work. In general, it should only be called from subclasses with knowledge
+        of specifically when it needs to be called.
+        """
+        expanded_packages: Set[Package] = set(self)
+        with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=len(expanded_packages)) as t:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                futures = {
+                    executor.submit(self._resolve_unsatisfied, package) for package in expanded_packages
+                }
+                done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
+                for finished in done:
+                    t.update(1)
+                    for new_package in finished.result():
+                        if new_package not in expanded_packages:
+                            expanded_packages.add(new_package)
+                            t.total += 1
+                            futures.add(executor.submit(self._resolve_unsatisfied, new_package))
+                # while queue:
+                #     package = queue.pop()
+                #     t.update(1)
+                #     for dep in package.dependencies.values():
+                #         if dep in self.resolved_dependencies:
+                #             continue
+                #         for resolved in self.resolve(dep):
+                #             if resolved not in expanded_packages:
+                #                 expanded_packages.add(resolved)
+                #                 t.total += 1
+                #                 queue.append(resolved)
 
     def contains(self, package_name: str, version: Union[SemanticVersion, Version]):
         if package_name not in self.packages:

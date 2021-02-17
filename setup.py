@@ -12,7 +12,8 @@ setup(
     install_requires=[
         "johnnydep~=1.7",
         "pip~=21.0.1",
-        "semantic_version~=2.8.5"
+        "semantic_version~=2.8.5",
+        "tqdm>=4.48.0"
     ],
     entry_points={
         "console_scripts": [
