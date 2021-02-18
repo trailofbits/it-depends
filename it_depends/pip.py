@@ -144,7 +144,7 @@ class PipClassifier(DependencyClassifier):
 
     def docker_setup(self) -> Optional[DockerSetup]:
         return DockerSetup(
-            apt_get_packages=("python3","python3-pip","python3-dev","gcc"),
+            apt_get_packages=["python3", "python3-pip", "python3-dev", "gcc"],
             install_package_script="""#!/usr/bin/env bash
 pip3 install $1==$2
 """,
