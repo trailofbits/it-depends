@@ -148,7 +148,7 @@ class NativeResolver(DependencyResolver):
                                             required_version = SimpleSpec("*")
                                         package.dependencies[library.name] = Dependency(
                                             package=library.name,
-                                            version=required_version
+                                            semantic_version=required_version
                                         )
 
     def open(self):
