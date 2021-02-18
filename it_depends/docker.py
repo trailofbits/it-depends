@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from tempfile import mkdtemp
@@ -78,26 +79,37 @@ class Dockerfile:
             return None
 
 
+class InMemoryFile:
+    def __init__(self, filename: str, content: bytes):
+        self.filename: str = filename
+        self.content: bytes = content
+
+
 class InMemoryDockerfile(Dockerfile):
-    def __init__(self, content: str):
+    def __init__(self, content: str, local_files: Iterable[InMemoryFile] = ()):
         super().__init__(None)
         self.content: str = content
+        self.local_files: List[InMemoryFile] = list(local_files)
         self._entries: int = 0
         self._tmpdir: Optional[Path] = None
 
-    def __enter__(self):
+    def __enter__(self) -> "InMemoryDockerfile":
         self._entries += 1
         if self._entries == 1:
             self._tmpdir = Path(mkdtemp())
+            for file in self.local_files:
+                with open(self._tmpdir / file.filename, "wb") as f:
+                    f.write(file.content)
             self.path = self._tmpdir / "Dockerfile"
             with open(self.path, "w") as d:
                 d.write(self.content)
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._entries -= 1
         if self._entries == 0:
             self.path.unlink()
-            self._tmpdir.rmdir()
+            shutil.rmtree(self._tmpdir)
             self.path = ""
 
 
@@ -114,6 +126,7 @@ class DockerContainer:
     def run(
             self,
             *args: str,
+            check_existence: bool = True,
             rebuild: bool = True,
             build_if_necessary: bool = True,
             remove: bool = True,
@@ -127,7 +140,7 @@ class DockerContainer:
     ):
         if rebuild:
             self.rebuild()
-        elif not self.exists():
+        elif check_existence and not self.exists():
             if build_if_necessary:
                 if self.dockerfile.exists():
                     self.rebuild()
@@ -148,7 +161,7 @@ class DockerContainer:
         if interactive and (stdin is not None or stdout is not None or stderr is not None):
             raise ValueError("if `interactive == True`, all of `stdin`, `stdout`, and `stderr` must be `None`")
 
-        cmd_args = ["/usr/bin/env", "docker", "run"]
+        cmd_args = [str(Path("/usr") / "bin" / "env"), "docker", "run"]
 
         if interactive:
             cmd_args.append("-it")
@@ -156,9 +169,10 @@ class DockerContainer:
         if remove:
             cmd_args.append("--rm")
 
-        for source, target in mounts:
-            cmd_args.append("-v")
-            cmd_args.append(f"{source!s}:{target!s}:cached")
+        if mounts is not None:
+            for source, target in mounts:
+                cmd_args.append("-v")
+                cmd_args.append(f"{source!s}:{target!s}:cached")
 
         if env is not None:
             for k, v in env.items():

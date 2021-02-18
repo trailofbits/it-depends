@@ -70,5 +70,5 @@ class CargoClassifier(DependencyClassifier):
     def can_classify(self, path: str) -> bool:
         return (Path(path) / "Cargo.toml").exists()
 
-    def classify(self, path: str) -> DependencyResolver:
-        return DependencyResolver(get_dependencies(path, check_for_cargo=False))
+    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
+        return DependencyResolver(get_dependencies(path, check_for_cargo=False), source=self)

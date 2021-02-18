@@ -5,15 +5,19 @@ import sys
 from typing import Iterable, Iterator, Optional
 
 from johnnydep import JohnnyDist
+from johnnydep.logs import configure_logging
 
 from .dependencies import (
-    Dependency, DependencyClassifier, DependencyResolver, Package, SemanticVersion, SimpleSpec, Version
+    Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, SemanticVersion, SimpleSpec, Version
 )
 
 
+configure_logging(1)
+
+
 class PipResolver(DependencyResolver):
-    def __init__(self, package_spec_or_path: str):
-        super().__init__()
+    def __init__(self, package_spec_or_path: str, source: Optional[DependencyClassifier] = None):
+        super().__init__(source=source)
         if (Path(package_spec_or_path) / "setup.py").exists():
             self.path: Optional[str] = package_spec_or_path
             self.package_spec: Optional[str] = None
@@ -135,5 +139,17 @@ class PipClassifier(DependencyClassifier):
         p = Path(path)
         return (p / "setup.py").exists() or (p / "requirements.txt").exists()
 
-    def classify(self, path: str) -> DependencyResolver:
-        return PipResolver(path)
+    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
+        return PipResolver(path, source=self)
+
+    def docker_setup(self) -> Optional[DockerSetup]:
+        return DockerSetup(
+            apt_get_packages=("python3","python3-pip"),
+            install_package_script="""#!/usr/bin/env bash
+pip3 install $1==$2
+""",
+            load_package_script="""#!/usr/bin/env bash
+python3 -c "import $1"
+""",
+            baseline_script="#!/usr/bin/env python3 -c \"\"\n"
+        )

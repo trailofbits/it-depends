@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 import concurrent.futures
+from dataclasses import dataclass
 from itertools import chain
 import json
 from multiprocessing import cpu_count
-from typing import Dict, Iterable, Iterator, List, Optional, Set, Union
+from typing import Dict, Iterable, Iterator, List, Optional, OrderedDict as OrderedDictType, Set, Type, TypeVar, Union
 
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
@@ -67,8 +69,9 @@ class Package:
 
 
 class DependencyResolver:
-    def __init__(self, packages: Iterable[Package] = ()):
+    def __init__(self, packages: Iterable[Package] = (), source: Optional["DependencyClassifier"] = None):
         self.packages: Dict[str, Dict[Version, Package]] = {}
+        self.source: Optional[DependencyClassifier] = source
         for package in packages:
             self.add(package)
         self._entries: int = 0
@@ -122,6 +125,8 @@ class DependencyResolver:
         if package in self:
             if len(self.packages[package.name][package.version].dependencies) > len(package.dependencies):
                 raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
+        if package.source is None and self.source is not None:
+            package.source = self.source.name
         self.packages.setdefault(package.name, {})[package.version] = package
 
     def extend(self, packages: Iterable[Package]):
@@ -182,25 +187,15 @@ class DependencyResolver:
                 futures = {
                     executor.submit(self._resolve_unsatisfied, package) for package in expanded_packages
                 }
-                done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
-                for finished in done:
-                    t.update(1)
-                    for new_package in finished.result():
-                        if new_package not in expanded_packages:
-                            expanded_packages.add(new_package)
-                            t.total += 1
-                            futures.add(executor.submit(self._resolve_unsatisfied, new_package))
-                # while queue:
-                #     package = queue.pop()
-                #     t.update(1)
-                #     for dep in package.dependencies.values():
-                #         if dep in self.resolved_dependencies:
-                #             continue
-                #         for resolved in self.resolve(dep):
-                #             if resolved not in expanded_packages:
-                #                 expanded_packages.add(resolved)
-                #                 t.total += 1
-                #                 queue.append(resolved)
+                while futures:
+                    done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
+                    for finished in done:
+                        t.update(1)
+                        for new_package in finished.result():
+                            if new_package not in expanded_packages:
+                                expanded_packages.add(new_package)
+                                t.total += 1
+                                futures.add(executor.submit(self._resolve_unsatisfied, new_package))
 
     def contains(self, package_name: str, version: Union[SemanticVersion, Version]):
         if package_name not in self.packages:
@@ -214,7 +209,7 @@ class DependencyResolver:
             return False
 
 
-CLASSIFIERS_BY_NAME: Dict[str, "DependencyClassifier"] = {}
+CLASSIFIERS_BY_NAME: OrderedDictType[str, "DependencyClassifier"] = OrderedDict()
 
 
 class ClassifierAvailability:
@@ -228,6 +223,18 @@ class ClassifierAvailability:
         return self.is_available
 
 
+@dataclass
+class DockerSetup:
+    apt_get_packages: List[str]
+    install_package_script: str
+    load_package_script: str
+    baseline_script: str
+    post_install: str = ""
+
+
+C = TypeVar("C")
+
+
 class DependencyClassifier(ABC):
     name: str
     description: str
@@ -237,7 +244,31 @@ class DependencyClassifier(ABC):
             raise TypeError(f"{cls.__name__} must define a `name` class member")
         elif not hasattr(cls, "description") or cls.description is None:
             raise TypeError(f"{cls.__name__} must define a `description` class member")
-        CLASSIFIERS_BY_NAME[cls.name] = cls()
+        global CLASSIFIERS_BY_NAME
+        copy = CLASSIFIERS_BY_NAME.copy()
+        copy[cls.name] = cls()
+        CLASSIFIERS_BY_NAME.clear()
+        for c in sorted(copy.values()):
+            CLASSIFIERS_BY_NAME[c.name] = c
+
+    @classmethod
+    def default_instance(cls: Type[C]) -> C:
+        return CLASSIFIERS_BY_NAME[cls.name]
+
+    def docker_setup(self) -> Optional[DockerSetup]:
+        return None
+
+    def __lt__(self, other):
+        if not isinstance(other, DependencyClassifier):
+            return False
+        if other.__class__.__lt__ is self.__class__.__lt__:
+            return self.name < other.name
+        else:
+            # the other classifier has a custom implementation of __lt__ and we don't
+            return not (other < self)
+
+    def __eq__(self, other):
+        return isinstance(other, DependencyClassifier) and self.name == other.name
 
     def is_available(self) -> ClassifierAvailability:
         return ClassifierAvailability(True)
@@ -247,5 +278,16 @@ class DependencyClassifier(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def classify(self, path: str) -> DependencyResolver:
+    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
         raise NotImplementedError()
+
+
+def resolve(path: str) -> DependencyResolver:
+    package_list = DependencyResolver()
+    resolvers: List[DependencyResolver] = []
+    for classifier in CLASSIFIERS_BY_NAME.values():
+        if classifier.is_available() and classifier.can_classify(path):
+            with classifier.classify(path, resolvers) as resolver:
+                package_list.extend(resolver)
+                resolvers.append(resolver)
+    return package_list

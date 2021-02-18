@@ -2,11 +2,13 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Dict, Iterator
+from typing import Dict, Iterable, Iterator
 
-from semantic_version import NpmSpec, Version
+from semantic_version import NpmSpec, SimpleSpec, Version
 
-from .dependencies import ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package
+from .dependencies import (
+    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, SemanticVersion
+)
 
 
 class NPMResolver(DependencyResolver):
@@ -30,12 +32,29 @@ class NPMResolver(DependencyResolver):
         else:
             version = "0"
         version = Version.coerce(version)
-        resolver = NPMResolver([Package(package["name"], version, source="npm", dependencies=(
-            Dependency(package=dep_name, semantic_version=NpmSpec(dep_version))
-            for dep_name, dep_version in dependencies.items()
-        ))])
+        resolver = NPMResolver([
+            Package(package["name"], version, source="npm", dependencies=(
+                Dependency(package=dep_name, semantic_version=NPMResolver.parse_spec(dep_version))
+                for dep_name, dep_version in dependencies.items()
+            ))
+        ], source=NPMClassifier.default_instance())
         resolver.resolve_unsatisfied()
         return resolver
+
+    @staticmethod
+    def parse_spec(spec: str) -> SemanticVersion:
+        try:
+            return NpmSpec(spec)
+        except ValueError:
+            pass
+        try:
+            return SimpleSpec(spec)
+        except ValueError:
+            pass
+        # Sometimes NPM specs have whitespace, which trips up the parser
+        no_whitespace = "".join(c for c in spec if c != " ")
+        if no_whitespace != spec:
+            return NPMResolver.parse_spec(no_whitespace)
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the dependency without expanding those packages' dependencies"""
@@ -72,7 +91,7 @@ class NPMResolver(DependencyResolver):
             for pkg_version, dep_dict in zip(versions, deps):
                 version = Version.coerce(pkg_version[len(dependency.package)+1:])
                 yield Package(name=dependency.package, version=version, source="npm", dependencies=(
-                    Dependency(package=dep, semantic_version=NpmSpec(dep_version))
+                    Dependency(package=dep, semantic_version=NPMResolver.parse_spec(dep_version))
                     for dep, dep_version in dep_dict.items()
                 ))
         else:
@@ -101,7 +120,7 @@ class NPMResolver(DependencyResolver):
                     continue
                 if version in dependency.semantic_version:
                     yield Package(name=dependency.package, version=version, source="npm", dependencies=(
-                        Dependency(package=dep, semantic_version=NpmSpec(dep_version))
+                        Dependency(package=dep, semantic_version=NPMResolver.parse_spec(dep_version))
                         for dep, dep_version in deps.items()
                     ))
 
@@ -119,5 +138,17 @@ class NPMClassifier(DependencyClassifier):
     def can_classify(self, path: str) -> bool:
         return (Path(path) / "package.json").exists()
 
-    def classify(self, path: str) -> NPMResolver:
+    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> NPMResolver:
         return NPMResolver.from_package_json(path)
+
+    def docker_setup(self) -> DockerSetup:
+        return DockerSetup(
+            apt_get_packages=["npm"],
+            install_package_script="""#!/usr/bin/env bash
+npm install $1@$2
+""",
+            load_package_script="""#!/usr/bin/env bash
+node -e "require(\\"$1\\")"
+""",
+            baseline_script="#!/usr/bin/env node -e \"\"\n"
+        )

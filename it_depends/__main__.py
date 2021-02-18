@@ -2,7 +2,7 @@ import argparse
 import json
 import sys
 
-from .dependencies import CLASSIFIERS_BY_NAME, DependencyResolver
+from .dependencies import CLASSIFIERS_BY_NAME, DependencyResolver, resolve
 
 
 def main():
@@ -32,11 +32,7 @@ def main():
             sys.stdout.flush()
         exit(0)
 
-    package_list = DependencyResolver()
-    for classifier in CLASSIFIERS_BY_NAME.values():
-        if classifier.is_available() and classifier.can_classify(args.PATH):
-            with classifier.classify(args.PATH) as resolver:
-                package_list.extend(resolver)
+    package_list = resolve(args.PATH)
     print(json.dumps(package_list.to_obj(), indent=4))
 
 
