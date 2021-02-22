@@ -20,7 +20,7 @@ from .dependencies import (
 def make_dockerfile(docker_setup: DockerSetup) -> InMemoryDockerfile:
     install_script = InMemoryFile("install.sh", docker_setup.install_package_script.encode("utf-8"))
     run_script = InMemoryFile("run.sh", docker_setup.load_package_script.encode("utf-8"))
-    baseline_script = InMemoryFile("baseline.sh", docker_setup.load_package_script.encode("utf-8"))
+    baseline_script = InMemoryFile("baseline.sh", docker_setup.baseline_script.encode("utf-8"))
     return InMemoryDockerfile(f"""
 FROM ubuntu:20.04
 
