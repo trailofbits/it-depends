@@ -69,7 +69,7 @@ class NativeResolver(DependencyResolver):
             pre_command = f"{pre_command} > /dev/null 2>/dev/null && "
         else:
             pre_command = ""
-        command = f"{pre_command}strace -e open,openat {command} 3>&1 1>&2 2>&3"
+        command = f"{pre_command}strace -e open,openat -f {command} 3>&1 1>&2 2>&3"
         try:
             container.run("bash", "-c", command, rebuild=False, interactive=False, stdout=stdout, check_existence=False)
             stdout.close()
