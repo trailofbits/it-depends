@@ -39,6 +39,14 @@ class AutoSpec(SimpleSpec):
 
 
 class AutotoolsClassifier(DependencyClassifier):
+    """ This attempts to parse configure.ac in an autotool based repo.
+    It supports the following macros:
+        AC_INIT, AC_CHECK_HEADER, AC_CHECK_LIB, PKG_CHECK_MODULES
+
+    BUGS:
+        does not handle boost deps
+        assumes ubuntu host
+    """
     name = "autotools"
     description = "classifies the dependencies of native/autotools packages parsing configure.ac"
 
