@@ -1,3 +1,4 @@
+import os
 import argparse
 import json
 import sys
@@ -15,11 +16,10 @@ def main():
 
     if args.list:
         sys.stdout.flush()
-        sys.stderr.write("Available classifiers:\n")
-        sys.stderr.write("======================\n")
+        sys.stderr.write(f"Available classifiers for {os.path.abspath(args.PATH)}:\n")
         sys.stderr.flush()
         for name, classifier in sorted(CLASSIFIERS_BY_NAME.items()):
-            sys.stdout.write(name)
+            sys.stdout.write(name + ' '*(12-len(name)))
             sys.stdout.flush()
             available = classifier.is_available()
             if not available:
