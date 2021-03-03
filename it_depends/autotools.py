@@ -90,7 +90,6 @@ class AutotoolsClassifier(DependencyClassifier):
         if selected:
             logger.info(f"Found {len(db)} matching packages for {filename}. Choosing {selected[1]}")
 
-
     @staticmethod
     @functools.lru_cache(maxsize=128)
     def _file_to_package_apt_file(filename, arch="amd64"):
@@ -180,7 +179,7 @@ class AutotoolsClassifier(DependencyClassifier):
         if "$" not in token:
             return token
         vars = re.findall("\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
-        vars = set(var for var in itertools.chain(*vars) if var) #remove dups and empty
+        vars = set(var for var in itertools.chain(*vars) if var)  #remove dups and empty
         for var in vars:
             logger.info(f"Trying to find bindings for {var} in configure")
 
@@ -190,8 +189,8 @@ class AutotoolsClassifier(DependencyClassifier):
             # For example:
             #    for var in THIS THAT ;
             # TODO/CHALLENGE Merge this two \/
-            solutions = re.findall(f"{var}= *\"([^\"]*)\"", configure)
-            solutions += re.findall(f"{var}= *'([^']*)'", configure)
+            solutions = re.findall(f"{var}=\\s*\"([^\"]*)\"", configure)
+            solutions += re.findall(f"{var}=\\s*'([^']*)'", configure)
             if len(solutions) > 1:
                 logger.warning(f"Found several solutions for {var}: {solutions}")
             if len(solutions) == 0:
