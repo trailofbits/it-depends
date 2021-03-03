@@ -178,7 +178,7 @@ class AutotoolsClassifier(DependencyClassifier):
         """
         if "$" not in token:
             return token
-        vars = re.findall("\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
+        vars = re.findall(r"\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
         vars = set(var for var in itertools.chain(*vars) if var)  #remove dups and empty
         for var in vars:
             logger.info(f"Trying to find bindings for {var} in configure")
