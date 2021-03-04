@@ -152,6 +152,7 @@ class NativeResolver(DependencyResolver):
                                         )
 
     def open(self):
+        super().open()
         self.expand()
 
     def __len__(self):

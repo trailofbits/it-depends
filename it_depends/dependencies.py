@@ -68,14 +68,18 @@ class Package:
         return hash((self.name, self.version))
 
 
-class DependencyResolver:
-    def __init__(self, packages: Iterable[Package] = (), source: Optional["DependencyClassifier"] = None):
-        self.packages: Dict[str, Dict[Version, Package]] = {}
-        self.source: Optional[DependencyClassifier] = source
-        for package in packages:
-            self.add(package)
-        self._entries: int = 0
-        self.resolved_dependencies: Dict[Dependency, Set[Package]] = {}
+class PackageCache(Dict[str, Dict[Version, Package]]):
+    def open(self):
+        pass
+
+    def close(self):
+        pass
+
+    def __enter__(self):
+        self.open()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
 
     def to_obj(self):
         def package_to_dict(package):
@@ -92,14 +96,55 @@ class DependencyResolver:
             package_name: {
                 str(version): package_to_dict(package) for version, package in versions.items()
             }
-            for package_name, versions in self.packages.items()
+            for package_name, versions in self.items()
         }
 
+    def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
+        if package in self:
+            if len(self[package.name][package.version].dependencies) > len(package.dependencies):
+                raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
+        if package.source is None and source is not None:
+            package.source = source.name
+        self.setdefault(package.name, {})[package.version] = package
+
+    def extend(self, packages: Iterable[Package], source: Optional["DependencyClassifier"] = None):
+        for package in packages:
+            self.add(package, source=source)
+
+
+class DependencyResolver:
+    def __init__(
+            self,
+            packages: Iterable[Package] = (),
+            source: Optional["DependencyClassifier"] = None,
+            cache: Optional[PackageCache] = None
+    ):
+        if cache is None:
+            self._packages: PackageCache = PackageCache()
+        else:
+            self._packages = cache
+        self.source: Optional[DependencyClassifier] = source
+        for package in packages:
+            self.add(package)
+        self._entries: int = 0
+        self.resolved_dependencies: Dict[Dependency, Set[Package]] = {}
+
+    @property
+    def packages(self) -> PackageCache:
+        return self._packages
+
+    @packages.setter
+    def packages(self, new_cache: PackageCache):
+        if len(self._packages) > 0:
+            # migrate the old cache to the new
+            new_cache.extend(self, source=self.source)
+        self._packages = new_cache
+
     def open(self):
-        pass
+        self.packages.open()
 
     def close(self):
-        pass
+        self.packages.close()
 
     def __enter__(self) -> "DependencyResolver":
         self._entries += 1
@@ -122,16 +167,10 @@ class DependencyResolver:
         return package.name in self.packages and package.version in self.packages[package.name]
 
     def add(self, package: Package):
-        if package in self:
-            if len(self.packages[package.name][package.version].dependencies) > len(package.dependencies):
-                raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
-        if package.source is None and self.source is not None:
-            package.source = self.source.name
-        self.packages.setdefault(package.name, {})[package.version] = package
+        self.packages.add(package, source=self.source)
 
     def extend(self, packages: Iterable[Package]):
-        for package in packages:
-            self.add(package)
+        self.packages.extend(packages, source=self.source)
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         """
@@ -282,12 +321,17 @@ class DependencyClassifier(ABC):
         raise NotImplementedError()
 
 
-def resolve(path: str) -> DependencyResolver:
-    package_list = DependencyResolver()
+def resolve(path: str, cache: Optional[PackageCache] = None) -> PackageCache:
+    if cache is None:
+        cache = PackageCache()
     resolvers: List[DependencyResolver] = []
     for classifier in CLASSIFIERS_BY_NAME.values():
         if classifier.is_available() and classifier.can_classify(path):
             with classifier.classify(path, resolvers) as resolver:
-                package_list.extend(resolver)
+                resolver.packages = cache
                 resolvers.append(resolver)
-    return package_list
+                for _ in resolver:
+                    # some resolvers might be lazy and not actually resolve until they are iterated,
+                    # so force the resolution so everything can be saved to the cache
+                    pass
+    return cache
