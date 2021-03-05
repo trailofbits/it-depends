@@ -10,10 +10,10 @@ from typing import Iterable, Iterator, List, Optional
 from tqdm import tqdm
 
 from . import version as it_depends_version
-from .docker import Dockerfile, DockerContainer, InMemoryDockerfile, InMemoryFile
+from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 from .dependencies import (
     CLASSIFIERS_BY_NAME, ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup,
-    Package, SimpleSpec, Version
+    Package, PackageCache, SimpleSpec, Version
 )
 
 
@@ -52,8 +52,8 @@ class NativeLibrary:
 
 
 class NativeResolver(DependencyResolver):
-    def __init__(self, resolvers: Iterable[DependencyResolver] = ()):
-        super().__init__(source=NativeClassifier.default_instance())
+    def __init__(self, resolvers: Iterable[DependencyResolver] = (), cache: Optional[PackageCache] = None):
+        super().__init__(source=NativeClassifier.default_instance(), cache=cache)
         self.resolvers: List[DependencyResolver] = [
             r for r in resolvers if r.source is not None and r.source.docker_setup() is not None
         ]
@@ -185,5 +185,10 @@ class NativeClassifier(DependencyClassifier):
                 return True
         return False
 
-    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> NativeResolver:
-        return NativeResolver(resolvers)
+    def classify(
+            self,
+            path: str,
+            resolvers: Iterable[DependencyResolver] = (),
+            cache: Optional[PackageCache] = None
+    ) -> NativeResolver:
+        return NativeResolver(resolvers, cache=cache)

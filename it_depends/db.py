@@ -155,7 +155,7 @@ class DBPackageCache(PackageCache):
             db = Path(db)
         if isinstance(db, Path):
             db.parent.mkdir(parents=True, exist_ok=True)
-            db = f"sqlite:///{db.absolute()!s}"
+            db = f"sqlite:///{db.absolute()!s}?check_same_thread=False"
         self.db: str = db
         self._session = None
 

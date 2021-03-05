@@ -400,7 +400,12 @@ class DependencyClassifier(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
+    def classify(
+            self,
+            path: str,
+            resolvers: Iterable[DependencyResolver] = (),
+            cache: Optional[PackageCache] = None
+    ) -> DependencyResolver:
         raise NotImplementedError()
 
 
@@ -411,8 +416,7 @@ def resolve(path: str, cache: Optional[PackageCache] = None) -> PackageCache:
     with cache:
         for classifier in CLASSIFIERS_BY_NAME.values():
             if classifier.is_available() and classifier.can_classify(path):
-                with classifier.classify(path, resolvers) as resolver:
-                    resolver.packages = cache.from_source("")
+                with classifier.classify(path, resolvers, cache=cache.from_source(classifier.name)) as resolver:
                     resolvers.append(resolver)
                     for _ in resolver:
                         # some resolvers might be lazy and not actually resolve until they are iterated,

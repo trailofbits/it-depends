@@ -3,22 +3,21 @@ import urllib.request
 import gzip
 import re
 import itertools
-from io import StringIO
 import os
-from os import chdir, getcwd, path
+from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Iterable
+from typing import Iterable, Optional
 from semantic_version.base import Always, BaseSpec
 import logging
 
-logger = logging.getLogger(__name__)
-
-
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, SimpleSpec, Version
+    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, PackageCache, SimpleSpec,
+    Version
 )
+
+logger = logging.getLogger(__name__)
 
 
 @BaseSpec.register_syntax
@@ -263,5 +262,10 @@ class AutotoolsClassifier(DependencyClassifier):
             dependencies=deps
         )
 
-    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
-        return DependencyResolver(self._get_dependencies(path), source=self)
+    def classify(
+            self,
+            path: str,
+            resolvers: Iterable[DependencyResolver] = (),
+            cache: Optional[PackageCache] = None
+    ) -> DependencyResolver:
+        return DependencyResolver(self._get_dependencies(path), source=self, cache=cache)

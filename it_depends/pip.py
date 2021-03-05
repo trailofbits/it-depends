@@ -8,7 +8,8 @@ from johnnydep import JohnnyDist
 from johnnydep.logs import configure_logging
 
 from .dependencies import (
-    Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, SemanticVersion, SimpleSpec, Version
+    Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, PackageCache, SemanticVersion,
+    SimpleSpec, Version
 )
 
 
@@ -16,8 +17,13 @@ configure_logging(1)
 
 
 class PipResolver(DependencyResolver):
-    def __init__(self, package_spec_or_path: str, source: Optional[DependencyClassifier] = None):
-        super().__init__(source=source)
+    def __init__(
+            self,
+            package_spec_or_path: str,
+            source: Optional[DependencyClassifier] = None,
+            cache: Optional[PackageCache] = None
+    ):
+        super().__init__(source=source, cache=cache)
         if (Path(package_spec_or_path) / "setup.py").exists():
             self.path: Optional[str] = package_spec_or_path
             self.package_spec: Optional[str] = None
@@ -139,8 +145,13 @@ class PipClassifier(DependencyClassifier):
         p = Path(path)
         return (p / "setup.py").exists() or (p / "requirements.txt").exists()
 
-    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
-        return PipResolver(path, source=self)
+    def classify(
+            self,
+            path: str,
+            resolvers: Iterable[DependencyResolver] = (),
+            cache: Optional[PackageCache] = None
+    ) -> DependencyResolver:
+        return PipResolver(path, source=self, cache=cache)
 
     def docker_setup(self) -> Optional[DockerSetup]:
         return DockerSetup(

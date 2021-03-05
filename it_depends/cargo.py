@@ -3,12 +3,13 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Iterable
+from typing import Iterable, Optional
 
 from semantic_version.base import Always, BaseSpec
 
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, SimpleSpec, Version
+    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, PackageCache, SimpleSpec,
+    Version
 )
 
 
@@ -70,5 +71,10 @@ class CargoClassifier(DependencyClassifier):
     def can_classify(self, path: str) -> bool:
         return (Path(path) / "Cargo.toml").exists()
 
-    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
-        return DependencyResolver(get_dependencies(path, check_for_cargo=False), source=self)
+    def classify(
+            self,
+            path: str,
+            resolvers: Iterable[DependencyResolver] = (),
+            cache: Optional[PackageCache] = None
+    ) -> DependencyResolver:
+        return DependencyResolver(get_dependencies(path, check_for_cargo=False), source=self, cache=cache)

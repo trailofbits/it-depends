@@ -2,18 +2,19 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Dict, Iterable, Iterator
+from typing import Dict, Iterable, Iterator, Optional
 
 from semantic_version import NpmSpec, SimpleSpec, Version
 
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, SemanticVersion
+    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, PackageCache,
+    SemanticVersion
 )
 
 
 class NPMResolver(DependencyResolver):
     @staticmethod
-    def from_package_json(package_json_path: str) -> "NPMResolver":
+    def from_package_json(package_json_path: str, cache: Optional[PackageCache] = None) -> "NPMResolver":
         path: Path = Path(package_json_path)
         if path.is_dir():
             path = path / "package.json"
@@ -37,8 +38,9 @@ class NPMResolver(DependencyResolver):
                 Dependency(package=dep_name, semantic_version=NPMResolver.parse_spec(dep_version))
                 for dep_name, dep_version in dependencies.items()
             ))
-        ], source=NPMClassifier.default_instance())
-        resolver.resolve_unsatisfied()
+        ], source=NPMClassifier.default_instance(), cache=cache)
+        with resolver:
+            resolver.resolve_unsatisfied()
         return resolver
 
     @staticmethod
@@ -138,8 +140,13 @@ class NPMClassifier(DependencyClassifier):
     def can_classify(self, path: str) -> bool:
         return (Path(path) / "package.json").exists()
 
-    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> NPMResolver:
-        return NPMResolver.from_package_json(path)
+    def classify(
+            self,
+            path: str,
+            resolvers: Iterable[DependencyResolver] = (),
+            cache: Optional[PackageCache] = None
+    ) -> NPMResolver:
+        return NPMResolver.from_package_json(path, cache)
 
     def docker_setup(self) -> DockerSetup:
         return DockerSetup(
