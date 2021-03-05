@@ -30,6 +30,10 @@ class CargoSpec(SimpleSpec):
 
             return clause
 
+    def __str__(self):
+        # remove the whitespace to canonicalize the spec
+        return ",".join(b.strip() for b in self.expression.split(','))
+
 
 def get_dependencies(cargo_package_path: str, check_for_cargo: bool = True) -> Iterable[Package]:
     if check_for_cargo and shutil.which("cargo") is None:

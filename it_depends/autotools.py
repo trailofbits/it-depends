@@ -36,6 +36,10 @@ class AutoSpec(SimpleSpec):
 
             return clause
 
+    def __str__(self):
+        # remove the whitespace to canonicalize the spec
+        return ",".join(b.strip() for b in self.expression.split(','))
+
 
 class AutotoolsClassifier(DependencyClassifier):
     """ This attempts to parse configure.ac in an autotool based repo.
