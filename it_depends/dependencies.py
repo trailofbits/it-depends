@@ -70,6 +70,9 @@ class Package:
 
 
 class PackageCache(ABC):
+    def __init__(self):
+        self._entries: int = 0
+
     def open(self):
         pass
 
@@ -77,11 +80,15 @@ class PackageCache(ABC):
         pass
 
     def __enter__(self):
-        self.open()
+        if self._entries == 0:
+            self.open()
+        self._entries += 1
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        self._entries -= 1
+        if self._entries == 0:
+            self.close()
 
     @abstractmethod
     def __len__(self):
@@ -143,6 +150,7 @@ class PackageCache(ABC):
 
 class InMemoryPackageCache(PackageCache):
     def __init__(self, _cache: Optional[Dict[Optional[str], Dict[str, Dict[Version, Package]]]] = None):
+        super().__init__()
         if _cache is None:
             self._cache: Dict[Optional[str], Dict[str, Dict[Version, Package]]] = {}
         else:
@@ -218,13 +226,16 @@ class DependencyResolver:
         if len(self._packages) > 0:
             # migrate the old cache to the new
             new_cache.extend(self, source=self.source)
+        if self._entries > 0:
+            self._packages.__exit__(None, None, None)
+            new_cache.__enter__()
         self._packages = new_cache
 
     def open(self):
-        self.packages.open()
+        self.packages.__enter__()
 
     def close(self):
-        self.packages.close()
+        self.packages.__exit__(None, None, None)
 
     def __enter__(self) -> "DependencyResolver":
         self._entries += 1
@@ -397,13 +408,14 @@ def resolve(path: str, cache: Optional[PackageCache] = None) -> PackageCache:
     if cache is None:
         cache = InMemoryPackageCache()
     resolvers: List[DependencyResolver] = []
-    for classifier in CLASSIFIERS_BY_NAME.values():
-        if classifier.is_available() and classifier.can_classify(path):
-            with classifier.classify(path, resolvers) as resolver:
-                resolver.packages = cache
-                resolvers.append(resolver)
-                for _ in resolver:
-                    # some resolvers might be lazy and not actually resolve until they are iterated,
-                    # so force the resolution so everything can be saved to the cache
-                    pass
+    with cache:
+        for classifier in CLASSIFIERS_BY_NAME.values():
+            if classifier.is_available() and classifier.can_classify(path):
+                with classifier.classify(path, resolvers) as resolver:
+                    resolver.packages = cache.from_source("")
+                    resolvers.append(resolver)
+                    for _ in resolver:
+                        # some resolvers might be lazy and not actually resolve until they are iterated,
+                        # so force the resolution so everything can be saved to the cache
+                        pass
     return cache

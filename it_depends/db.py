@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Dict, Union, Iterable, Iterator, Optional, FrozenSet
 
 from semantic_version import SimpleSpec, Version
@@ -9,6 +10,8 @@ from sqlalchemy.orm import relationship, sessionmaker
 from .dependencies import (
     Dependency as DepDependency, DependencyClassifier, Package as DepPackage, SemanticVersion, PackageCache
 )
+
+DEFAULT_DB_PATH = Path.home() / ".config" / "it-depends" / "dependencies.sqlite"
 
 Base = declarative_base()
 
@@ -108,11 +111,51 @@ class Package(Base, DepPackage):
         return DependencyMapping(self)
 
 
-class DBPackageCache(PackageCache):
-    def __init__(self, db: str = ":memory:"):
+class SourceFilteredPackageCache(PackageCache):
+    def __init__(self, source: str, parent: "DBPackageCache"):
         super().__init__()
-        if isinstance(db, str) and not db.startswith("sqlite:///"):
-            db = f"sqlite:///{db}"
+        self.source: str = source
+        self.parent: DBPackageCache = parent
+
+    def __len__(self):
+        return self.parent.session.query(Package).filter(Package.source.like(self.source)).count()
+
+    def __iter__(self) -> Iterator[Package]:
+        yield from self.parent.session.query(Package).filter(Package.source.like(self.source)).all()
+
+    def from_source(self, source: Optional[str]) -> "PackageCache":
+        return SourceFilteredPackageCache(source, self.parent)
+
+    def package_versions(self, package_name: str) -> Iterator[Package]:
+        return self.parent.session.query(Package).filter(
+            Package.name.like(package_name), Package.source.like(self.source)
+        ).all()
+
+    def package_names(self) -> FrozenSet[str]:
+        return frozenset(self.parent.session.query(distinct(Package.name))
+                         .filter(Package.source.like(self.source)).all())
+
+    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
+        return self.parent.match(to_match, source=self.source)
+
+    def add(self, package: Package, source: Optional[DependencyClassifier] = None):
+        return self.parent.add(package, source)
+
+
+class DBPackageCache(PackageCache):
+    def __init__(self, db: Union[str, Path] = ":memory:"):
+        super().__init__()
+        if db == ":memory:":
+            db = "sqlite:///:memory:"
+        elif db == "sqlite:///:memory:":
+            pass
+        elif isinstance(db, str):
+            if db.startswith("sqlite:///"):
+                db = db[len("sqlite:///"):]
+            db = Path(db)
+        if isinstance(db, Path):
+            db.parent.mkdir(parents=True, exist_ok=True)
+            db = f"sqlite:///{db.absolute()!s}"
         self.db: str = db
         self._session = None
 
@@ -159,23 +202,27 @@ class DBPackageCache(PackageCache):
     def __iter__(self) -> Iterator[Package]:
         return self.session.query(Package).all()
 
-    def from_source(self, source: Optional[str]) -> "PackageCache":
-        raise NotImplementedError()
+    def from_source(self, source: Optional[str]) -> SourceFilteredPackageCache:
+        return SourceFilteredPackageCache(source, self)
 
     def package_versions(self, package_name: str) -> Iterator[Package]:
         return self.session.query(Package).filter(Package.name.like(package_name)).all()
 
     def package_names(self) -> FrozenSet[str]:
-        return frozenset(self.session.query(distinct(Package.name)).all())
+        return frozenset(result[0] for result in self.session.query(distinct(Package.name)).all())
 
-    def match(self, to_match: Union[str, DepPackage, DepDependency]) -> Iterator[Package]:
+    def match(self, to_match: Union[str, DepPackage, DepDependency], source: Optional[str] = None) -> Iterator[Package]:
+        if source is not None:
+            filters = (Package.source.like(source),)
+        else:
+            filters = ()
         if isinstance(to_match, DepPackage):
             yield from self.session.query(Package).filter(
-                Package.name.like(to_match.name), Package.version_str.like(str(to_match.version))
+                Package.name.like(to_match.name), Package.version_str.like(str(to_match.version)), *filters
             ).all()
         elif isinstance(to_match, DepDependency):
-            for package in self.match(to_match.package):
+            for package in self.match(to_match.package, source=source):
                 if package.version in to_match.semantic_version:
                     yield package
         else:
-            yield from self.session.query(Package).filter(Package.name.like(to_match)).all()
+            yield from self.session.query(Package).filter(Package.name.like(to_match), *filters).all()
