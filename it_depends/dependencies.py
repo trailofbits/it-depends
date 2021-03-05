@@ -2,10 +2,11 @@ from abc import ABC, abstractmethod
 from collections import OrderedDict
 import concurrent.futures
 from dataclasses import dataclass
-from itertools import chain
 import json
 from multiprocessing import cpu_count
-from typing import Dict, Iterable, Iterator, List, Optional, OrderedDict as OrderedDictType, Set, Type, TypeVar, Union
+from typing import (
+    Dict, FrozenSet, Iterable, Iterator, List, Optional, OrderedDict as OrderedDictType, Set, Type, TypeVar, Union
+)
 
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
@@ -68,7 +69,7 @@ class Package:
         return hash((self.name, self.version))
 
 
-class PackageCache(Dict[str, Dict[Version, Package]]):
+class PackageCache(ABC):
     def open(self):
         pass
 
@@ -77,9 +78,41 @@ class PackageCache(Dict[str, Dict[Version, Package]]):
 
     def __enter__(self):
         self.open()
+        return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    @abstractmethod
+    def __len__(self):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __iter__(self) -> Iterator[Package]:
+        raise NotImplementedError()
+
+    def __contains__(self, package_spec: Union[str, Package, Dependency]):
+        try:
+            _ = next(iter(self.match(package_spec)))
+            return True
+        except StopIteration:
+            return False
+
+    @abstractmethod
+    def from_source(self, source: Optional[str]) -> "PackageCache":
+        raise NotImplementedError()
+
+    @abstractmethod
+    def package_versions(self, package_name: str) -> Iterator[Package]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def package_names(self) -> FrozenSet[str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
+        raise NotImplementedError()
 
     def to_obj(self):
         def package_to_dict(package):
@@ -94,22 +127,69 @@ class PackageCache(Dict[str, Dict[Version, Package]]):
 
         return {
             package_name: {
-                str(version): package_to_dict(package) for version, package in versions.items()
+                str(package.version): package_to_dict(package) for package in self.package_versions(package_name)
             }
-            for package_name, versions in self.items()
+            for package_name in self.package_names()
         }
 
+    @abstractmethod
     def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
-        if package in self:
-            if len(self[package.name][package.version].dependencies) > len(package.dependencies):
-                raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
-        if package.source is None and source is not None:
-            package.source = source.name
-        self.setdefault(package.name, {})[package.version] = package
+        raise NotImplementedError()
 
     def extend(self, packages: Iterable[Package], source: Optional["DependencyClassifier"] = None):
         for package in packages:
             self.add(package, source=source)
+
+
+class InMemoryPackageCache(PackageCache):
+    def __init__(self, _cache: Optional[Dict[Optional[str], Dict[str, Dict[Version, Package]]]] = None):
+        if _cache is None:
+            self._cache: Dict[Optional[str], Dict[str, Dict[Version, Package]]] = {}
+        else:
+            self._cache = _cache
+
+    def __len__(self):
+        return sum(sum(map(len, source.values())) for source in self._cache.values())
+
+    def __iter__(self) -> Iterator[Package]:
+        return (p for d in self._cache.values() for v in d.values() for p in v.values())
+
+    def from_source(self, source: Optional[str]) -> "InMemoryPackageCache":
+        return InMemoryPackageCache({source: self._cache.setdefault(source, {})})
+
+    def package_names(self) -> FrozenSet[str]:
+        ret = set()
+        for source_values in self._cache.values():
+            ret |= source_values.keys()
+        return frozenset(ret)
+
+    def package_versions(self, package_name: str) -> Iterator[Package]:
+        for packages in self._cache.values():
+            if package_name in packages:
+                yield from packages[package_name].values()
+
+    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
+        if isinstance(to_match, Package):
+            # Ignore the package source
+            for source_dict in self._cache.values():
+                package = source_dict.get(to_match.name, {}).get(to_match.version, None)
+                if package is not None:
+                    yield package
+        elif isinstance(to_match, Dependency):
+            for source_dict in self._cache.values():
+                for version, package in source_dict.get(to_match.package, {}).items():
+                    if version in to_match.semantic_version:
+                        yield package
+        else:
+            return any(str(to_match) in source_dict for source_dict in self._cache.values())
+
+    def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
+        if package in self:
+            if max(len(p.dependencies) for p in self.match(package)) > len(package.dependencies):
+                raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
+        if package.source is None and source is not None:
+            package.source = source.name
+        self._cache.setdefault(package.source, {}).setdefault(package.name, {})[package.version] = package
 
 
 class DependencyResolver:
@@ -120,7 +200,7 @@ class DependencyResolver:
             cache: Optional[PackageCache] = None
     ):
         if cache is None:
-            self._packages: PackageCache = PackageCache()
+            self._packages: PackageCache = InMemoryPackageCache()
         else:
             self._packages = cache
         self.source: Optional[DependencyClassifier] = source
@@ -158,13 +238,13 @@ class DependencyResolver:
             self.close()
 
     def __len__(self):
-        return sum(map(len, self.packages.values()))
+        return len(self.packages.from_source(self.source.name))
 
     def __iter__(self) -> Iterator[Package]:
-        return chain(*(p.values() for p in self.packages.values()))
+        return iter(self.packages.from_source(self.source.name))
 
     def __contains__(self, package: Package):
-        return package.name in self.packages and package.version in self.packages[package.name]
+        return package in self.packages
 
     def add(self, package: Package):
         self.packages.add(package, source=self.source)
@@ -186,11 +266,8 @@ class DependencyResolver:
         if dependency in self.resolved_dependencies:
             yield from iter(self.resolved_dependencies[dependency])
             return
-        matched = set()
-        for version, package in self.packages.get(dependency.package, {}).items():
-            if version in dependency.semantic_version:
-                matched.add(package)
-                yield package
+        matched = set(self.packages.match(dependency))
+        yield from matched
         if dependency not in self.resolved_dependencies:
             # we never tried to resolve this dependency before, so do a manual resolution
             for package in self.resolve_missing(dependency):
@@ -237,15 +314,10 @@ class DependencyResolver:
                                 futures.add(executor.submit(self._resolve_unsatisfied, new_package))
 
     def contains(self, package_name: str, version: Union[SemanticVersion, Version]):
-        if package_name not in self.packages:
-            return False
-        elif isinstance(version, Version):
-            return version in self.packages[package_name]
+        if isinstance(version, Version):
+            return Package(package_name, version) in self.packages
         else:
-            for actual_version in self.packages[package_name].keys():
-                if actual_version in version:
-                    return True
-            return False
+            return Dependency(package_name, version) in self.packages
 
 
 CLASSIFIERS_BY_NAME: OrderedDictType[str, "DependencyClassifier"] = OrderedDict()
@@ -323,7 +395,7 @@ class DependencyClassifier(ABC):
 
 def resolve(path: str, cache: Optional[PackageCache] = None) -> PackageCache:
     if cache is None:
-        cache = PackageCache()
+        cache = InMemoryPackageCache()
     resolvers: List[DependencyResolver] = []
     for classifier in CLASSIFIERS_BY_NAME.values():
         if classifier.is_available() and classifier.can_classify(path):
