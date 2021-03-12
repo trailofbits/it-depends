@@ -43,8 +43,10 @@ all_packages = None
 def get_apt_packages():
     global all_packages
     if all_packages is None:
+        logger.info("Rebuilding global apt package list.")
         all_packages = subprocess.check_output(["apt", "list"]).decode("utf8")
-        all_packages = map(lambda x: x.split("/")[0], all_packages.splitlines())
+        all_packages = tuple(map(lambda x: x.split("/")[0], all_packages.splitlines()))
+        logger.info(f"Global apt package count {len(all_packages)}")
     return all_packages
 
 

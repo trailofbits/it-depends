@@ -48,39 +48,44 @@ class CMakeClassifier(DependencyClassifier):
     @functools.lru_cache(maxsize=128)
     def _find_package(*args):
         print ("FIND_PACKAGE", args)
-        apt_packages = get_apt_packages()
-        for apt_package in apt_packages:
-            if re.match("(lib)*{args[0]}(\-*([0-9]*)(\.*))*(\-dev)*", apt_package):
-                print ("MATCH!!", apt_package)
-
         name = re.escape(args[0])
-        name = f"({name}\.pc|{name}Config\.cmake|{name.lower()}Config\.cmake)"
+        try:
+            name = f"({name}\.pc|{name}Config\.cmake|{name.lower()}Config\.cmake)"
+            return file_to_package(name)
+        except:
+            for apt_package in get_apt_packages():
+                if args[0].lower() not in apt_package:
+                    continue
+                if re.match(f"(lib)*{re.escape(args[0]).lower()}(\-*([0-9]*)(\.*))*(\-dev)*", apt_package):
+                    return apt_package
+        raise Exception("RR")
 
-        return file_to_package(name)
 
     def _pkg_check_modules(self, *args):
-        """https://cmake.org/cmake/help/latest/module/FindPkgConfig.html
         """
-        print ("PKG_CHECK_MODULES", args)
-        if args[1].upper() == "IMPORTED_TARGET":
-            for a  in args[2:]:
-                file_to_package(re.escape(a))
-        else:
-            print ("UNSYPORTEEED!!!")
+        pkg_check_modules(<PREFIX> [REQUIRED] [QUIET] <MODULE> [<MODULE>]*)
+          checks for all the given modules
+        pkg_search_module(<PREFIX> [REQUIRED] [QUIET] <MODULE> [<MODULE>]*)
+          checks for given modules and uses the first working one
+
+        https://cmake.org/cmake/help/latest/module/FindPkgConfig.html
+        """
+        args = args[1:]
+        while args[0].upper() in ("REQUIRED", "QUITE"):
+            args = args[1:]
+        return file_to_package(re.escape("(" + "|".join(map(re.escape, args))+")" ))
 
     def _get_names(self, args, keywords):
-        if args[0] == "NAMES":
-            new_args = []
-            for name in args[1:]:
-                if name in keywords:
+        """ Get the sequence of argumens after NAMES until any of the keywords"""
+
+        index = args.index("NAMES")
+        names = []
+        if index != -1:
+            for name in args[index+1:]:
+                if any(map(name.startswith, keywords)):
                     break
-                new_args.append(name)
-            args = new_args
-        if len(args) == 1:
-            # Example:
-            #'PNG_LIBRARY_DEBUG', 'NAMES', 'png17d;libpng17d;libpng17_staticd;png16d;libpng16d;libpng16_staticd;png15d;libpng15d;libpng15_staticd;png14d;libpng14d;libpng14_staticd;png12d;libpng12d;libpng12_staticd'
-            args = args[0].split(";")
-        return args
+                names.extend(name.split(";"))
+        return names
 
     def _find_library(self, *args):
         """find_library (
@@ -242,6 +247,8 @@ class CMakeClassifier(DependencyClassifier):
                                 #detect project version...
                                 if package_name is not None and body[0].lower() == f"{package_name}_version":
                                     package_version = body[1]
+                            elif token.name.lower() == "pkg_check_modules":
+                                deps.append(self._pkg_check_modules(body))
                             else:
                                 pass
                                 print(token)
@@ -259,16 +266,15 @@ Recommends: poppler-data
 
                             """
                     except Exception as e:
-                        print("XXX", line, e)
+                        pass
         except Exception as e:
-            print ("AAAAAAAAAAAAAAAAAAAA",line, e)
+            pass
 
 
-        print ("Version.coerce(package_version)", package_version)
         yield Package(
             name=package_name,
             version=Version.coerce(package_version),
-            source="autotools",
+            source="cmake",
             dependencies=map(lambda name : Dependency(package=name, semantic_version=SimpleSpec("*")), deps)
         )
 
