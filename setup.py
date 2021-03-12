@@ -13,7 +13,8 @@ setup(
         "docker>=4.4.0",
         "johnnydep~=1.7",
         "semantic_version~=2.8.5",
-        "tqdm>=4.48.0"
+        "tqdm>=4.48.0",
+        "parse_cmake",
     ],
     entry_points={
         "console_scripts": [
