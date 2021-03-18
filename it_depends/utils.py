@@ -7,6 +7,7 @@ import gzip
 
 logger = logging.getLogger(__name__)
 
+''' Evan disapproves this
 popdb = {}
 @functools.lru_cache(maxsize=128)
 def _popularity(packagename):
@@ -38,6 +39,7 @@ def _popularity(packagename):
                 line.split(" ")
     print ("AAAAAAAAAAAAHH!")
     return 0
+'''
 
 all_packages = None
 def get_apt_packages():
@@ -45,10 +47,26 @@ def get_apt_packages():
     if all_packages is None:
         logger.info("Rebuilding global apt package list.")
         all_packages = subprocess.check_output(["apt", "list"]).decode("utf8")
-        all_packages = tuple(map(lambda x: x.split("/")[0], all_packages.splitlines()))
+        all_packages = tuple(x.split("/")[0] for x in all_packages.splitlines() if x)
+
         logger.info(f"Global apt package count {len(all_packages)}")
     return all_packages
 
+def search_package(package):
+    found_packages = list()
+    for apt_package in get_apt_packages():
+        if package.lower() not in apt_package:
+            continue
+        if re.match(
+                f"^(lib)*{re.escape(package.lower())}(\-*([0-9]*)(\.*))*(\-dev)*$",
+                apt_package):
+            found_packages.append(apt_package)
+    found_packages.sort(key=len, reverse=True)
+    if not found_packages:
+        raise ValueError(f"Package {package} not found in apt package list.")
+    logger.info(
+        f"Found {len(found_packages)} matching packages, Choosing {found_packages[0]}")
+    return found_packages[0]
 
 contents_db = {}
 @functools.lru_cache(maxsize=128)
@@ -85,7 +103,6 @@ def _file_to_package_contents(filename, arch="amd64"):
             for package_i in packages_i:
                 if selected is None or len(selected[0]) > len(filename_i):
                     selected = filename_i, package_i
-    import pdb; pdb.set_trace()
     if selected:
         logger.info(
             f"Found {matches} matching packages for {filename}. Choosing {selected[1]}")
@@ -122,4 +139,4 @@ def _file_to_package_apt_file(filename, arch="amd64"):
 def file_to_package(filename, arch="amd64"):
     filename = f"/{filename}$"
     return _file_to_package_apt_file(filename, arch=arch)
-    return _file_to_package_contents(filename, arch=arch)
+    #return _file_to_package_contents(filename, arch=arch)
