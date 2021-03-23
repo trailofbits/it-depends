@@ -76,7 +76,6 @@ def _file_to_package_contents(filename, arch="amd64"):
     # http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-amd64.gz
     # http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-i386.gz
     """
-    print ( f"_file_to_package_contents({filename}, {arch})")
     if arch not in ("amd64", "i386"):
         raise ValueError("Only amd64 and i386 supported")
     selected = None
@@ -140,3 +139,28 @@ def file_to_package(filename, arch="amd64"):
     filename = f"/{filename}$"
     return _file_to_package_apt_file(filename, arch=arch)
     #return _file_to_package_contents(filename, arch=arch)
+
+def cached_file_to_package(pattern, file_to_package_cache = None):
+    # file_to_package_cache contains all the files that are provided be previous
+    # dependencies. If a file pattern is already sastified by current files
+    # use the package already included as a dependency
+    if file_to_package_cache is not None:
+        regex = re.compile("(.*/)+" + pattern + "$")
+        for package_i, filename_i in file_to_package_cache:
+            if regex.match(filename_i):
+                return package_i
+
+    package = file_to_package(pattern)
+
+    # a new package is chosen add all the files it provides to our cache
+    # uses `apt-file` command line tool
+    if file_to_package_cache is not None:
+        contents = subprocess.run(["apt-file", "list", package],
+                                  stdout=subprocess.PIPE).stdout.decode("utf8")
+        for line in contents.split("\n"):
+            if ":" not in line:
+                break
+            package_i, filename_i = line.split(": ")
+            file_to_package_cache.append((package_i, filename_i))
+
+    return package

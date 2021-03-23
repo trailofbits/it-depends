@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from typing import Iterable
-from .utils import file_to_package, search_package
+from .utils import cached_file_to_package as file_to_package, search_package
 import logging
 try:
     #Used to parse the cmake trace. If this is not installed the plugin will
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, SimpleSpec, Version
 )
+
 
 
 class CMakeClassifier(DependencyClassifier):
@@ -69,7 +70,7 @@ class CMakeClassifier(DependencyClassifier):
     def can_classify(self, path: str) -> bool:
         return (Path(path) / "CMakeLists.txt").exists()
 
-    def _find_package(self, package, *args):
+    def _find_package(self, package, *args, file_to_package_cache=None):
         """find_package(<package> [version] [EXACT] [QUIET] [MODULE]
              [REQUIRED] [[COMPONENTS] [components...]]
              [OPTIONAL_COMPONENTS components...]
@@ -82,11 +83,19 @@ class CMakeClassifier(DependencyClassifier):
         name = re.escape(package)
         try:
             name = f"({name}\.pc|{name}Config\.cmake|{name.lower()}Config\.cmake)"
-            yield file_to_package(name), version
+            yield file_to_package(name, file_to_package_cache=file_to_package_cache), version
         except:
-            yield search_package(package), version
+            found_package = search_package(package)
 
-    def _pkg_check_modules(self, prefix, *args):
+            contents = subprocess.run(["apt-file", "list", package],
+                                      stdout=subprocess.PIPE).stdout.decode("utf8")
+            for line in contents.split("\n"):
+                package_i, filename_i = line.split(": ")
+                file_to_package_cache.append((package_i, filename_i))
+
+            yield found_package, version
+
+    def _pkg_check_modules(self, prefix, *args, file_to_package_cache=None):
         """
         pkg_check_modules(<prefix>
                   [REQUIRED] [QUIET]
@@ -109,7 +118,7 @@ class CMakeClassifier(DependencyClassifier):
             module_specs.append((module_name, version_range))
 
         for module_name, version_range in module_specs:
-            yield file_to_package(f"{re.escape(module_name)}\.pc"), version_range
+            yield file_to_package(f"{re.escape(module_name)}\.pc", file_to_package_cache=file_to_package_cache), version_range
 
     def _get_names(self, args, keywords):
         """ Get the sequence of argumens after NAMES and until any of the keywords"""
@@ -125,7 +134,7 @@ class CMakeClassifier(DependencyClassifier):
                 names.extend(name.split(";"))
         return names
 
-    def _find_library(self, *args):
+    def _find_library(self, *args, file_to_package_cache=None):
         """find_library (
           <VAR>
           name | NAMES name1 [name2 ...] [NAMES_PER_DIR]
@@ -159,33 +168,33 @@ class CMakeClassifier(DependencyClassifier):
             if not name.startswith("lib"):
                 name = f"lib{name}"
             names.add(name)
-        yield file_to_package(f"({ '|'.join(map(re.escape, names))})(\.so[0-9\.]*|\.a)"), None
+        yield file_to_package(f"({ '|'.join(map(re.escape, names))})(\.so[0-9\.]*|\.a)", file_to_package_cache=file_to_package_cache), None
 
-    def _check_include_files(self, includes, variable, *args):
+    def _check_include_files(self, includes, variable, *args, file_to_package_cache=None):
         """CHECK_INCLUDE_FILES("<includes>" <variable> [LANGUAGE <language>])
         https://cmake.org/cmake/help/latest/module/CheckIncludeFiles.html
         """
         pattern = "include/(.*/)*(" + "|".join(map(re.escape, args[0].split(";"))) + ")"
-        yield file_to_package(pattern), None
+        yield file_to_package(pattern, file_to_package_cache=file_to_package_cache), None
 
 
-    def _check_include_file(self, include_file, *args):
+    def _check_include_file(self, include_file, *args, file_to_package_cache=None):
         """
         CHECK_INCLUDE_FILE(<include> <variable> [<flags>])
         https://cmake.org/cmake/help/latest/module/CheckIncludeFile.html#module:CheckIncludeFile
         """
         pattern = f"include/(.*/)*{re.escape(include_file)}"
-        yield file_to_package(pattern), None
+        yield file_to_package(pattern, file_to_package_cache=file_to_package_cache), None
 
-    def _check_include_file_cxx(self, include_file, *args):
+    def _check_include_file_cxx(self, include_file, *args, file_to_package_cache=None):
         """
         CHECK_INCLUDE_FILE_CXX(INCLUDE VARIABLE)
         https://cmake.org/cmake/help/v3.0/module/CheckIncludeFileCXX.html
         """
-        yield from self._check_include_file(include_file, *args)
+        yield from self._check_include_file(include_file, *args, file_to_package_cache=file_to_package_cache)
 
 
-    def _find_path(self, var, *args):
+    def _find_path(self, var, *args, file_to_package_cache=None):
         """ find_path (<VAR> name1 [path1 path2 ...])
         find_path (
           <VAR>
@@ -219,7 +228,7 @@ class CMakeClassifier(DependencyClassifier):
             if name in keywords:
                 break
             try:
-                yield file_to_package(f"{re.escape(name)}"), None
+                yield file_to_package(f"{re.escape(name)}", file_to_package_cache=file_to_package_cache), None
                 break
             except Exception as e:
                 logger.debug(e)
@@ -263,6 +272,7 @@ class CMakeClassifier(DependencyClassifier):
         package_name = None
         package_version = None
 
+        file_to_package_cache = []
         deps = []
         bindings = {}
         try:
@@ -285,35 +295,36 @@ class CMakeClassifier(DependencyClassifier):
                             continue
                         if isinstance(token, cmake_parsing._Command):
                             command = token.name.lower()
-                            if command not in ('set', 'find_library', 'find_path', 'check_include_file','check_include_file_cxx','check_include_files', 'find_package', 'pkg_check_modules', 'check_symbol_exists',  'project', 'check_for_dir', 'check_function_exists', '_pkg_find_libs'):
+                            if command not in ('project', 'set', 'find_library', 'find_path', 'check_include_file','check_include_file_cxx', 'check_include_files', 'find_package', 'pkg_check_modules', '_pkg_find_libs'):
                                 #It's a trace of cmake.
                                 continue
-                            body = tuple(map(lambda x: x.contents, token.body))
+                            body = sum(map(lambda x: x.contents.split(";"), token.body), [])
+
                             new_packages = ()
-                            if command not in ("set",):
+                            if command not in ("set", "project"):
                                 logger.info(f"Processing CMAKE command {command} {body}")
 
                             #Dispatch over token name ...
-                            if command == "find_package":
-                                new_packages = self._find_package(*body)
-                            elif command == "find_path":
-                                new_packages = self._find_path(*body)
-                            elif command == "find_library":
-                                new_packages = self._find_library(*body)
-                            elif command == "project":
+                            if command == "project":
                                 package_name = body[0]
                             elif command == "set":
                                 #detect project version...
-                                value = (body + (None,))[1]
+                                value = (body + [None,])[1]
                                 if package_name is not None and body[0].lower() == f"{package_name}_version":
                                     package_version = value
                                 bindings[body[0].upper()] = value
+                            elif command == "find_package":
+                                new_packages = self._find_package(*body, file_to_package_cache=file_to_package_cache)
+                            elif command == "find_path":
+                                new_packages = self._find_path(*body, file_to_package_cache=file_to_package_cache)
+                            elif command == "find_library":
+                                new_packages = self._find_library(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "pkg_check_modules":
-                                new_packages = self._pkg_check_modules(*body)
+                                new_packages = self._pkg_check_modules(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "check_include_file":
-                                new_packages = self._check_include_file(*body)
+                                new_packages = self._check_include_file(*body, file_to_package_cache=file_to_package_cache)
                             elif command in ("check_include_files", "check_include_file_cxx"):
-                                new_packages = self._check_include_files(*body)
+                                new_packages = self._check_include_files(*body, file_to_package_cache=file_to_package_cache)
                             else:
                                 logger.info(f"Not handled {token.name} {body}")
                             new_packages = tuple(new_packages)
@@ -337,7 +348,7 @@ class CMakeClassifier(DependencyClassifier):
             else:
                 if version != None and version != depsd[name]:
                     # conflict
-                    logger.info(f"Found a conflic in versions for {name} ({version} vs. {depsd[name]}). Setting '*'")
+                    logger.info(f"Found a conflict in versions for {name} ({version} vs. {depsd[name]}). Setting '*'")
                     depsd[name] = "*"
 
         yield Package(
