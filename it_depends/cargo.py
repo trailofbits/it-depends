@@ -55,7 +55,7 @@ def get_dependencies(cargo_package_path: str, check_for_cargo: bool = True) -> I
             dependencies=[
                 Dependency(
                     package=dep["name"],
-                    semantic_version=CargoSpec(dep["req"])
+                    semantic_version=CargoClassifier.parse_spec(dep["req"])
                 )
                 for dep in package["dependencies"]
             ]
@@ -71,6 +71,10 @@ class CargoClassifier(DependencyClassifier):
             return ClassifierAvailability(False, "`cargo` does not appear to be installed! "
                                                  "Make sure it is installed and in the PATH.")
         return ClassifierAvailability(True)
+
+    @classmethod
+    def parse_spec(cls, spec: str) -> CargoSpec:
+        return CargoSpec(spec)
 
     def can_classify(self, path: str) -> bool:
         return (Path(path) / "Cargo.toml").exists()

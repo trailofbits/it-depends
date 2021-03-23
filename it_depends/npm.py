@@ -35,28 +35,13 @@ class NPMResolver(DependencyResolver):
         version = Version.coerce(version)
         resolver = NPMResolver([
             Package(package["name"], version, source="npm", dependencies=(
-                Dependency(package=dep_name, semantic_version=NPMResolver.parse_spec(dep_version))
+                Dependency(package=dep_name, semantic_version=NPMClassifier.parse_spec(dep_version))
                 for dep_name, dep_version in dependencies.items()
             ))
         ], source=NPMClassifier.default_instance(), cache=cache)
         with resolver:
             resolver.resolve_unsatisfied()
         return resolver
-
-    @staticmethod
-    def parse_spec(spec: str) -> SemanticVersion:
-        try:
-            return NpmSpec(spec)
-        except ValueError:
-            pass
-        try:
-            return SimpleSpec(spec)
-        except ValueError:
-            pass
-        # Sometimes NPM specs have whitespace, which trips up the parser
-        no_whitespace = "".join(c for c in spec if c != " ")
-        if no_whitespace != spec:
-            return NPMResolver.parse_spec(no_whitespace)
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the dependency without expanding those packages' dependencies"""
@@ -93,7 +78,7 @@ class NPMResolver(DependencyResolver):
             for pkg_version, dep_dict in zip(versions, deps):
                 version = Version.coerce(pkg_version[len(dependency.package)+1:])
                 yield Package(name=dependency.package, version=version, source="npm", dependencies=(
-                    Dependency(package=dep, semantic_version=NPMResolver.parse_spec(dep_version))
+                    Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version))
                     for dep, dep_version in dep_dict.items()
                 ))
         else:
@@ -122,7 +107,7 @@ class NPMResolver(DependencyResolver):
                     continue
                 if version in dependency.semantic_version:
                     yield Package(name=dependency.package, version=version, source="npm", dependencies=(
-                        Dependency(package=dep, semantic_version=NPMResolver.parse_spec(dep_version))
+                        Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version))
                         for dep, dep_version in deps.items()
                     ))
 
@@ -136,6 +121,21 @@ class NPMClassifier(DependencyClassifier):
             return ClassifierAvailability(False, "`npm` does not appear to be installed! "
                                                  "Make sure it is installed and in the PATH.")
         return ClassifierAvailability(True)
+
+    @classmethod
+    def parse_spec(cls, spec: str) -> SemanticVersion:
+        try:
+            return NpmSpec(spec)
+        except ValueError:
+            pass
+        try:
+            return SimpleSpec(spec)
+        except ValueError:
+            pass
+        # Sometimes NPM specs have whitespace, which trips up the parser
+        no_whitespace = "".join(c for c in spec if c != " ")
+        if no_whitespace != spec:
+            return NPMClassifier.parse_spec(no_whitespace)
 
     def can_classify(self, path: str) -> bool:
         return (Path(path) / "package.json").exists()

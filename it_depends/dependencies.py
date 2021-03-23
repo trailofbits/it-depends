@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections import OrderedDict
+from collections import defaultdict, OrderedDict
 import concurrent.futures
 from dataclasses import dataclass
 import json
@@ -99,11 +99,14 @@ class PackageCache(ABC):
         raise NotImplementedError()
 
     def __contains__(self, package_spec: Union[str, Package, Dependency]):
-        try:
-            _ = next(iter(self.match(package_spec)))
-            return True
-        except StopIteration:
-            return False
+        return self.was_resolved(package_spec)
+
+    @abstractmethod
+    def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
+        raise NotImplementedError()
+
+    def set_resolved(self, dependency: Dependency, source: Optional[str]):
+        raise NotImplementedError()
 
     @abstractmethod
     def from_source(self, source: Optional[str]) -> "PackageCache":
@@ -155,12 +158,21 @@ class InMemoryPackageCache(PackageCache):
             self._cache: Dict[Optional[str], Dict[str, Dict[Version, Package]]] = {}
         else:
             self._cache = _cache
+        self._resolved: Dict[Optional[str], Set[Dependency]] = defaultdict(set)
 
     def __len__(self):
         return sum(sum(map(len, source.values())) for source in self._cache.values())
 
     def __iter__(self) -> Iterator[Package]:
         return (p for d in self._cache.values() for v in d.values() for p in v.values())
+
+    def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
+        if source is None:
+            return any(dependency in resolved for resolved in self._resolved.values())
+        return dependency in self._resolved[source]
+
+    def set_resolved(self, dependency: Dependency, source: Optional[str]):
+        self._resolved[source].add(dependency)
 
     def from_source(self, source: Optional[str]) -> "InMemoryPackageCache":
         return InMemoryPackageCache({source: self._cache.setdefault(source, {})})
@@ -207,35 +219,22 @@ class DependencyResolver:
             source: Optional["DependencyClassifier"] = None,
             cache: Optional[PackageCache] = None
     ):
+        self.packages: PackageCache = InMemoryPackageCache()
         if cache is None:
-            self._packages: PackageCache = InMemoryPackageCache()
+            self._cache: PackageCache = self.packages
         else:
-            self._packages = cache
+            self._cache = cache
         self.source: Optional[DependencyClassifier] = source
         for package in packages:
             self.add(package)
         self._entries: int = 0
         self.resolved_dependencies: Dict[Dependency, Set[Package]] = {}
 
-    @property
-    def packages(self) -> PackageCache:
-        return self._packages
-
-    @packages.setter
-    def packages(self, new_cache: PackageCache):
-        if len(self._packages) > 0:
-            # migrate the old cache to the new
-            new_cache.extend(self, source=self.source)
-        if self._entries > 0:
-            self._packages.__exit__(None, None, None)
-            new_cache.__enter__()
-        self._packages = new_cache
-
     def open(self):
-        self.packages.__enter__()
+        self._cache.__enter__()
 
     def close(self):
-        self.packages.__exit__(None, None, None)
+        self._cache.__exit__(None, None, None)
 
     def __enter__(self) -> "DependencyResolver":
         self._entries += 1
@@ -258,14 +257,20 @@ class DependencyResolver:
         return package in self.packages
 
     def add(self, package: Package):
-        self.packages.add(package, source=self.source)
+        self._cache.add(package, source=self.source)
+        if self._cache is not self.packages:
+            self.packages.add(package, source=self.source)
 
     def extend(self, packages: Iterable[Package]):
-        self.packages.extend(packages, source=self.source)
+        self._cache.extend(packages, source=self.source)
+        if self._cache is not self.packages:
+            self.packages.extend(packages, source=self.source)
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         """
         Forces a resolution of a missing dependency
+
+        This is called automatically from `resolve(...)`, if necessary.
 
         This implementation simply yields nothing. Extending classes can extend this function to perform a custom
         resolution of the dependency. The dependency should not already have been resolved.
@@ -273,28 +278,27 @@ class DependencyResolver:
         return iter(())
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        """Yields all previously resolved packages that satisfy the given dependency"""
-        if dependency in self.resolved_dependencies:
-            yield from iter(self.resolved_dependencies[dependency])
+        """Yields all packages that satisfy the given dependency, resolving the dependency if necessary"""
+        if self._cache.was_resolved(dependency, source=self.source.name):
+            if self._cache != self.packages:
+                matches = list(self._cache.match(dependency))
+                self.packages.extend(matches)
+                yield from matches
+            else:
+                yield from self._cache.match(dependency)
             return
         matched = set(self.packages.match(dependency))
         yield from matched
-        if dependency not in self.resolved_dependencies:
-            # we never tried to resolve this dependency before, so do a manual resolution
-            for package in self.resolve_missing(dependency):
-                if package not in matched:
-                    matched.add(package)
-                    self.add(package)
-                    yield package
-            self.resolved_dependencies[dependency] = matched
-
-    def _resolve_unsatisfied(self, package: Package) -> List[Package]:
-        ret = []
-        for dep in package.dependencies.values():
-            if dep in self.resolved_dependencies:
-                continue
-            ret.extend(self.resolve(dep))
-        return ret
+        # we never tried to resolve this dependency before, so do a manual resolution
+        for package in self.resolve_missing(dependency):
+            if package not in matched:
+                matched.add(package)
+                self.add(package)
+                yield package
+        self.resolved_dependencies[dependency] = matched
+        self._cache.set_resolved(dependency, source=self.source.name)
+        if self._cache is not self.packages:
+            self.packages.set_resolved(dependency, source=self.source.name)
 
     def resolve_unsatisfied(self, max_workers: Optional[int] = None):
         """
@@ -308,21 +312,24 @@ class DependencyResolver:
                 max_workers = cpu_count()
             except NotImplementedError:
                 max_workers = 5
-        expanded_packages: Set[Package] = set(self)
-        with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=len(expanded_packages)) as t:
+        expanded_deps: Set[Dependency] = set()
+        for package in self:
+            expanded_deps |= set(package.dependencies.values())
+        with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=len(expanded_deps)) as t:
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
-                    executor.submit(self._resolve_unsatisfied, package) for package in expanded_packages
+                    executor.submit(self.resolve, dep) for dep in expanded_deps
                 }
                 while futures:
                     done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
                     for finished in done:
                         t.update(1)
                         for new_package in finished.result():
-                            if new_package not in expanded_packages:
-                                expanded_packages.add(new_package)
-                                t.total += 1
-                                futures.add(executor.submit(self._resolve_unsatisfied, new_package))
+                            new_deps = set(new_package.dependencies.values()) - expanded_deps
+                            expanded_deps |= new_deps
+                            t.total += len(new_deps)
+                            for dep in new_deps:
+                                futures.add(executor.submit(self.resolve, dep))
 
     def contains(self, package_name: str, version: Union[SemanticVersion, Version]):
         if isinstance(version, Version):
@@ -377,6 +384,10 @@ class DependencyClassifier(ABC):
     def default_instance(cls: Type[C]) -> C:
         return CLASSIFIERS_BY_NAME[cls.name]
 
+    @classmethod
+    def parse_spec(cls, spec: str) -> SemanticVersion:
+        return SimpleSpec.parse(spec)
+
     def docker_setup(self) -> Optional[DockerSetup]:
         return None
 
@@ -410,16 +421,14 @@ class DependencyClassifier(ABC):
 
 
 def resolve(path: str, cache: Optional[PackageCache] = None) -> PackageCache:
+    result = InMemoryPackageCache()
     if cache is None:
-        cache = InMemoryPackageCache()
+        cache = result
     resolvers: List[DependencyResolver] = []
     with cache:
         for classifier in CLASSIFIERS_BY_NAME.values():
             if classifier.is_available() and classifier.can_classify(path):
-                with classifier.classify(path, resolvers, cache=cache.from_source(classifier.name)) as resolver:
+                with classifier.classify(path, resolvers, cache=cache) as resolver:
                     resolvers.append(resolver)
-                    for _ in resolver:
-                        # some resolvers might be lazy and not actually resolve until they are iterated,
-                        # so force the resolution so everything can be saved to the cache
-                        pass
-    return cache
+                    result.extend(resolver)
+    return result
