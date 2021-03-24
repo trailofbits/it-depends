@@ -1,4 +1,5 @@
 import json
+from logging import getLogger
 from pathlib import Path
 import shutil
 import subprocess
@@ -10,6 +11,8 @@ from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, PackageCache,
     SemanticVersion
 )
+
+log = getLogger(__file__)
 
 
 class NPMResolver(DependencyResolver):
@@ -46,9 +49,13 @@ class NPMResolver(DependencyResolver):
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the dependency without expanding those packages' dependencies"""
         try:
-            output = subprocess.check_output(["npm", "view", "--json", f"{dependency.package}@{dependency.semantic_version!s}", "dependencies"])
+            output = subprocess.check_output(["npm", "view", "--json",
+                                              f"{dependency.package}@{dependency.semantic_version!s}", "dependencies"])
         except subprocess.CalledProcessError as e:
-            raise ValueError(f"Error running `npm view --json {dependency.package}@{dependency.semantic_version!s} dependencies`: {e!s}")
+            # This probably means that the package no longer exists in npm
+            log.warning(f"Error running `npm view --json {dependency.package}@{dependency.semantic_version!s} "
+                        f"dependencies`: {e!s}")
+            return
         if len(output.strip()) == 0:
             # this means the package has no dependencies
             deps = {}
