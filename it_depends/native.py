@@ -156,6 +156,8 @@ class NativeResolver(DependencyResolver):
                                             package=library.name,
                                             semantic_version=required_version
                                         )
+                                        # re-add the package so we can cache the new dependency
+                                        self.add(package)
                             self.set_resolved_in_cache(package)
 
     def open(self):

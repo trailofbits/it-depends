@@ -222,6 +222,9 @@ class DBPackageCache(PackageCache):
             for existing in self.match(package):
                 if len(existing.dependencies) > len(package.dependencies):
                     raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
+                elif existing.dependencies != package.dependencies:
+                    existing.dependencies = package.dependencies
+                    self.session.commit()
                 found_existing = True
                 break
             else:
