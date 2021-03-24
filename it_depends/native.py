@@ -98,7 +98,7 @@ class NativeResolver(DependencyResolver):
 
     @staticmethod
     def _expand(package: Package, container: DockerContainer):
-        return {(package, library) for library in NativeResolver.get_package_libraries(container, package)}
+        return package, NativeResolver.get_package_libraries(container, package)
 
     def expand(self, max_workers: Optional[int] = None):
         if self._expanded:
@@ -122,14 +122,20 @@ class NativeResolver(DependencyResolver):
                     t.update(1)
             with tqdm(desc=resolver.source.name, leave=False, unit=" deps", total=len(resolver)) as t:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = {
-                        executor.submit(self._expand, package, container) for package in resolver
-                    }
+                    futures = set()
+                    for package in resolver:
+                        cached = self.resolve_from_cache(package.to_dependency())
+                        if cached is None:
+                            futures.add(executor.submit(self._expand, package, container))
+                        else:
+                            t.update(1)
+                            self.extend(cached)
                     while futures:
                         done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
                         for finished in done:
                             t.update(1)
-                            for package, library in finished.result():
+                            package, libraries = finished.result()
+                            for library in libraries:
                                 if library not in baseline:
                                     if library.version is not None and library.version:
                                         try:
@@ -150,6 +156,7 @@ class NativeResolver(DependencyResolver):
                                             package=library.name,
                                             semantic_version=required_version
                                         )
+                            self.set_resolved_in_cache(package)
 
     def open(self):
         super().open()

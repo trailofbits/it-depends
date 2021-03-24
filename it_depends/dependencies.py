@@ -46,6 +46,9 @@ class Package:
         }
         self.source: Optional[str] = source
 
+    def to_dependency(self) -> Dependency:
+        return Dependency(package=self.name, semantic_version=SemanticVersion.parse(str(self.version)))
+
     def to_obj(self) -> Dict[str, Union[str, Dict[str, str]]]:
         ret = {
             "name": self.name,
@@ -320,6 +323,12 @@ class DependencyResolver:
             return self._cache.match(dependency)
         else:
             return None
+
+    def set_resolved_in_cache(self, dependency_or_package: Union[Dependency, Package]):
+        if isinstance(dependency_or_package, Package):
+            self._cache.set_resolved(dependency_or_package.to_dependency(), self.source.name)
+        else:
+            self._cache.set_resolved(dependency_or_package, self.source.name)
 
     def resolve(
             self, dependency: Dependency, record_results: bool = True, check_cache: bool = True, only_new: bool = False
