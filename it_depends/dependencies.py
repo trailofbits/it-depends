@@ -5,7 +5,8 @@ from dataclasses import dataclass
 import json
 from multiprocessing import cpu_count
 from typing import (
-    Dict, FrozenSet, Iterable, Iterator, List, Optional, OrderedDict as OrderedDictType, Set, Type, TypeVar, Union
+    Collection, Dict, FrozenSet, Iterable, Iterator, List, Optional, OrderedDict as OrderedDictType, Set, Tuple, Type,
+    TypeVar, Union
 )
 
 from semantic_version import SimpleSpec, Version
@@ -198,7 +199,7 @@ class InMemoryPackageCache(PackageCache):
         elif isinstance(to_match, Dependency):
             for source_dict in self._cache.values():
                 for version, package in source_dict.get(to_match.package, {}).items():
-                    if version in to_match.semantic_version:
+                    if to_match.semantic_version is not None and version in to_match.semantic_version:
                         yield package
         else:
             return any(str(to_match) in source_dict for source_dict in self._cache.values())
@@ -210,6 +211,37 @@ class InMemoryPackageCache(PackageCache):
         if package.source is None and source is not None:
             package.source = source.name
         self._cache.setdefault(package.source, {}).setdefault(package.name, {})[package.version] = package
+
+
+class _ResolutionCache:
+    def __init__(self, resolver: "DependencyResolver"):
+        self.resolver: DependencyResolver = resolver
+        self.expanded_deps: Set[Dependency] = set()
+        self.existing_packages = set(resolver)
+
+    def extend(self, new_packages: Iterable[Package], t: tqdm) -> Set[Dependency]:
+        new_packages = set(new_packages)
+        new_deps: Set[Dependency] = set()
+        while new_packages:
+            pkg_list = new_packages
+            new_packages = set()
+            for package in pkg_list:
+                for dep in package.dependencies.values():
+                    if dep in self.expanded_deps:
+                        continue
+                    already_resolved = self.resolver.resolve_from_cache(dep)
+                    if already_resolved is None:
+                        new_deps.add(dep)
+                        t.total += 1
+                    else:
+                        cached = set(already_resolved) - self.existing_packages
+                        self.resolver.extend(cached)
+                        t.total += len(cached)
+                        t.update(len(cached))
+                        new_packages |= cached
+                        self.existing_packages |= cached
+                    self.expanded_deps.add(dep)
+        return new_deps
 
 
 class DependencyResolver:
@@ -228,7 +260,6 @@ class DependencyResolver:
         for package in packages:
             self.add(package)
         self._entries: int = 0
-        self.resolved_dependencies: Dict[Dependency, Set[Package]] = {}
 
     def open(self):
         self._cache.__enter__()
@@ -274,31 +305,56 @@ class DependencyResolver:
 
         This implementation simply yields nothing. Extending classes can extend this function to perform a custom
         resolution of the dependency. The dependency should not already have been resolved.
+
+        Calling this function alone will not add the resulting packages to this resolver.
         """
         return iter(())
 
-    def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        """Yields all packages that satisfy the given dependency, resolving the dependency if necessary"""
+    def resolve_from_cache(self, dependency: Dependency) -> Optional[Iterator[Package]]:
+        """Returns an iterator over all of the packages that satisfy the given dependency, or `None` if the dependency
+        has not yet been resolved.
+
+        """
         if self._cache.was_resolved(dependency, source=self.source.name):
+            return self._cache.match(dependency)
+        else:
+            return None
+
+    def resolve(
+            self, dependency: Dependency, record_results: bool = True, check_cache: bool = True, only_new: bool = False
+    ) -> Iterator[Package]:
+        """Yields all packages that satisfy the given dependency, resolving the dependency if necessary
+
+        If the dependency is resolved, it is added to the cache
+        """
+        if record_results and not check_cache:
+            raise ValueError("`check_cache` may only be False if `record_results` is also False")
+        elif check_cache and self._cache.was_resolved(dependency, source=self.source.name):
             if self._cache != self.packages:
                 matches = list(self._cache.match(dependency))
-                self.packages.extend(matches)
+                if record_results:
+                    self.packages.extend(matches)
                 yield from matches
             else:
                 yield from self._cache.match(dependency)
             return
         matched = set(self.packages.match(dependency))
-        yield from matched
+        if not only_new:
+            yield from matched
         # we never tried to resolve this dependency before, so do a manual resolution
         for package in self.resolve_missing(dependency):
             if package not in matched:
                 matched.add(package)
-                self.add(package)
+                if record_results:
+                    self.add(package)
                 yield package
-        self.resolved_dependencies[dependency] = matched
-        self._cache.set_resolved(dependency, source=self.source.name)
-        if self._cache is not self.packages:
-            self.packages.set_resolved(dependency, source=self.source.name)
+        if record_results:
+            self._cache.set_resolved(dependency, source=self.source.name)
+            if self._cache is not self.packages:
+                self.packages.set_resolved(dependency, source=self.source.name)
+
+    def _resolve_worker(self, dependency: Dependency) -> Tuple[Dependency, List[Package]]:
+        return dependency, list(self.resolve(dependency, record_results=False, check_cache=False, only_new=True))
 
     def resolve_unsatisfied(self, max_workers: Optional[int] = None):
         """
@@ -312,24 +368,23 @@ class DependencyResolver:
                 max_workers = cpu_count()
             except NotImplementedError:
                 max_workers = 5
-        expanded_deps: Set[Dependency] = set()
-        for package in self:
-            expanded_deps |= set(package.dependencies.values())
-        with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=len(expanded_deps)) as t:
+        with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=0) as t:
+            resolution_cache = _ResolutionCache(self)
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
-                    executor.submit(self.resolve, dep) for dep in expanded_deps
+                    executor.submit(self._resolve_worker, dep) for dep in resolution_cache.extend(self, t)
                 }
                 while futures:
                     done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
                     for finished in done:
                         t.update(1)
-                        for new_package in finished.result():
-                            new_deps = set(new_package.dependencies.values()) - expanded_deps
-                            expanded_deps |= new_deps
-                            t.total += len(new_deps)
-                            for dep in new_deps:
-                                futures.add(executor.submit(self.resolve, dep))
+                        dep, new_packages = finished.result()
+                        self._cache.set_resolved(dep, source=self.source.name)
+                        self.extend(new_packages)
+                        futures |= {
+                            executor.submit(self._resolve_worker, new_dep)
+                            for new_dep in resolution_cache.extend(new_packages, t)
+                        }
 
     def contains(self, package_name: str, version: Union[SemanticVersion, Version]):
         if isinstance(version, Version):

@@ -240,14 +240,15 @@ class DBPackageCache(PackageCache):
         return self.session.query(DBPackage).count()
 
     def __iter__(self) -> Iterator[Package]:
-        yield from [p.to_package() for p in self.session.query(DBPackage).all()]
+        yield from self.session.query(DBPackage).all()
 
     def from_source(self, source: Optional[str]) -> SourceFilteredPackageCache:
         return SourceFilteredPackageCache(source, self)
 
     def package_versions(self, package_name: str) -> Iterator[Package]:
-        yield from [p.to_package()
-                    for p in self.session.query(DBPackage).filter(DBPackage.name.like(package_name)).all()]
+        yield from [
+            p.to_package() for p in self.session.query(DBPackage).filter(DBPackage.name.like(package_name)).all()
+        ]
 
     def package_names(self) -> FrozenSet[str]:
         return frozenset(result[0] for result in self.session.query(distinct(DBPackage.name)).all())
@@ -269,11 +270,11 @@ class DBPackageCache(PackageCache):
     ) -> Iterator[Package]:
         if isinstance(to_match, Dependency):
             for package in self.match(to_match.package, source=source):
-                if package.version in to_match.semantic_version:
+                if to_match.semantic_version is not None and package.version in to_match.semantic_version:
                     yield package
         else:
             # we intentionally build a list before yielding so that we don't keep the session query lingering
-            yield from [p.to_package() for p in self._make_query(to_match, source=source).all()]
+            yield from [package.to_package() for package in self._make_query(to_match, source=source).all()]
 
     def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
         if source is not None:
