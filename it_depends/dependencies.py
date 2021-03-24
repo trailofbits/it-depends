@@ -5,9 +5,10 @@ from dataclasses import dataclass
 import json
 from multiprocessing import cpu_count
 from typing import (
-    Collection, Dict, FrozenSet, Iterable, Iterator, List, Optional, OrderedDict as OrderedDictType, Set, Tuple, Type,
-    TypeVar, Union
+    Dict, FrozenSet, Iterable, Iterator, List, Optional, OrderedDict as OrderedDictType, Set, Tuple, Type, TypeVar,
+    Union
 )
+import sys
 
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
@@ -480,10 +481,26 @@ def resolve(path: str, cache: Optional[PackageCache] = None) -> PackageCache:
     if cache is None:
         cache = result
     resolvers: List[DependencyResolver] = []
-    with cache:
-        for classifier in CLASSIFIERS_BY_NAME.values():
-            if classifier.is_available() and classifier.can_classify(path):
-                with classifier.classify(path, resolvers, cache=cache) as resolver:
-                    resolvers.append(resolver)
-                    result.extend(resolver)
+    try:
+        with cache:
+            for classifier in CLASSIFIERS_BY_NAME.values():
+                if classifier.is_available() and classifier.can_classify(path):
+                    with classifier.classify(path, resolvers, cache=cache) as resolver:
+                        try:
+                            resolvers.append(resolver)
+                            result.extend(resolver)
+                        except KeyboardInterrupt:
+                            if sys.stderr.isatty() and sys.stdin.isatty():
+                                result.extend(resolver)
+                            raise
+    except KeyboardInterrupt:
+        if sys.stderr.isatty() and sys.stdin.isatty():
+            while True:
+                sys.stderr.write("Would you like to output the partial results? [Yn] ")
+                choice = input().lower()
+                if choice == "" or choice == "y":
+                    return result
+                elif choice == "n":
+                    sys.exit(1)
+        raise
     return result

@@ -16,6 +16,22 @@ log = getLogger(__file__)
 
 
 class NPMResolver(DependencyResolver):
+    _finalized: bool = False
+
+    def finalize(self):
+        if not self._finalized:
+            self._finalized = True
+            with self:
+                self.resolve_unsatisfied()
+
+    def __len__(self):
+        self.finalize()
+        return super().__len__()
+
+    def __iter__(self):
+        self.finalize()
+        return super().__iter__()
+
     @staticmethod
     def from_package_json(package_json_path: str, cache: Optional[PackageCache] = None) -> "NPMResolver":
         path: Path = Path(package_json_path)
@@ -42,8 +58,6 @@ class NPMResolver(DependencyResolver):
                 for dep_name, dep_version in dependencies.items()
             ))
         ], source=NPMClassifier.default_instance(), cache=cache)
-        with resolver:
-            resolver.resolve_unsatisfied()
         return resolver
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
