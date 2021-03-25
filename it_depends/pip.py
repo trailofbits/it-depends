@@ -1,3 +1,4 @@
+from logging import getLogger
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import subprocess
@@ -14,6 +15,7 @@ from .dependencies import (
 
 
 configure_logging(1)
+log = getLogger(__file__)
 
 
 class PipResolver(DependencyResolver):
@@ -91,10 +93,14 @@ class PipResolver(DependencyResolver):
         return packages
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
-        return iter(self.resolve_dist(
-            JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version,
-            recurse=False
-        ))
+        try:
+            return iter(self.resolve_dist(
+                JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version,
+                recurse=False
+            ))
+        except ValueError as e:
+            log.warning(str(e))
+            return iter(())
 
 
 class PipSourcePackage(SourcePackage):
