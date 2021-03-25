@@ -8,7 +8,7 @@ setup(
     author="Trail of Bits",
     version="0.0.1",
     packages=find_packages(exclude=["test"]),
-    python_requires=">=3.6",
+    python_requires=">=3.7",
     install_requires=[
         "docker>=4.4.0",
         "johnnydep~=1.7",
