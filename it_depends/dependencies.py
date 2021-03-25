@@ -105,7 +105,13 @@ class PackageCache(ABC):
         raise NotImplementedError()
 
     def __contains__(self, package_spec: Union[str, Package, Dependency]):
-        return self.was_resolved(package_spec)
+        if isinstance(package_spec, Dependency):
+            return self.was_resolved(package_spec)
+        try:
+            next(iter(self.match(package_spec)))
+            return True
+        except StopIteration:
+            return False
 
     @abstractmethod
     def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:

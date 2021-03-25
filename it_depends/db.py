@@ -48,10 +48,13 @@ class DBDependency(Base, Dependency):
 
     @hybrid_property
     def semantic_version(self) -> SemanticVersion:
-        try:
-            classifier = CLASSIFIERS_BY_NAME[self.from_package.source.name]
-        except KeyError:
+        if self.from_package.source is None:
             classifier = DependencyClassifier
+        else:
+            try:
+                classifier = CLASSIFIERS_BY_NAME[self.from_package.source.name]
+            except KeyError:
+                classifier = DependencyClassifier
         return classifier.parse_spec(self.semantic_version_string)
 
     @semantic_version.setter
