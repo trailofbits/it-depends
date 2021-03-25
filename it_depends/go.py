@@ -1,4 +1,6 @@
 from datetime import datetime
+from logging import getLogger
+import os
 from pathlib import Path
 import re
 from subprocess import check_call, check_output, DEVNULL, CalledProcessError
@@ -15,12 +17,16 @@ from semantic_version import Version
 from semantic_version.base import BaseSpec, Range, SimpleSpec
 
 
-GITHUB_URL_MATCH = re.compile(r"\s*https?://(www\.)?github.com/([^/]+)/(.+)\s*", re.IGNORECASE)
+log = getLogger(__file__)
+
+GITHUB_URL_MATCH = re.compile(r"\s*https?://(www\.)?github.com/([^/]+)/(.+?)(\.git)?\s*", re.IGNORECASE)
 REQUIRE_LINE_REGEX = r"\s*([^\s]+)\s+([^\s]+)\s*(//\s*indirect\s*)?"
 REQUIRE_LINE_MATCH = re.compile(REQUIRE_LINE_REGEX)
 REQUIRE_MATCH = re.compile(fr"\s*require\s+{REQUIRE_LINE_REGEX}")
 REQUIRE_BLOCK_MATCH = re.compile(r"\s*require\s+\(\s*")
 MODULE_MATCH = re.compile(r"\s*module\s+([^\s]+)\s*")
+
+GOPATH: Optional[str] = os.environ.get("GOPATH", None)
 
 
 def git_commit(path: Optional[str] = None) -> Optional[str]:
@@ -112,20 +118,23 @@ class GoModule:
         m = GITHUB_URL_MATCH.match(git_url)
         if m:
             return GoModule.from_github(m.group(2), m.group(3), tag)
+        if not git_url.endswith(".git"):
+            git_url = f"{git_url}.git"
+        log.info(f"Attempting to clone {git_url}")
         with TemporaryDirectory() as tempdir:
-            check_call(["git", "clone", git_url], cwd=tempdir)
-            for content in Path(tempdir).iterdir():
-                if content.is_dir():
-                    git_dir = content
-                    break
-            else:
-                raise ValueError(f"Error cloning {git_url}")
-            check_call(["git", "checkout", GoModule.tag_to_git_hash(tag)], cwd=git_dir)
-            with open(git_dir / "go.mod", "r") as f:
+            check_call(["git", "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
+            check_call(["git", "remote", "add", "origin", git_url], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
+            git_hash = GoModule.tag_to_git_hash(tag)
+            check_call(["git", "fetch", "--depth", "1", "origin", git_hash], cwd=tempdir, stderr=DEVNULL,
+                       stdout=DEVNULL)
+            with open(Path(tempdir) / "go.mod", "r") as f:
                 return GoModule.parse_mod(f.read())
 
     @staticmethod
     def from_name(module_name: str, tag: str):
+        if GOPATH is not None:
+            # see if we have the source in our
+            pass
         return GoModule.from_git(f"https://{module_name}", tag)
 
     @staticmethod
@@ -156,7 +165,7 @@ class GoResolver(DependencyResolver):
 
 
 class GoClassifier(DependencyClassifier):
-    name = "npm"
+    name = "go"
     description = "classifies the dependencies of JavaScript packages using `npm`"
 
     @classmethod
@@ -171,7 +180,7 @@ class GoClassifier(DependencyClassifier):
         return (repo.path / "go.mod").exists()
 
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        resolver = GoResolver(source=self, cache=cache)
+        resolver = GoResolver(cache=cache)
         repo.resolvers.append(resolver)
         with open(repo.path / "go.mod") as f:
             module = GoModule.parse_mod(f.read())
