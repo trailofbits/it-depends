@@ -1,28 +1,26 @@
-import functools
 import re
 import tempfile
 import os
-from os import chdir, getcwd, path
+from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Iterable
+from typing import Optional
 from .utils import cached_file_to_package as file_to_package, search_package
 import logging
 try:
-    #Used to parse the cmake trace. If this is not installed the plugin will
-    #report itself as unavailable later
+    # Used to parse the cmake trace. If this is not installed the plugin will
+    # report itself as unavailable later
     import parse_cmake.parsing as cmake_parsing
 except:
     pass
 
-logger = logging.getLogger(__name__)
-
-
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, SimpleSpec, Version
+    ClassifierAvailability, Dependency, DependencyClassifier, PackageCache, SimpleSpec, SourcePackage, SourceRepository,
+    Version
 )
 
+logger = logging.getLogger(__name__)
 
 
 class CMakeClassifier(DependencyClassifier):
@@ -67,8 +65,8 @@ class CMakeClassifier(DependencyClassifier):
 
         return ClassifierAvailability(True)
 
-    def can_classify(self, path: str) -> bool:
-        return (Path(path) / "CMakeLists.txt").exists()
+    def can_classify(self, repo: SourceRepository) -> bool:
+        return (repo.path / "CMakeLists.txt").exists()
 
     def _find_package(self, package, *args, file_to_package_cache=None):
         """
@@ -201,7 +199,6 @@ class CMakeClassifier(DependencyClassifier):
         pattern = "include/(.*/)*(" + "|".join(map(re.escape, args[0].split(";"))) + ")"
         yield file_to_package(pattern, file_to_package_cache=file_to_package_cache), None
 
-
     def _check_include_file(self, include_file, *args, file_to_package_cache=None):
         """
         CHECK_INCLUDE_FILE(<include> <variable> [<flags>])
@@ -216,7 +213,6 @@ class CMakeClassifier(DependencyClassifier):
         https://cmake.org/cmake/help/v3.0/module/CheckIncludeFileCXX.html
         """
         yield from self._check_include_file(include_file, *args, file_to_package_cache=file_to_package_cache)
-
 
     def _find_path(self, var, *args, file_to_package_cache=None):
         """ find_path (<VAR> name1 [path1 path2 ...])
@@ -257,7 +253,7 @@ class CMakeClassifier(DependencyClassifier):
             except Exception as e:
                 logger.debug(e)
 
-    def _get_dependencies(self, path):
+    def _get_dependencies(self, path: Path):
         #assert self.is_available()
         #assert self.can_classify(path)
         apath = os.path.abspath(path)
@@ -300,7 +296,7 @@ class CMakeClassifier(DependencyClassifier):
         deps = []
         bindings = {}
         try:
-            for line in (re.split("/.*\([0-9]+\):  ", trace)):
+            for line in (re.split(r"/.*\([0-9]+\):\s+", trace)):
                 if not line:
                     continue
 
@@ -355,34 +351,36 @@ class CMakeClassifier(DependencyClassifier):
                             deps.extend(new_packages)
                             if command not in ("set", "project"):
                                 logger.info(f"    GOT: {new_packages}")
-
-
                     except Exception as e:
                         logger.debug(e)
         except Exception as e:
             logger.debug(e)
             raise
 
-        #remove "-dev" and dupplicates
+        # remove "-dev" and dupplicates
         depsd = {}
         for name, version in deps:
             name = name.replace("-dev", "")
-            if name not in depsd or depsd[name] == None:
+            if name not in depsd or depsd[name] is None:
                 depsd[name] = version
             else:
-                if version != None and version != depsd[name]:
+                if version is not None and version != depsd[name]:
                     # conflict
                     logger.info(f"Found a conflict in versions for {name} ({version} vs. {depsd[name]}). Setting '*'")
                     depsd[name] = "*"
 
         if package_version is None:
             package_version = "0.0.0"
-        yield Package(
+        yield SourcePackage(
             name=package_name,
             version=Version.coerce(package_version),
-            source="cmake",
-            dependencies=(Dependency(package=name, semantic_version=SimpleSpec(version is None and "*" or version)) for name,version in depsd.items())
+            source=self,
+            dependencies=(
+                Dependency(package=name, semantic_version=SimpleSpec(version is None and "*" or version))
+                for name, version in depsd.items()
+            ),
+            source_path=path
         )
 
-    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
-        return DependencyResolver(self._get_dependencies(path), source=self)
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        repo.extend(self._get_dependencies(repo.path))
