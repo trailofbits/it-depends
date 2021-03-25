@@ -49,7 +49,7 @@ class DBDependency(Base, Dependency):
     @hybrid_property
     def semantic_version(self) -> SemanticVersion:
         try:
-            classifier = CLASSIFIERS_BY_NAME[self.from_package.source]
+            classifier = CLASSIFIERS_BY_NAME[self.from_package.source.name]
         except KeyError:
             classifier = DependencyClassifier
         return classifier.parse_spec(self.semantic_version_string)
@@ -97,7 +97,7 @@ class DBPackage(Base, Package):
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     version_str = Column("version", String, nullable=False)
-    source = Column(String, nullable=True)
+    source_name = Column("source", String, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("name", "version", "source", name="package_unique_constraint"),
@@ -110,6 +110,22 @@ class DBPackage(Base, Package):
         self.name = package.name
         self.version = package.version
         self.source = package.source
+
+    @property
+    def source(self) -> Optional[DependencyClassifier]:
+        if self.source_name is None:
+            return None
+        try:
+            return CLASSIFIERS_BY_NAME[self.source_name]
+        except KeyError:
+            return None
+
+    @source.setter
+    def source(self, new_source: Optional[DependencyClassifier]):
+        if new_source is None:
+            self.source_name = None
+        else:
+            self.source_name = new_source.name
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":
@@ -148,11 +164,11 @@ class SourceFilteredPackageCache(PackageCache):
         self.parent: DBPackageCache = parent
 
     def __len__(self):
-        return self.parent.session.query(DBPackage).filter(DBPackage.source.like(self.source)).count()
+        return self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).count()
 
     def __iter__(self) -> Iterator[Package]:
         yield from [p.to_package()
-                    for p in self.parent.session.query(DBPackage).filter(DBPackage.source.like(self.source)).all()]
+                    for p in self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).all()]
 
     def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
         if source is not None and source != self.source:
@@ -168,12 +184,12 @@ class SourceFilteredPackageCache(PackageCache):
 
     def package_versions(self, package_name: str) -> Iterator[Package]:
         yield from [p.to_package() for p in self.parent.session.query(DBPackage).filter(
-            DBPackage.name.like(package_name), DBPackage.source.like(self.source)
+            DBPackage.name.like(package_name), DBPackage.source_name.like(self.source)
         ).all()]
 
     def package_names(self) -> FrozenSet[str]:
         return frozenset(self.parent.session.query(distinct(DBPackage.name))
-                         .filter(DBPackage.source.like(self.source)).all())
+                         .filter(DBPackage.source_name.like(self.source)).all())
 
     def match(self, to_match: Union[str, Package, DBDependency]) -> Iterator[Package]:
         return self.parent.match(to_match, source=self.source)
@@ -258,7 +274,7 @@ class DBPackageCache(PackageCache):
 
     def _make_query(self, to_match: Union[str, Package], source: Optional[str] = None):
         if source is not None:
-            filters = (DBPackage.source.like(source),)
+            filters = (DBPackage.source_name.like(source),)
         else:
             filters = ()
         if isinstance(to_match, Package):

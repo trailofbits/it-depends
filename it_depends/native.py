@@ -5,7 +5,7 @@ from pathlib import Path
 import re
 import shutil
 from tempfile import NamedTemporaryFile
-from typing import Iterable, Iterator, List, Optional
+from typing import Iterator, Optional, Set
 
 from tqdm import tqdm
 
@@ -13,7 +13,7 @@ from . import version as it_depends_version
 from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 from .dependencies import (
     CLASSIFIERS_BY_NAME, ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup,
-    Package, PackageCache, SimpleSpec, Version
+    Package, PackageCache, SimpleSpec, SourceRepository, Version
 )
 
 
@@ -52,12 +52,8 @@ class NativeLibrary:
 
 
 class NativeResolver(DependencyResolver):
-    def __init__(self, resolvers: Iterable[DependencyResolver] = (), cache: Optional[PackageCache] = None):
+    def __init__(self, cache: Optional[PackageCache] = None):
         super().__init__(source=NativeClassifier.default_instance(), cache=cache)
-        self.resolvers: List[DependencyResolver] = [
-            r for r in resolvers if r.source is not None and r.source.docker_setup() is not None
-        ]
-        self._expanded: bool = False
 
     @staticmethod
     def get_libraries(
@@ -100,36 +96,39 @@ class NativeResolver(DependencyResolver):
     def _expand(package: Package, container: DockerContainer):
         return package, NativeResolver.get_package_libraries(container, package)
 
-    def expand(self, max_workers: Optional[int] = None):
-        if self._expanded:
-            return
-        self._expanded = True
+    def expand(self, existing: PackageCache, max_workers: Optional[int] = None):
+        sources: Set[DependencyClassifier] = set()
+        for package in existing:
+            if package.source is not None and package.source not in sources \
+                    and package.source.docker_setup() is not None:
+                sources.add(package.source)
         if max_workers is None:
             max_workers = max(cpu_count() // 2, 1)
-        for resolver in tqdm(self.resolvers, desc="resolving native libs", leave=False, unit=" sources"):
-            with tqdm(desc=f"configuring Docker for {resolver.source.name}", leave=False, unit=" steps", total=4) as t:
-                docker_setup = resolver.source.docker_setup()
+        for source in tqdm(sources, desc="resolving native libs", leave=False, unit=" sources"):
+            with tqdm(desc=f"configuring Docker for {source.name}", leave=False, unit=" steps", total=4) as t:
+                docker_setup = source.docker_setup()
                 with make_dockerfile(docker_setup) as dockerfile:
                     t.update(1)
                     container = DockerContainer(
-                        dockerfile, f"trailofbits/it-depends-{resolver.source.name!s}", tag=it_depends_version()
+                        dockerfile, f"trailofbits/it-depends-{source.name!s}", tag=it_depends_version()
                     )
                     t.update(1)
                     container.rebuild()
                     t.update(1)
-                    t.desc = f"running baseline for {resolver.source.name}"
+                    t.desc = f"running baseline for {source.name}"
                     baseline = set(NativeResolver.get_baseline_libraries(container))
                     t.update(1)
-            with tqdm(desc=resolver.source.name, leave=False, unit=" deps", total=len(resolver)) as t:
+            packages = existing.from_source(source.name)
+            with tqdm(desc=source.name, leave=False, unit=" deps", total=len(packages)) as t:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                     futures = set()
-                    for package in resolver:
+                    for package in packages:
                         cached = self.resolve_from_cache(package.to_dependency())
                         if cached is None:
                             futures.add(executor.submit(self._expand, package, container))
                         else:
                             t.update(1)
-                            self.extend(cached)
+                            existing.extend(cached)
                     while futures:
                         done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
                         for finished in done:
@@ -144,7 +143,7 @@ class NativeResolver(DependencyResolver):
                                                 name=library.name,
                                                 version=version
                                             )
-                                            self.add(new_package)
+                                            existing.add(new_package)
                                         except ValueError:
                                             pass
                                     if library.name not in package.dependencies:
@@ -157,22 +156,8 @@ class NativeResolver(DependencyResolver):
                                             semantic_version=required_version
                                         )
                                         # re-add the package so we can cache the new dependency
-                                        self.add(package)
+                                        existing.add(package)
                             self.set_resolved_in_cache(package)
-
-    def open(self):
-        super().open()
-        self.expand()
-
-    def __len__(self):
-        if not self._expanded:
-            self.expand()
-        return super().__len__()
-
-    def __iter__(self):
-        if not self._expanded:
-            self.expand()
-        return super().__iter__()
 
 
 class NativeClassifier(DependencyClassifier):
@@ -188,16 +173,13 @@ class NativeClassifier(DependencyClassifier):
                                                  "Make sure it is installed and in the PATH.")
         return ClassifierAvailability(True)
 
-    def can_classify(self, path: str) -> bool:
+    def can_classify(self, repo: SourceRepository) -> bool:
         for classifier in CLASSIFIERS_BY_NAME.values():
-            if classifier.docker_setup() is not None and classifier.can_classify(path):
+            if classifier.docker_setup() is not None and classifier.can_classify(repo):
                 return True
         return False
 
-    def classify(
-            self,
-            path: str,
-            resolvers: Iterable[DependencyResolver] = (),
-            cache: Optional[PackageCache] = None
-    ) -> NativeResolver:
-        return NativeResolver(resolvers, cache=cache)
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        resolver = NativeResolver(cache=cache)
+        repo.resolvers.append(resolver)
+        resolver.expand(repo)

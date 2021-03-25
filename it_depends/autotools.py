@@ -5,16 +5,15 @@ import re
 import itertools
 import os
 from os import chdir, getcwd
-from pathlib import Path
 import shutil
 import subprocess
-from typing import Iterable, Optional
+from typing import Optional
 from semantic_version.base import Always, BaseSpec
 import logging
 
 from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, PackageCache, SimpleSpec,
-    Version
+    SourcePackage, SourceRepository, Version
 )
 
 logger = logging.getLogger(__name__)
@@ -59,8 +58,8 @@ class AutotoolsClassifier(DependencyClassifier):
                                                  "Make sure it is installed and in the PATH.")
         return ClassifierAvailability(True)
 
-    def can_classify(self, path: str) -> bool:
-        return (Path(path) / "configure.ac").exists()
+    def can_classify(self, repo: SourceRepository) -> bool:
+        return (repo.path / "configure.ac").exists()
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
@@ -266,10 +265,6 @@ class AutotoolsClassifier(DependencyClassifier):
             dependencies=deps
         )
 
-    def classify(
-            self,
-            path: str,
-            resolvers: Iterable[DependencyResolver] = (),
-            cache: Optional[PackageCache] = None
-    ) -> DependencyResolver:
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        raise NotImplementedError("TODO")
         return DependencyResolver(self._get_dependencies(path), source=self, cache=cache)

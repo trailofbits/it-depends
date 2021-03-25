@@ -9,7 +9,7 @@ from johnnydep.logs import configure_logging
 
 from .dependencies import (
     Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, PackageCache, SemanticVersion,
-    SimpleSpec, Version
+    SimpleSpec, SourcePackage, SourceRepository, Version
 )
 
 
@@ -141,16 +141,11 @@ class PipClassifier(DependencyClassifier):
     name = "pip"
     description = "classifies the dependencies of Python packages using pip"
 
-    def can_classify(self, path: str) -> bool:
-        p = Path(path)
-        return (p / "setup.py").exists() or (p / "requirements.txt").exists()
+    def can_classify(self, repo: SourceRepository) -> bool:
+        return (repo.path / "setup.py").exists() or (repo.path / "requirements.txt").exists()
 
-    def classify(
-            self,
-            path: str,
-            resolvers: Iterable[DependencyResolver] = (),
-            cache: Optional[PackageCache] = None
-    ) -> DependencyResolver:
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        raise NotImplementedError("TODO")
         return PipResolver(path, source=self, cache=cache)
 
     def docker_setup(self) -> Optional[DockerSetup]:

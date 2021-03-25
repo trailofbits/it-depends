@@ -9,7 +9,7 @@ from semantic_version.base import Always, BaseSpec
 
 from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, PackageCache, SimpleSpec,
-    Version
+    SourcePackage, SourceRepository, Version
 )
 
 
@@ -76,13 +76,9 @@ class CargoClassifier(DependencyClassifier):
     def parse_spec(cls, spec: str) -> CargoSpec:
         return CargoSpec(spec)
 
-    def can_classify(self, path: str) -> bool:
-        return (Path(path) / "Cargo.toml").exists()
+    def can_classify(self, repo: SourceRepository) -> bool:
+        return (repo.path / "Cargo.toml").exists()
 
-    def classify(
-            self,
-            path: str,
-            resolvers: Iterable[DependencyResolver] = (),
-            cache: Optional[PackageCache] = None
-    ) -> DependencyResolver:
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        raise NotImplementedError("TODO")
         return DependencyResolver(get_dependencies(path, check_for_cargo=False), source=self, cache=cache)

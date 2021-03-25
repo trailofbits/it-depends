@@ -4,6 +4,7 @@ import concurrent.futures
 from dataclasses import dataclass
 import json
 from multiprocessing import cpu_count
+from pathlib import Path
 from typing import (
     Dict, FrozenSet, Iterable, Iterator, List, Optional, OrderedDict as OrderedDictType, Set, Tuple, Type, TypeVar,
     Union
@@ -37,14 +38,14 @@ class Package:
             name: str,
             version: Version,
             dependencies: Iterable[Dependency] = (),
-            source: Optional[str] = None
+            source: Optional["DependencyClassifier"] = None
     ):
         self.name: str = name
         self.version: Version = version
         self.dependencies: Dict[str, Dependency] = {
             dep.package: dep for dep in dependencies
         }
-        self.source: Optional[str] = source
+        self.source: Optional[DependencyClassifier] = source
 
     def to_dependency(self) -> Dependency:
         return Dependency(package=self.name, semantic_version=SemanticVersion.parse(str(self.version)))
@@ -58,7 +59,7 @@ class Package:
             }
         }
         if self.source is not None:
-            ret["source"] = self.source
+            ret["source"] = self.source.name
         return ret
 
     def dumps(self) -> str:
@@ -136,8 +137,10 @@ class PackageCache(ABC):
                     package: str(dep.semantic_version) for package, dep in package.dependencies.items()
                 }
             }
+            if isinstance(package, SourcePackage):
+                ret["is_source_package"] = True
             if package.source is not None:
-                ret["source"] = package.source
+                ret["source"] = package.source.name
             return ret
 
         return {
@@ -213,15 +216,20 @@ class InMemoryPackageCache(PackageCache):
             if max(len(p.dependencies) for p in self.match(package)) > len(package.dependencies):
                 raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
         if package.source is None and source is not None:
-            package.source = source.name
-        self._cache.setdefault(package.source, {}).setdefault(package.name, {})[package.version] = package
+            package.source = source
+        if package.source is None:
+            source_name = None
+        else:
+            source_name = package.source.name
+        self._cache.setdefault(source_name, {}).setdefault(package.name, {})[package.version] = package
 
 
 class _ResolutionCache:
-    def __init__(self, resolver: "DependencyResolver"):
+    def __init__(self, resolver: "DependencyResolver", results: PackageCache):
         self.resolver: DependencyResolver = resolver
         self.expanded_deps: Set[Dependency] = set()
-        self.existing_packages = set(resolver)
+        self.results: PackageCache = results
+        self.existing_packages = set(results)
 
     def extend(self, new_packages: Iterable[Package], t: tqdm) -> Set[Dependency]:
         new_packages = set(new_packages)
@@ -239,7 +247,7 @@ class _ResolutionCache:
                         t.total += 1
                     else:
                         cached = set(already_resolved) - self.existing_packages
-                        self.resolver.extend(cached)
+                        self.results.extend(cached)
                         t.total += len(cached)
                         t.update(len(cached))
                         new_packages |= cached
@@ -249,20 +257,12 @@ class _ResolutionCache:
 
 
 class DependencyResolver:
-    def __init__(
-            self,
-            packages: Iterable[Package] = (),
-            source: Optional["DependencyClassifier"] = None,
-            cache: Optional[PackageCache] = None
-    ):
-        self.packages: PackageCache = InMemoryPackageCache()
+    def __init__(self, source: Optional["DependencyClassifier"] = None, cache: Optional[PackageCache] = None):
         if cache is None:
-            self._cache: PackageCache = self.packages
+            self._cache: PackageCache = InMemoryPackageCache()
         else:
             self._cache = cache
         self.source: Optional[DependencyClassifier] = source
-        for package in packages:
-            self.add(package)
         self._entries: int = 0
 
     def open(self):
@@ -282,25 +282,6 @@ class DependencyResolver:
         if self._entries == 0:
             self.close()
 
-    def __len__(self):
-        return len(self.packages.from_source(self.source.name))
-
-    def __iter__(self) -> Iterator[Package]:
-        return iter(self.packages.from_source(self.source.name))
-
-    def __contains__(self, package: Package):
-        return package in self.packages
-
-    def add(self, package: Package):
-        self._cache.add(package, source=self.source)
-        if self._cache is not self.packages:
-            self.packages.add(package, source=self.source)
-
-    def extend(self, packages: Iterable[Package]):
-        self._cache.extend(packages, source=self.source)
-        if self._cache is not self.packages:
-            self.packages.extend(packages, source=self.source)
-
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         """
         Forces a resolution of a missing dependency
@@ -310,7 +291,7 @@ class DependencyResolver:
         This implementation simply yields nothing. Extending classes can extend this function to perform a custom
         resolution of the dependency. The dependency should not already have been resolved.
 
-        Calling this function alone will not add the resulting packages to this resolver.
+        Calling this function alone will not add the resulting packages to the cache.
         """
         return iter(())
 
@@ -331,7 +312,7 @@ class DependencyResolver:
             self._cache.set_resolved(dependency_or_package, self.source.name)
 
     def resolve(
-            self, dependency: Dependency, record_results: bool = True, check_cache: bool = True, only_new: bool = False
+            self, dependency: Dependency, record_results: bool = True, check_cache: bool = True
     ) -> Iterator[Package]:
         """Yields all packages that satisfy the given dependency, resolving the dependency if necessary
 
@@ -340,35 +321,22 @@ class DependencyResolver:
         if record_results and not check_cache:
             raise ValueError("`check_cache` may only be False if `record_results` is also False")
         elif check_cache and self._cache.was_resolved(dependency, source=self.source.name):
-            if self._cache != self.packages:
-                matches = list(self._cache.match(dependency))
-                if record_results:
-                    self.packages.extend(matches)
-                yield from matches
-            else:
-                yield from self._cache.match(dependency)
+            yield from self._cache.match(dependency)
             return
-        matched = set(self.packages.match(dependency))
-        if not only_new:
-            yield from matched
         # we never tried to resolve this dependency before, so do a manual resolution
         for package in self.resolve_missing(dependency):
-            if package not in matched:
-                matched.add(package)
-                if record_results:
-                    self.add(package)
-                yield package
+            if record_results:
+                self._cache.add(package)
+            yield package
         if record_results:
             self._cache.set_resolved(dependency, source=self.source.name)
-            if self._cache is not self.packages:
-                self.packages.set_resolved(dependency, source=self.source.name)
 
     def _resolve_worker(self, dependency: Dependency) -> Tuple[Dependency, List[Package]]:
-        return dependency, list(self.resolve(dependency, record_results=False, check_cache=False, only_new=True))
+        return dependency, list(self.resolve(dependency, record_results=False, check_cache=False))
 
-    def resolve_unsatisfied(self, max_workers: Optional[int] = None):
+    def resolve_unsatisfied(self, packages: PackageCache, max_workers: Optional[int] = None):
         """
-        Resolves any packages dependencies that have not yet been resolved.
+        Resolves any packages dependencies that have not yet been resolved, saving them to the cache.
 
         This is expensive and may reproduce work. In general, it should only be called from subclasses with knowledge
         of specifically when it needs to be called.
@@ -379,10 +347,10 @@ class DependencyResolver:
             except NotImplementedError:
                 max_workers = 5
         with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=0) as t:
-            resolution_cache = _ResolutionCache(self)
+            resolution_cache = _ResolutionCache(self, results=packages)
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
-                    executor.submit(self._resolve_worker, dep) for dep in resolution_cache.extend(self, t)
+                    executor.submit(self._resolve_worker, dep) for dep in resolution_cache.extend(packages, t)
                 }
                 while futures:
                     done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
@@ -390,17 +358,52 @@ class DependencyResolver:
                         t.update(1)
                         dep, new_packages = finished.result()
                         self._cache.set_resolved(dep, source=self.source.name)
-                        self.extend(new_packages)
+                        self._cache.extend(new_packages)
+                        packages.set_resolved(dep, source=self.source.name)
+                        packages.extend(new_packages)
                         futures |= {
                             executor.submit(self._resolve_worker, new_dep)
                             for new_dep in resolution_cache.extend(new_packages, t)
                         }
 
-    def contains(self, package_name: str, version: Union[SemanticVersion, Version]):
-        if isinstance(version, Version):
-            return Package(package_name, version) in self.packages
-        else:
-            return Dependency(package_name, version) in self.packages
+
+class SourcePackage(Package):
+    """A package extracted from source code rather than a package repository"""
+    def __init__(
+            self,
+            name: str,
+            version: Version,
+            source_path: Path,
+            dependencies: Iterable[Dependency] = (),
+            source: Optional["DependencyClassifier"] = None
+    ):
+        super().__init__(name=name, version=version, dependencies=dependencies, source=source)
+        self.source_path: Path = source_path
+
+
+class SourceRepository(InMemoryPackageCache):
+    def __init__(
+            self,
+            path: Union[Path, str],
+            packages: Iterable[SourcePackage] = (),
+            resolvers: Iterable[DependencyResolver] = ()
+    ):
+        super().__init__()
+        if not isinstance(path, Path):
+            path = Path(path)
+        self.path: Path = path
+        self._packages: Set[SourcePackage] = set(packages)
+        self.extend(self._packages)
+        self.resolvers: List[DependencyResolver] = list(resolvers)
+
+    @property
+    def source_packages(self) -> Set[SourcePackage]:
+        return self._packages
+
+    def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
+        if isinstance(package, SourcePackage):
+            self._packages.add(package)
+        super().add(package=package, source=source)
 
 
 CLASSIFIERS_BY_NAME: OrderedDictType[str, "DependencyClassifier"] = OrderedDict()
@@ -468,48 +471,37 @@ class DependencyClassifier(ABC):
     def __eq__(self, other):
         return isinstance(other, DependencyClassifier) and self.name == other.name
 
+    def __hash__(self):
+        return hash(self.name)
+
     def is_available(self) -> ClassifierAvailability:
         return ClassifierAvailability(True)
 
     @abstractmethod
-    def can_classify(self, path: str) -> bool:
+    def can_classify(self, repo: SourceRepository) -> bool:
         raise NotImplementedError()
 
     @abstractmethod
-    def classify(
-            self,
-            path: str,
-            resolvers: Iterable[DependencyResolver] = (),
-            cache: Optional[PackageCache] = None
-    ) -> DependencyResolver:
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        """Resolves any new `SourcePackage`s in this repo, as well as their dependencies"""
         raise NotImplementedError()
 
 
-def resolve(path: str, cache: Optional[PackageCache] = None) -> PackageCache:
-    result = InMemoryPackageCache()
-    if cache is None:
-        cache = result
-    resolvers: List[DependencyResolver] = []
+def resolve(path: Union[str, Path], cache: Optional[PackageCache] = None) -> SourceRepository:
+    repo = SourceRepository(path)
     try:
         with cache:
             for classifier in CLASSIFIERS_BY_NAME.values():
-                if classifier.is_available() and classifier.can_classify(path):
-                    with classifier.classify(path, resolvers, cache=cache) as resolver:
-                        try:
-                            resolvers.append(resolver)
-                            result.extend(resolver)
-                        except KeyboardInterrupt:
-                            if sys.stderr.isatty() and sys.stdin.isatty():
-                                result.extend(resolver)
-                            raise
+                if classifier.is_available() and classifier.can_classify(repo):
+                    classifier.classify(repo, cache=cache)
     except KeyboardInterrupt:
         if sys.stderr.isatty() and sys.stdin.isatty():
             while True:
                 sys.stderr.write("Would you like to output the partial results? [Yn] ")
                 choice = input().lower()
                 if choice == "" or choice == "y":
-                    return result
+                    return repo
                 elif choice == "n":
                     sys.exit(1)
         raise
-    return result
+    return repo

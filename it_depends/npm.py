@@ -3,37 +3,21 @@ from logging import getLogger
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Dict, Iterable, Iterator, Optional
+from typing import Dict, Iterator, Optional, Union
 
 from semantic_version import NpmSpec, SimpleSpec, Version
 
 from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, PackageCache,
-    SemanticVersion
+    SemanticVersion, SourcePackage, SourceRepository
 )
 
 log = getLogger(__file__)
 
 
 class NPMResolver(DependencyResolver):
-    _finalized: bool = False
-
-    def finalize(self):
-        if not self._finalized:
-            self._finalized = True
-            with self:
-                self.resolve_unsatisfied()
-
-    def __len__(self):
-        self.finalize()
-        return super().__len__()
-
-    def __iter__(self):
-        self.finalize()
-        return super().__iter__()
-
     @staticmethod
-    def from_package_json(package_json_path: str, cache: Optional[PackageCache] = None) -> "NPMResolver":
+    def from_package_json(package_json_path: Union[Path, str]) -> SourcePackage:
         path: Path = Path(package_json_path)
         if path.is_dir():
             path = path / "package.json"
@@ -52,13 +36,11 @@ class NPMResolver(DependencyResolver):
         else:
             version = "0"
         version = Version.coerce(version)
-        resolver = NPMResolver([
-            Package(package["name"], version, source="npm", dependencies=(
-                Dependency(package=dep_name, semantic_version=NPMClassifier.parse_spec(dep_version))
-                for dep_name, dep_version in dependencies.items()
-            ))
-        ], source=NPMClassifier.default_instance(), cache=cache)
-        return resolver
+        return SourcePackage(package["name"], version, source_path=path.parent,
+                             source=NPMClassifier.default_instance(), dependencies=(
+            Dependency(package=dep_name, semantic_version=NPMClassifier.parse_spec(dep_version))
+            for dep_name, dep_version in dependencies.items()
+        ))
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the dependency without expanding those packages' dependencies"""
@@ -78,7 +60,8 @@ class NPMResolver(DependencyResolver):
                 deps = json.loads(output)
             except ValueError as e:
                 raise ValueError(
-                    f"Error parsing output of `npm view --json {dependency.package}@{dependency.semantic_version!s} dependencies`: {e!s}"
+                    f"Error parsing output of `npm view --json {dependency.package}@{dependency.semantic_version!s} "
+                    f"dependencies`: {e!s}"
                 )
         if isinstance(deps, list):
             # this means that there are multiple dependencies that match the version
@@ -98,7 +81,8 @@ class NPMResolver(DependencyResolver):
                     versions.append(line)
             for pkg_version, dep_dict in zip(versions, deps):
                 version = Version.coerce(pkg_version[len(dependency.package)+1:])
-                yield Package(name=dependency.package, version=version, source="npm", dependencies=(
+                yield Package(name=dependency.package, version=version, source=NPMClassifier.default_instance(),
+                              dependencies=(
                     Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version))
                     for dep, dep_version in dep_dict.items()
                 ))
@@ -158,16 +142,15 @@ class NPMClassifier(DependencyClassifier):
         if no_whitespace != spec:
             return NPMClassifier.parse_spec(no_whitespace)
 
-    def can_classify(self, path: str) -> bool:
-        return (Path(path) / "package.json").exists()
+    def can_classify(self, repo: SourceRepository) -> bool:
+        return (repo.path / "package.json").exists()
 
-    def classify(
-            self,
-            path: str,
-            resolvers: Iterable[DependencyResolver] = (),
-            cache: Optional[PackageCache] = None
-    ) -> NPMResolver:
-        return NPMResolver.from_package_json(path, cache)
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        resolver = NPMResolver(cache=cache, source=self)
+        repo.resolvers.append(resolver)
+        repo.add(NPMResolver.from_package_json(repo.path / "package.json"))
+        with resolver:
+            resolver.resolve_unsatisfied(repo)
 
     def docker_setup(self) -> DockerSetup:
         return DockerSetup(
