@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from tempfile import mkdtemp
 from tqdm import tqdm
-from typing import Dict, Iterable, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import docker
 from docker.errors import NotFound as ImageNotFound
