@@ -12,8 +12,8 @@ try:
     # Used to parse the cmake trace. If this is not installed the plugin will
     # report itself as unavailable later
     import parse_cmake.parsing as cmake_parsing
-except:
-    pass
+except ImportError:
+    cmake_parsing = None
 
 from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, PackageCache, SimpleSpec, SourcePackage, SourceRepository,
@@ -53,9 +53,7 @@ class CMakeClassifier(DependencyClassifier):
     description = "classifies the dependencies of native/cmake packages parsing CMakeLists.txt"
 
     def is_available(self) -> ClassifierAvailability:
-        try:
-            import parse_cmake
-        except ImportError as e:
+        if cmake_parsing is None:
             return ClassifierAvailability(False, "`parse_cmake` does not appear to be installed! "
                                                  "Please run `pip install parse_cmake`")
 
