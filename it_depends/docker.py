@@ -228,7 +228,7 @@ class DockerContainer:
             raise ValueError("Could not find the Dockerfile.")
         # use the low-level APIClient so we can get streaming build status
         cli = docker.APIClient()
-        with tqdm(desc=f"Archiving the build directory", unit=" steps", leave=False) as t:
+        with tqdm(desc="Archiving the build directory", unit=" steps", leave=False) as t:
             last_line = 0
             last_step = None
             for raw_line in cli.build(path=str(self.dockerfile.dir()), rm=True, tag=self.name, nocache=nocache,
