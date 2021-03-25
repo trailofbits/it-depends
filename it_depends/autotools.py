@@ -3,22 +3,21 @@ import urllib.request
 import gzip
 import re
 import itertools
-from io import StringIO
 import os
-from os import chdir, getcwd, path
+from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Iterable
+from typing import Optional
 from semantic_version.base import Always, BaseSpec
 import logging
 
-logger = logging.getLogger(__name__)
-
-
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, SimpleSpec, Version
+    ClassifierAvailability, Dependency, DependencyClassifier, PackageCache, SimpleSpec, SourcePackage, SourceRepository,
+    Version
 )
+
+logger = logging.getLogger(__name__)
 
 
 @BaseSpec.register_syntax
@@ -36,6 +35,10 @@ class AutoSpec(SimpleSpec):
                     clause &= cls.parse_block(block)
 
             return clause
+
+    def __str__(self):
+        # remove the whitespace to canonicalize the spec
+        return ",".join(b.strip() for b in self.expression.split(','))
 
 
 class AutotoolsClassifier(DependencyClassifier):
@@ -56,8 +59,8 @@ class AutotoolsClassifier(DependencyClassifier):
                                                  "Make sure it is installed and in the PATH.")
         return ClassifierAvailability(True)
 
-    def can_classify(self, path: str) -> bool:
-        return (Path(path) / "configure.ac").exists()
+    def can_classify(self, repo: SourceRepository) -> bool:
+        return (repo.path / "configure.ac").exists()
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
@@ -72,7 +75,7 @@ class AutotoolsClassifier(DependencyClassifier):
         db = {}
         selected = None
 
-        #TODO find better location https://pypi.org/project/appdirs/?
+        # TODO find better location https://pypi.org/project/appdirs/?
         dbfile = os.path.join(os.path.dirname(__file__), f"Contents-{arch}.gz")
 
         if not os.path.exists(dbfile):
@@ -204,9 +207,7 @@ class AutotoolsClassifier(DependencyClassifier):
             raise Exception(f"Could not find a binding for variable/s in {token}")
         return token
 
-    def _get_dependencies(self, path):
-        #assert self.is_available()
-        #assert self.can_classify(path)
+    def _get_dependencies(self, path: str):
         logger.info(f"Getting dependencies for autotool repo {os.path.abspath(path)}")
         orig_dir = getcwd()
         chdir(path)
@@ -220,9 +221,7 @@ class AutotoolsClassifier(DependencyClassifier):
         finally:
             chdir(orig_dir)
 
-
-
-        deps=[]
+        deps = []
         for macro in trace.split('\n'):
             logger.debug(f"Handling: {macro}")
             macro, *arguments = macro.split(":")
@@ -256,12 +255,13 @@ class AutotoolsClassifier(DependencyClassifier):
         package_name = self._replace_variables("$PACKAGE_NAME", configure)
         package_version = self._replace_variables("$PACKAGE_VERSION", configure)
 
-        yield Package(
+        yield SourcePackage(
             name=package_name,
             version=Version.coerce(package_version),
-            source="autotools",
-            dependencies=deps
+            source=self,
+            dependencies=deps,
+            source_path=Path(path)
         )
 
-    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
-        return DependencyResolver(self._get_dependencies(path), source=self)
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        repo.extend(self._get_dependencies(str(repo.path)))

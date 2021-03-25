@@ -1,3 +1,4 @@
+from logging import getLogger
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import subprocess
@@ -8,47 +9,18 @@ from johnnydep import JohnnyDist
 from johnnydep.logs import configure_logging
 
 from .dependencies import (
-    Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, SemanticVersion, SimpleSpec, Version
+    Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, PackageCache, SemanticVersion,
+    SimpleSpec, SourcePackage, SourceRepository, Version
 )
 
 
 configure_logging(1)
+log = getLogger(__file__)
 
 
 class PipResolver(DependencyResolver):
-    def __init__(self, package_spec_or_path: str, source: Optional[DependencyClassifier] = None):
-        super().__init__(source=source)
-        if (Path(package_spec_or_path) / "setup.py").exists():
-            self.path: Optional[str] = package_spec_or_path
-            self.package_spec: Optional[str] = None
-        else:
-            self.path = None
-            self.package_spec = package_spec_or_path
-        self._dist: Optional[JohnnyDist] = None
-
-    @property
-    def dist(self) -> JohnnyDist:
-        if self._dist is None:
-            if self.package_spec is not None:
-                self._dist = JohnnyDist(self.package_spec)
-            else:
-                with TemporaryDirectory() as tmp_dir:
-                    subprocess.check_call([
-                        sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", tmp_dir, self.path
-                    ])
-                    wheel = None
-                    for whl in Path(tmp_dir).glob("*.whl"):
-                        if wheel is not None:
-                            raise ValueError(f"`pip wheel --no-deps {self.path}` produced mutliple wheel files!")
-                        wheel = whl
-                    if wheel is None:
-                        raise ValueError(f"`pip wheel --no-deps {self.path}` did not produce a wheel file!")
-                    self._dist = JohnnyDist(str(wheel))
-                    # force JohnnyDist to read the dependencies before deleting the wheel:
-                    _ = self._dist.children
-            # add a package for the root dist
-            self.resolve_dist(self._dist)
-        return self._dist
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs, source=PipClassifier.default_instance())
 
     @staticmethod
     def _get_specifier(dist: JohnnyDist) -> SimpleSpec:
@@ -58,7 +30,14 @@ class PipResolver(DependencyResolver):
             return SimpleSpec("*")
 
     @staticmethod
-    def _get_version(version_str: str, none_default: Optional[Version] = None) -> Optional[Version]:
+    def get_dependencies(dist: JohnnyDist) -> Iterable[Dependency]:
+        return (
+            Dependency(package=child.name, semantic_version=PipResolver._get_specifier(child))
+            for child in dist.children
+        )
+
+    @staticmethod
+    def get_version(version_str: str, none_default: Optional[Version] = None) -> Optional[Version]:
         if version_str == "none":
             # this will happen if the dist is for a local wheel:
             return none_default
@@ -92,55 +71,78 @@ class PipResolver(DependencyResolver):
                     filter(
                         lambda v: v is not None,
                         (
-                                PipResolver._get_version(v_str, none_default=Version.coerce(dist.version_installed))
+                                PipResolver.get_version(v_str, none_default=Version.coerce(dist.version_installed))
                                 for v_str in dist.versions_available
                         )
                     )
             ):
-                if self.contains(dist.name, version):
-                    continue
-                package = Package(
-                    name=dist.name,
-                    version=version,
-                    dependencies=[
-                        Dependency(package=child.name, semantic_version=self._get_specifier(child))
-                        for child in dist.children
-                    ],
-                    source="pip"
-                )
-                self.add(package)
-                packages.append(package)
+                cached = self.resolve_from_cache(Dependency(dist.name, version))
+                if cached is not None:
+                    packages.extend(cached)
+                else:
+                    package = Package(
+                        name=dist.name,
+                        version=version,
+                        dependencies=self.get_dependencies(dist),
+                        source=PipClassifier.default_instance()
+                    )
+                    packages.append(package)
                 if not recurse:
                     break
                 queue.extend((child, self._get_specifier(child)) for child in dist.children)
         return packages
 
-    def __iter__(self):
-        if self._dist is None:
-            _ = self.dist
-        return super().__iter__()
-
-    def __len__(self):
-        if self._dist is None:
-            _ = self.dist
-        return super().__len__()
-
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
-        return iter(self.resolve_dist(
-            JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version)
-        )
+        try:
+            return iter(self.resolve_dist(
+                JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version,
+                recurse=False
+            ))
+        except ValueError as e:
+            log.warning(str(e))
+            return iter(())
+
+
+class PipSourcePackage(SourcePackage):
+    def __init__(self, dist: JohnnyDist, source_path: Path):
+        version_str = dist.specifier
+        if version_str.startswith("=="):
+            version_str = version_str[2:]
+        super().__init__(name=dist.name, version=PipResolver.get_version(version_str),
+                         dependencies=PipResolver.get_dependencies(dist), source_path=source_path,
+                         source=PipClassifier.default_instance())
+
+    @staticmethod
+    def from_repo(repo: SourceRepository) -> "PipSourcePackage":
+        with TemporaryDirectory() as tmp_dir:
+            subprocess.check_call([
+                sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", tmp_dir, str(repo.path)
+            ])
+            wheel = None
+            for whl in Path(tmp_dir).glob("*.whl"):
+                if wheel is not None:
+                    raise ValueError(f"`pip wheel --no-deps {repo.path!s}` produced mutliple wheel files!")
+                wheel = whl
+            if wheel is None:
+                raise ValueError(f"`pip wheel --no-deps {repo.path!s}` did not produce a wheel file!")
+            dist = JohnnyDist(str(wheel))
+            # force JohnnyDist to read the dependencies before deleting the wheel:
+            _ = dist.children
+            return PipSourcePackage(dist, repo.path)
 
 
 class PipClassifier(DependencyClassifier):
     name = "pip"
     description = "classifies the dependencies of Python packages using pip"
 
-    def can_classify(self, path: str) -> bool:
-        p = Path(path)
-        return (p / "setup.py").exists() or (p / "requirements.txt").exists()
+    def can_classify(self, repo: SourceRepository) -> bool:
+        return (repo.path / "setup.py").exists() or (repo.path / "requirements.txt").exists()
 
-    def classify(self, path: str, resolvers: Iterable[DependencyResolver] = ()) -> DependencyResolver:
-        return PipResolver(path, source=self)
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        resolver = PipResolver(cache=cache)
+        repo.resolvers.append(resolver)
+        repo.add(PipSourcePackage.from_repo(repo))
+        resolver.resolve_unsatisfied(repo, max_workers=1)  # Johnny Dep doesn't like concurrency
 
     def docker_setup(self) -> Optional[DockerSetup]:
         return DockerSetup(
