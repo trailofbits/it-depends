@@ -8,7 +8,7 @@ from urllib import request
 
 logger = logging.getLogger(__name__)
 
-''' Evan disapproves this
+r''' Evan disapproves this
 popdb = {}
 @functools.lru_cache(maxsize=128)
 def _popularity(packagename):
@@ -62,7 +62,7 @@ def search_package(package):
         if package.lower() not in apt_package:
             continue
         if re.match(
-                f"^(lib)*{re.escape(package.lower())}(\-*([0-9]*)(\.*))*(\-dev)*$",
+                fr"^(lib)*{re.escape(package.lower())}(\-*([0-9]*)(\.*))*(\-dev)*$",
                 apt_package):
             found_packages.append(apt_package)
     found_packages.sort(key=len, reverse=True)
@@ -98,7 +98,7 @@ def _file_to_package_contents(filename, arch="amd64"):
         with gzip.open(dbfile, "rt") as contents:
             for line in contents.readlines():
                 filename_i, *packages_i = re.split(r"\s+", line[:-1])
-                assert(len(packages_i)>0)
+                assert(len(packages_i) > 0)
                 contents_db.setdefault(filename_i, []).extend(packages_i)
 
     regex = re.compile("(.*/)+"+filename+"$")
@@ -147,10 +147,10 @@ def _file_to_package_apt_file(filename, arch="amd64"):
 def file_to_package(filename, arch="amd64"):
     filename = f"/{filename}$"
     return _file_to_package_apt_file(filename, arch=arch)
-    #return _file_to_package_contents(filename, arch=arch)
+    # return _file_to_package_contents(filename, arch=arch)
 
 
-def cached_file_to_package(pattern, file_to_package_cache = None):
+def cached_file_to_package(pattern, file_to_package_cache=None):
     # file_to_package_cache contains all the files that are provided be previous
     # dependencies. If a file pattern is already sastified by current files
     # use the package already included as a dependency
