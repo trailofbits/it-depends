@@ -1,9 +1,10 @@
 import functools
+import gzip
 import os
 import re
 import logging
 import subprocess
-import gzip
+from urllib import request
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,8 @@ def _popularity(packagename):
 '''
 
 all_packages = None
+
+
 def get_apt_packages():
     global all_packages
     if all_packages is None:
@@ -51,6 +54,7 @@ def get_apt_packages():
 
         logger.info(f"Global apt package count {len(all_packages)}")
     return all_packages
+
 
 def search_package(package):
     found_packages = list()
@@ -68,7 +72,10 @@ def search_package(package):
         f"Found {len(found_packages)} matching packages, Choosing {found_packages[0]}")
     return found_packages[0]
 
+
 contents_db = {}
+
+
 @functools.lru_cache(maxsize=128)
 def _file_to_package_contents(filename, arch="amd64"):
     """
@@ -84,11 +91,11 @@ def _file_to_package_contents(filename, arch="amd64"):
     # TODO find better location https://pypi.org/project/appdirs/?
     dbfile = os.path.join(os.path.dirname(__file__), f"Contents-{arch}.gz")
     if not os.path.exists(dbfile):
-        urllib.request.urlretrieve(
+        request.urlretrieve(
             f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz",
             dbfile)
     if not contents_db:
-        logger.inf("Rebuilding contents db")
+        logger.info("Rebuilding contents db")
         with gzip.open(dbfile, "rt") as contents:
             for line in contents.readlines():
                 filename_i, *packages_i = re.split(r"\s+", line[:-1])
@@ -109,6 +116,7 @@ def _file_to_package_contents(filename, arch="amd64"):
     else:
         raise ValueError(f"{filename} not found in Contents database")
     return selected[1]
+
 
 @functools.lru_cache(maxsize=128)
 def _file_to_package_apt_file(filename, arch="amd64"):
@@ -134,6 +142,7 @@ def _file_to_package_apt_file(filename, arch="amd64"):
         raise ValueError(f"{filename} not found in apt-file")
 
     return selected[1]
+
 
 @functools.lru_cache(maxsize=128)
 def file_to_package(filename, arch="amd64"):
