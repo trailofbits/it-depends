@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from it_depends.go import GoModule
+from it_depends.go import GoModule, GoSpec, GoVersion
 
 
 EXAMPLE_MOD = """
@@ -37,3 +37,8 @@ class TestGo(TestCase):
         self.assertEqual(module.name, "github.com/btcsuite/btcd")
         self.assertEqual(len(module.dependencies), 15)
         self.assertIn(("github.com/btcsuite/websocket", "v0.0.0-20150119174127-31079b680792"), module.dependencies)
+
+    def test_version_parsing(self):
+        for _, version in GoModule.parse_mod(EXAMPLE_MOD).dependencies:
+            self.assertEqual(str(GoVersion(version)), version)
+            self.assertEqual(str(GoSpec(version)), version)

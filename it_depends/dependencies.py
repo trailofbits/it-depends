@@ -465,6 +465,10 @@ class DependencyClassifier(ABC):
     def parse_spec(cls, spec: str) -> SemanticVersion:
         return SimpleSpec.parse(spec)
 
+    @classmethod
+    def parse_version(cls, version_string: str) -> Version:
+        return Version.coerce(version_string)
+
     def docker_setup(self) -> Optional[DockerSetup]:
         return None
 

@@ -149,7 +149,10 @@ class DBPackage(Base, Package):
 
     @property
     def version(self) -> Version:
-        return Version.coerce(self.version_str)
+        source = self.source
+        if source is None:
+            source = DependencyClassifier
+        return source.parse_version(self.version_str)
 
     @version.setter
     def version(self, new_version: Union[Version, str]):

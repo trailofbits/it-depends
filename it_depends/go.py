@@ -1,11 +1,18 @@
+from datetime import datetime
 from pathlib import Path
 import re
-from subprocess import check_call
+from subprocess import check_call, check_output, DEVNULL, CalledProcessError
 from tempfile import TemporaryDirectory
-from typing import Iterable, Iterator, List, Optional, Tuple
+from typing import Iterable, Iterator, List, Optional, Tuple, Union
 from urllib import request
 
-from .dependencies import Dependency, DependencyClassifier, DependencyResolver, SourceRepository, Package, PackageCache
+from .dependencies import (
+    Dependency, DependencyClassifier, DependencyResolver, SourcePackage, SourceRepository, Package, PackageCache,
+    SemanticVersion
+)
+
+from semantic_version import Version
+from semantic_version.base import BaseSpec, Range, SimpleSpec
 
 
 GITHUB_URL_MATCH = re.compile(r"\s*https?://(www\.)?github.com/([^/]+)/(.+)\s*", re.IGNORECASE)
@@ -14,6 +21,42 @@ REQUIRE_LINE_MATCH = re.compile(REQUIRE_LINE_REGEX)
 REQUIRE_MATCH = re.compile(fr"\s*require\s+{REQUIRE_LINE_REGEX}")
 REQUIRE_BLOCK_MATCH = re.compile(r"\s*require\s+\(\s*")
 MODULE_MATCH = re.compile(r"\s*module\s+([^\s]+)\s*")
+
+
+def git_commit(path: Optional[str] = None) -> Optional[str]:
+    try:
+        return check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=path,
+            stderr=DEVNULL
+        )
+    except CalledProcessError:
+        return None
+
+
+class GoVersion:
+    def __init__(self, go_version_string: str):
+        self.version_string: str = go_version_string
+        self.build: bool = False  # This is to appease semantic_version.base.SimpleSpec
+
+    def __eq__(self, other):
+        return isinstance(other, GoVersion) and self.version_string == other.version_string
+
+    def __hash__(self):
+        return hash(self.version_string)
+
+    def __str__(self):
+        return self.version_string
+
+
+@BaseSpec.register_syntax
+class GoSpec(SimpleSpec):
+    SYNTAX = 'go'
+
+    class Parser(SimpleSpec.Parser):
+        @classmethod
+        def parse(cls, expression):
+            return Range(operator=Range.OP_EQ, target=GoVersion(expression))
 
 
 class GoModule:
@@ -30,7 +73,9 @@ class GoModule:
             return tag
 
     @staticmethod
-    def parse_mod(mod_content: str) -> "GoModule":
+    def parse_mod(mod_content: Union[str, bytes]) -> "GoModule":
+        if isinstance(mod_content, bytes):
+            mod_content = mod_content.decode("utf-8")
         in_require = False
         dependencies = []
         name = None
@@ -92,16 +137,35 @@ class GoModule:
 
 
 class GoResolver(DependencyResolver):
-    def resolve_from_git(self, git_url: str, tag: Optional[str] = None):
-        pass
+    def __init__(self, cache: Optional[PackageCache] = None):
+        super().__init__(source=GoClassifier.default_instance(), cache=cache)
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
-        pass
+        assert isinstance(dependency.semantic_version, GoSpec)
+        version_string = str(dependency.semantic_version)
+        module = GoModule.from_name(dependency.package, version_string)
+        yield Package(
+            name=module.name,
+            version=GoVersion(version_string),  # type: ignore
+            source=self.source,
+            dependencies=[
+                Dependency(package=package, semantic_version=GoSpec(version))
+                for package, version in module.dependencies
+            ]
+        )
 
 
 class GoClassifier(DependencyClassifier):
     name = "npm"
     description = "classifies the dependencies of JavaScript packages using `npm`"
+
+    @classmethod
+    def parse_spec(cls, spec: str) -> SemanticVersion:
+        return GoSpec(spec)
+
+    @classmethod
+    def parse_version(cls, version_string: str) -> Version:
+        return GoVersion(version_string)  # type: ignore
 
     def can_classify(self, repo: SourceRepository) -> bool:
         return (repo.path / "go.mod").exists()
@@ -109,5 +173,23 @@ class GoClassifier(DependencyClassifier):
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
         resolver = GoResolver(source=self, cache=cache)
         repo.resolvers.append(resolver)
-        repo.add()
+        with open(repo.path / "go.mod") as f:
+            module = GoModule.parse_mod(f.read())
+        git_hash = git_commit(str(repo.path))
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+        version = f"v0.0.0-{timestamp}-"
+        if git_hash is None:
+            version = f"{version}????"
+        else:
+            version = f"{version}{git_hash}"
+        repo.add(SourcePackage(
+            name=module.name,
+            version=GoVersion(version),  # type: ignore
+            source_path=repo.path,
+            source=self,
+            dependencies=[
+                Dependency(package=package, semantic_version=GoSpec(version))
+                for package, version in module.dependencies
+            ]
+        ))
         resolver.resolve_unsatisfied(repo)
