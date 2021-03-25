@@ -1,6 +1,4 @@
 import functools
-import urllib.request
-import gzip
 import re
 import itertools
 import os
@@ -11,6 +9,7 @@ import subprocess
 from typing import Optional
 from semantic_version.base import Always, BaseSpec
 import logging
+from .utils import file_to_package
 
 from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, PackageCache, SimpleSpec, SourcePackage, SourceRepository,
@@ -64,70 +63,6 @@ class AutotoolsClassifier(DependencyClassifier):
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
-    def _file_to_package_contents(filename, arch="amd64"):
-        """
-        Downloads and uses apt-file database directly
-        # http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-amd64.gz
-        # http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-i386.gz
-        """
-        if arch not in ("amd64", "i386"):
-            raise ValueError("Only amd64 and i386 supported")
-        db = {}
-        selected = None
-
-        # TODO find better location https://pypi.org/project/appdirs/?
-        dbfile = os.path.join(os.path.dirname(__file__), f"Contents-{arch}.gz")
-
-        if not os.path.exists(dbfile):
-            urllib.request.urlretrieve(f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz", dbfile)
-        regex = re.compile(filename)
-        with gzip.open(dbfile, "rt") as contents:
-            for line in contents.readlines():
-                line = line[:-1].replace("    ", ",").replace("\t", "")
-                filename_i, *packages_i = line.split(",")
-                if regex.match(filename_i):
-                    for package_i in packages_i:
-                        db[filename_i] = package_i
-                        if selected is None or len(selected[0]) > len(filename_i):
-                            selected = filename_i, package_i
-        if selected:
-            logger.info(f"Found {len(db)} matching packages for {filename}. Choosing {selected[1]}")
-
-    @staticmethod
-    @functools.lru_cache(maxsize=128)
-    def _file_to_package_apt_file(filename, arch="amd64"):
-        if arch not in ("amd64", "i386"):
-            raise ValueError("Only amd64 and i386 supported")
-        contents = subprocess.run(["apt-file", "-x", "search", filename], stdout=subprocess.PIPE).stdout.decode("utf8")
-        db = {}
-        selected = None
-        for line in contents.split("\n"):
-            if not line:
-                continue
-            package_i, filename_i = line.split(": ")
-            db[filename_i] = package_i
-            if selected is None or len(selected[0]) > len(filename_i):
-                selected = filename_i, package_i
-
-        if selected:
-            logger.info(f"Found {len(db)} matching packages for {filename}. Choosing {selected[1]}")
-        return selected[1]
-
-    @staticmethod
-    @functools.lru_cache(maxsize=128)
-    def _file_to_package(filename, arch="amd64"):
-        try:
-            package_name = AutotoolsClassifier._file_to_package_apt_file(filename, arch=arch)
-        except Exception as e:
-            print (f"Exception using apt-file, retrying by hand... {e}")
-            package_name = AutotoolsClassifier._file_to_package_contents(filename, arch=arch)
-        if package_name is None:
-            raise ValueError(f"Could not find a package for file expression {filename}")
-
-        return package_name
-
-    @staticmethod
-    @functools.lru_cache(maxsize=128)
     def _ac_check_header(header_file):
         """
         Macro: AC_CHECK_HEADER
@@ -135,7 +70,7 @@ class AutotoolsClassifier(DependencyClassifier):
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Generic-Headers.html
         """
         logger.info(f"AC_CHECK_HEADER {header_file}")
-        package_name=AutotoolsClassifier._file_to_package(f"{header_file}$")
+        package_name=file_to_package(f"{re.escape(header_file)}")
         return Dependency(package=package_name,
                           semantic_version=SimpleSpec("*"),
                           )
@@ -150,7 +85,7 @@ class AutotoolsClassifier(DependencyClassifier):
         """
         lib_file, function_name = function.split(".")
         logger.info(f"AC_CHECK_LIB {lib_file}")
-        package_name = AutotoolsClassifier._file_to_package(f"lib{lib_file}(.a|.so)$")
+        package_name = file_to_package(f"lib{re.escape(lib_file)}(.a|.so)")
         return Dependency(package=package_name,
                           semantic_version=SimpleSpec("*"),
                           )
@@ -165,9 +100,9 @@ class AutotoolsClassifier(DependencyClassifier):
         """
         if not version:
             version="*"
-        module_file = module_name
+        module_file = re.escape(module_name +".pc")
         logger.info(f"PKG_CHECK_MODULES {module_file}, {version}")
-        package_name = AutotoolsClassifier._file_to_package(module_file)
+        package_name = file_to_package(module_file)
         return Dependency(package=package_name,
                           semantic_version=SimpleSpec(version),
                           )

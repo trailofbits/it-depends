@@ -12,6 +12,7 @@ setup(
     install_requires=[
         "docker>=4.4.0",
         "johnnydep~=1.7",
+        "parse_cmake",
         "semantic_version~=2.8.5",
         "sqlalchemy>=1.3",
         "tqdm>=4.48.0"
