@@ -111,7 +111,8 @@ class NPMResolver(DependencyResolver):
                 except ValueError:
                     continue
                 if version in dependency.semantic_version:
-                    yield Package(name=dependency.package, version=version, source="npm", dependencies=(
+                    yield Package(name=dependency.package, version=version, source=NPMClassifier.default_instance(),
+                                  dependencies=(
                         Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version))
                         for dep, dep_version in deps.items()
                     ))
