@@ -3,13 +3,13 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Union
 
 from semantic_version.base import Always, BaseSpec
 
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, PackageCache, SimpleSpec,
-    SourcePackage, SourceRepository, Version
+    ClassifierAvailability, Dependency, DependencyClassifier, Package, PackageCache, SimpleSpec, SourcePackage,
+    SourceRepository, Version
 )
 
 
@@ -35,9 +35,12 @@ class CargoSpec(SimpleSpec):
         return ",".join(b.strip() for b in self.expression.split(','))
 
 
-def get_dependencies(cargo_package_path: str, check_for_cargo: bool = True) -> Iterable[Package]:
+def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool = True) -> Iterable[Package]:
     if check_for_cargo and shutil.which("cargo") is None:
         raise ValueError("`cargo` does not appear to be installed! Make sure it is installed and in the PATH.")
+
+    if not isinstance(cargo_package_path, Path):
+        cargo_package_path = Path(cargo_package_path)
 
     orig_dir = getcwd()
     chdir(cargo_package_path)
@@ -47,19 +50,41 @@ def get_dependencies(cargo_package_path: str, check_for_cargo: bool = True) -> I
     finally:
         chdir(orig_dir)
 
+    if "workspace_members" in metadata:
+        workspace_members = {
+            member[:member.find(" ")] for member in metadata["workspace_members"]
+        }
+    else:
+        workspace_members = set()
+
     for package in metadata["packages"]:
-        yield Package(
-            name=package["name"],
-            version=Version.coerce(package["version"]),
-            source="cargo",
-            dependencies=[
-                Dependency(
-                    package=dep["name"],
-                    semantic_version=CargoClassifier.parse_spec(dep["req"])
-                )
-                for dep in package["dependencies"]
-            ]
-        )
+        if package["name"] in workspace_members:
+            yield SourcePackage(
+                name=package["name"],
+                version=Version.coerce(package["version"]),
+                source=CargoClassifier.default_instance(),
+                dependencies=[
+                    Dependency(
+                        package=dep["name"],
+                        semantic_version=CargoClassifier.parse_spec(dep["req"])
+                    )
+                    for dep in package["dependencies"]
+                ],
+                source_path=cargo_package_path
+            )
+        else:
+            yield Package(
+                name=package["name"],
+                version=Version.coerce(package["version"]),
+                source=CargoClassifier.default_instance(),
+                dependencies=[
+                    Dependency(
+                        package=dep["name"],
+                        semantic_version=CargoClassifier.parse_spec(dep["req"])
+                    )
+                    for dep in package["dependencies"]
+                ]
+            )
 
 
 class CargoClassifier(DependencyClassifier):
@@ -80,5 +105,4 @@ class CargoClassifier(DependencyClassifier):
         return (repo.path / "Cargo.toml").exists()
 
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        raise NotImplementedError("TODO")
-        return DependencyResolver(get_dependencies(path, check_for_cargo=False), source=self, cache=cache)
+        repo.extend(get_dependencies(repo.path, check_for_cargo=False))
