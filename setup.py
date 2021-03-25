@@ -12,10 +12,14 @@ setup(
     install_requires=[
         "docker>=4.4.0",
         "johnnydep~=1.7",
-        "semantic_version~=2.8.5",
-        "tqdm>=4.48.0",
         "parse_cmake",
+        "semantic_version~=2.8.5",
+        "sqlalchemy>=1.3",
+        "tqdm>=4.48.0"
     ],
+    extras_require={
+        "dev": ["flake8", "pytest", "twine"]
+    },
     entry_points={
         "console_scripts": [
             "it-depends = it_depends.__main__:main"
