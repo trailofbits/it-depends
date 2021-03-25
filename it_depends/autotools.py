@@ -31,7 +31,7 @@ class AutoSpec(SimpleSpec):
             for block in blocks:
                 if not cls.NAIVE_SPEC.match(block):
                     raise ValueError("Invalid simple block %r" % block)
-                    clause &= cls.parse_block(block)
+                    # clause &= cls.parse_block(block)
 
             return clause
 
@@ -70,7 +70,7 @@ class AutotoolsClassifier(DependencyClassifier):
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Generic-Headers.html
         """
         logger.info(f"AC_CHECK_HEADER {header_file}")
-        package_name=file_to_package(f"{re.escape(header_file)}")
+        package_name = file_to_package(f"{re.escape(header_file)}")
         return Dependency(package=package_name,
                           semantic_version=SimpleSpec("*"),
                           )
@@ -86,9 +86,7 @@ class AutotoolsClassifier(DependencyClassifier):
         lib_file, function_name = function.split(".")
         logger.info(f"AC_CHECK_LIB {lib_file}")
         package_name = file_to_package(f"lib{re.escape(lib_file)}(.a|.so)")
-        return Dependency(package=package_name,
-                          semantic_version=SimpleSpec("*"),
-                          )
+        return Dependency(package=package_name, semantic_version=SimpleSpec("*"))
 
     @staticmethod
     def _pkg_check_modules(module_name, version=None):
@@ -99,17 +97,15 @@ class AutotoolsClassifier(DependencyClassifier):
         given package in the system.
         """
         if not version:
-            version="*"
-        module_file = re.escape(module_name +".pc")
+            version = "*"
+        module_file = re.escape(module_name + ".pc")
         logger.info(f"PKG_CHECK_MODULES {module_file}, {version}")
         package_name = file_to_package(module_file)
-        return Dependency(package=package_name,
-                          semantic_version=SimpleSpec(version),
-                          )
+        return Dependency(package=package_name, semantic_version=SimpleSpec(version))
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
-    def _replace_variables(token:str, configure:str):
+    def _replace_variables(token: str, configure: str):
         """
             Search all variable occurrences in token and then try to find
             bindings for them in the configure script.
@@ -117,7 +113,7 @@ class AutotoolsClassifier(DependencyClassifier):
         if "$" not in token:
             return token
         vars = re.findall(r"\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
-        vars = set(var for var in itertools.chain(*vars) if var)  #remove dups and empty
+        vars = set(var for var in itertools.chain(*vars) if var)  # remove dups and empty
         for var in vars:
             logger.info(f"Trying to find bindings for {var} in configure")
 
@@ -135,7 +131,7 @@ class AutotoolsClassifier(DependencyClassifier):
                 logger.warning(f"No solution found for binding {var}")
                 continue
             logger.info(f"Found a solution {solutions}")
-            sol = (solutions+[None,])[0]
+            sol = (solutions+[None, ])[0]
             if sol is not None:
                 token = token.replace(f"${var}", sol).replace(f"${{{var}}}", sol)
         if "$" in token:
@@ -152,7 +148,7 @@ class AutotoolsClassifier(DependencyClassifier):
                              "-t", 'AC_CHECK_LIB:$n:$1.$2',
                              "-t", 'PKG_CHECK_MODULES:$n:$2',
                              "-t", 'PKG_CHECK_MODULES_STATIC:$n', "./configure.ac"]).decode("utf8")
-            configure = subprocess.check_output(["autoconf","./configure.ac"]).decode("utf8")
+            configure = subprocess.check_output(["autoconf", "./configure.ac"]).decode("utf8")
         finally:
             chdir(orig_dir)
 
