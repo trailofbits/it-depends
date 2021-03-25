@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Dict, FrozenSet, Iterable, Iterator, Optional, Tuple, Union
 
-from semantic_version import SimpleSpec, Version
+from semantic_version import Version
 from sqlalchemy import Column, create_engine, distinct, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
