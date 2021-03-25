@@ -71,25 +71,49 @@ class CMakeClassifier(DependencyClassifier):
         return (Path(path) / "CMakeLists.txt").exists()
 
     def _find_package(self, package, *args, file_to_package_cache=None):
-        """find_package(<package> [version] [EXACT] [QUIET] [MODULE]
+        """
+        The command searches for a file called <PackageName>Config.cmake or <lower-case-package-name>-config.cmake for each name specified.
+
+        find_package(<PackageName> [version] [EXACT] [QUIET]
              [REQUIRED] [[COMPONENTS] [components...]]
              [OPTIONAL_COMPONENTS components...]
-             [NO_POLICY_SCOPE])
+             [CONFIG|NO_MODULE]
+             [NO_POLICY_SCOPE]
+             [NAMES name1 [name2 ...]]
+             [CONFIGS config1 [config2 ...]]
+             [HINTS path1 [path2 ... ]]
+             [PATHS path1 [path2 ... ]]
+             [PATH_SUFFIXES suffix1 [suffix2 ...]]
+             [NO_DEFAULT_PATH]
+             [NO_PACKAGE_ROOT_PATH]
+             [NO_CMAKE_PATH]
+             [NO_CMAKE_ENVIRONMENT_PATH]
+             [NO_SYSTEM_ENVIRONMENT_PATH]
+             [NO_CMAKE_PACKAGE_REGISTRY]
+             [NO_CMAKE_BUILDS_PATH] # Deprecated; does nothing.
+             [NO_CMAKE_SYSTEM_PATH]
+             [NO_CMAKE_SYSTEM_PACKAGE_REGISTRY]
+             [CMAKE_FIND_ROOT_PATH_BOTH |
+              ONLY_CMAKE_FIND_ROOT_PATH |
+              NO_CMAKE_FIND_ROOT_PATH])
+         Ref.https://cmake.org/cmake/help/latest/command/find_package.html
          """
+        keywords = ("EXACT", "QUIET", "REQUIRED", "COMPONENTS", "components...", "OPTIONAL_COMPONENTS", "CONFIG", "NO_MODULE", "NO_POLICY_SCOPE", "NAMES", "CONFIGS", "HINTS", "PATHS", "PATH_SUFFIXES", "NO_DEFAULT_PATH", "NO_PACKAGE_ROOT_PATH", "NO_CMAKE_PATH", "NO_CMAKE_ENVIRONMENT_PATH", "NO_SYSTEM_ENVIRONMENT_PATH", "NO_CMAKE_PACKAGE_REGISTRY", "NO_CMAKE_BUILDS_PATH", "NO_CMAKE_SYSTEM_PATH", "NO_CMAKE_SYSTEM_PACKAGE_REGISTRY", "CMAKE_FIND_ROOT_PATH_BOTH", "ONLY_CMAKE_FIND_ROOT_PATH", "NO_CMAKE_FIND_ROOT_PATH",)
         version = None
-        if len(args) > 0 and args[0] not in ('EXACT', 'QUIET', 'MODULE',
-        'REQUIRED', 'COMPONENTS', 'OPTIONAL_COMPONENTS', 'NO_POLICY_SCOPE'):
+        if len(args) > 0 and args[0] not in keywords:
             version = args[0]
         name = re.escape(package)
         try:
-            name = f"({name}\.pc|{name}Config\.cmake|{name.lower()}Config\.cmake)"
+            name = f"({name}\.pc|{name}Config\.cmake|{name.lower()}Config\.cmake|{name.lower()}\-config\.cmake)"
             yield file_to_package(name, file_to_package_cache=file_to_package_cache), version
         except:
             found_package = search_package(package)
 
-            contents = subprocess.run(["apt-file", "list", package],
+            contents = subprocess.run(["apt-file", "list", found_package],
                                       stdout=subprocess.PIPE).stdout.decode("utf8")
             for line in contents.split("\n"):
+                if not ": " in line:
+                    continue
                 package_i, filename_i = line.split(": ")
                 file_to_package_cache.append((package_i, filename_i))
 
@@ -260,8 +284,8 @@ class CMakeClassifier(DependencyClassifier):
                         cmake_lists.write(patched)
                         cmake_lists.flush()
                     cmake_lists.close()
-                    subprocess.check_output(
-                         ["cmake", "-Wno-dev", "-trace", "--trace-expand", f"--trace-redirect={output}", apath]).decode("utf8")
+                    subprocess.run(
+                         ["cmake", "-Wno-dev", "-trace", "--trace-expand", f"--trace-redirect={output}", apath], stdout=subprocess.PIPE).stdout.decode("utf8")
                     with open(output, "rt") as outfd:
                         trace = outfd.read()
                 finally:
@@ -351,6 +375,8 @@ class CMakeClassifier(DependencyClassifier):
                     logger.info(f"Found a conflict in versions for {name} ({version} vs. {depsd[name]}). Setting '*'")
                     depsd[name] = "*"
 
+        if package_version is None:
+            package_version = "0.0.0"
         yield Package(
             name=package_name,
             version=Version.coerce(package_version),
