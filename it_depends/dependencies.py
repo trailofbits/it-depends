@@ -496,12 +496,15 @@ def resolve(path: Union[str, Path], cache: Optional[PackageCache] = None) -> Sou
                     classifier.classify(repo, cache=cache)
     except KeyboardInterrupt:
         if sys.stderr.isatty() and sys.stdin.isatty():
-            while True:
-                sys.stderr.write("Would you like to output the partial results? [Yn] ")
-                choice = input().lower()
-                if choice == "" or choice == "y":
-                    return repo
-                elif choice == "n":
-                    sys.exit(1)
+            try:
+                while True:
+                    sys.stderr.write("Would you like to output the partial results? [Yn] ")
+                    choice = input().lower()
+                    if choice == "" or choice == "y":
+                        return repo
+                    elif choice == "n":
+                        sys.exit(1)
+            except KeyboardInterrupt:
+                sys.exit(1)
         raise
     return repo
