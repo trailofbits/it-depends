@@ -149,6 +149,7 @@ def file_to_package(filename, arch="amd64"):
     return _file_to_package_apt_file(filename, arch=arch)
     #return _file_to_package_contents(filename, arch=arch)
 
+
 def cached_file_to_package(pattern, file_to_package_cache = None):
     # file_to_package_cache contains all the files that are provided be previous
     # dependencies. If a file pattern is already sastified by current files
