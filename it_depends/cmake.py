@@ -68,7 +68,8 @@ class CMakeClassifier(DependencyClassifier):
 
     def _find_package(self, package, *args, file_to_package_cache=None):
         """
-        The command searches for a file called <PackageName>Config.cmake or <lower-case-package-name>-config.cmake for each name specified.
+        The command searches for a file called <PackageName>Config.cmake or <lower-case-package-name>-config.cmake for
+        each name specified.
 
         find_package(<PackageName> [version] [EXACT] [QUIET]
              [REQUIRED] [[COMPONENTS] [components...]]
@@ -92,23 +93,28 @@ class CMakeClassifier(DependencyClassifier):
              [CMAKE_FIND_ROOT_PATH_BOTH |
               ONLY_CMAKE_FIND_ROOT_PATH |
               NO_CMAKE_FIND_ROOT_PATH])
-         Ref.https://cmake.org/cmake/help/latest/command/find_package.html
-         """
-        keywords = ("EXACT", "QUIET", "REQUIRED", "COMPONENTS", "components...", "OPTIONAL_COMPONENTS", "CONFIG", "NO_MODULE", "NO_POLICY_SCOPE", "NAMES", "CONFIGS", "HINTS", "PATHS", "PATH_SUFFIXES", "NO_DEFAULT_PATH", "NO_PACKAGE_ROOT_PATH", "NO_CMAKE_PATH", "NO_CMAKE_ENVIRONMENT_PATH", "NO_SYSTEM_ENVIRONMENT_PATH", "NO_CMAKE_PACKAGE_REGISTRY", "NO_CMAKE_BUILDS_PATH", "NO_CMAKE_SYSTEM_PATH", "NO_CMAKE_SYSTEM_PACKAGE_REGISTRY", "CMAKE_FIND_ROOT_PATH_BOTH", "ONLY_CMAKE_FIND_ROOT_PATH", "NO_CMAKE_FIND_ROOT_PATH",)
+        Ref.https://cmake.org/cmake/help/latest/command/find_package.html
+        """
+        keywords = ("EXACT", "QUIET", "REQUIRED", "COMPONENTS", "components...", "OPTIONAL_COMPONENTS", "CONFIG",
+                    "NO_MODULE", "NO_POLICY_SCOPE", "NAMES", "CONFIGS", "HINTS", "PATHS", "PATH_SUFFIXES",
+                    "NO_DEFAULT_PATH", "NO_PACKAGE_ROOT_PATH", "NO_CMAKE_PATH", "NO_CMAKE_ENVIRONMENT_PATH",
+                    "NO_SYSTEM_ENVIRONMENT_PATH", "NO_CMAKE_PACKAGE_REGISTRY", "NO_CMAKE_BUILDS_PATH",
+                    "NO_CMAKE_SYSTEM_PATH", "NO_CMAKE_SYSTEM_PACKAGE_REGISTRY", "CMAKE_FIND_ROOT_PATH_BOTH",
+                    "ONLY_CMAKE_FIND_ROOT_PATH", "NO_CMAKE_FIND_ROOT_PATH",)
         version = None
         if len(args) > 0 and args[0] not in keywords:
             version = args[0]
         name = re.escape(package)
         try:
-            name = f"({name}\.pc|{name}Config\.cmake|{name.lower()}Config\.cmake|{name.lower()}\-config\.cmake)"
+            name = fr"({name}\.pc|{name}Config\.cmake|{name.lower()}Config\.cmake|{name.lower()}\-config\.cmake)"
             yield file_to_package(name, file_to_package_cache=file_to_package_cache), version
-        except:
+        except ValueError:
             found_package = search_package(package)
 
             contents = subprocess.run(["apt-file", "list", found_package],
                                       stdout=subprocess.PIPE).stdout.decode("utf8")
             for line in contents.split("\n"):
-                if not ": " in line:
+                if ": " not in line:
                     continue
                 package_i, filename_i = line.split(": ")
                 file_to_package_cache.append((package_i, filename_i))
@@ -129,16 +135,20 @@ class CMakeClassifier(DependencyClassifier):
         """
         module_specs = []
         for keyword in args:
-            if keyword.upper() in ("REQUIRED", "QUIET", "NO_CMAKE_PATH", "NO_CMAKE_ENVIRONMENT_PATH", "IMPORTED_TARGET", "GLOBAL"):
+            if keyword.upper() in ("REQUIRED", "QUIET", "NO_CMAKE_PATH", "NO_CMAKE_ENVIRONMENT_PATH", "IMPORTED_TARGET",
+                                   "GLOBAL"):
                 continue
             module_name = re.split("(<|>|=|<=|>=)", keyword)[0]
             version_range = keyword[len(module_name):].strip()
             if not version_range:
-                version_range=None
+                version_range = None
             module_specs.append((module_name, version_range))
 
         for module_name, version_range in module_specs:
-            yield file_to_package(f"{re.escape(module_name)}\.pc", file_to_package_cache=file_to_package_cache), version_range
+            yield (
+                file_to_package(fr"{re.escape(module_name)}\.pc", file_to_package_cache=file_to_package_cache),
+                version_range
+            )
 
     def _get_names(self, args, keywords):
         """ Get the sequence of argumens after NAMES and until any of the keywords"""
@@ -176,11 +186,10 @@ class CMakeClassifier(DependencyClassifier):
 
         https://cmake.org/cmake/help/latest/command/find_library.html
         """
-        keywords = ("NAMES_PER_DIR", "HINTS", "PATHS", "PATH_SUFFIXES" "DOC", "REQUIRED",
-         "NO_DEFAULT_PATH", "NO_PACKAGE_ROOT_PATH", "NO_CMAKE_PATH",
-         "NO_CMAKE_ENVIRONMENT_PATH", "NO_SYSTEM_ENVIRONMENT_PATH",
-         "NO_CMAKE_SYSTEM_PATH", "CMAKE_FIND_ROOT_PATH_BOTH",
-         "ONLY_CMAKE_FIND_ROOT_PATH", "NO_CMAKE_FIND_ROOT_PATH")
+        keywords = ("NAMES_PER_DIR", "HINTS", "PATHS", "PATH_SUFFIXES" "DOC", "REQUIRED", "NO_DEFAULT_PATH",
+                    "NO_PACKAGE_ROOT_PATH", "NO_CMAKE_PATH", "NO_CMAKE_ENVIRONMENT_PATH", "NO_SYSTEM_ENVIRONMENT_PATH",
+                    "NO_CMAKE_SYSTEM_PATH", "CMAKE_FIND_ROOT_PATH_BOTH",
+                    "ONLY_CMAKE_FIND_ROOT_PATH", "NO_CMAKE_FIND_ROOT_PATH")
         args = self._get_names(args[1:], keywords)
 
         names = set()
@@ -188,13 +197,14 @@ class CMakeClassifier(DependencyClassifier):
             if not name.startswith("lib"):
                 name = f"lib{name}"
             names.add(name)
-        yield file_to_package(f"({ '|'.join(map(re.escape, names))})(\.so[0-9\.]*|\.a)", file_to_package_cache=file_to_package_cache), None
+        yield file_to_package(fr"({ '|'.join(map(re.escape, names))})(\.so[0-9\.]*|\.a)",
+                              file_to_package_cache=file_to_package_cache), None
 
     def _check_include_files(self, includes, variable, *args, file_to_package_cache=None):
         """CHECK_INCLUDE_FILES("<includes>" <variable> [LANGUAGE <language>])
         https://cmake.org/cmake/help/latest/module/CheckIncludeFiles.html
         """
-        pattern = "include/(.*/)*(" + "|".join(map(re.escape, args[0].split(";"))) + ")"
+        pattern = r"include/(.*/)*(" + "|".join(map(re.escape, args[0].split(";"))) + r")"
         yield file_to_package(pattern, file_to_package_cache=file_to_package_cache), None
 
     def _check_include_file(self, include_file, *args, file_to_package_cache=None):
@@ -202,7 +212,7 @@ class CMakeClassifier(DependencyClassifier):
         CHECK_INCLUDE_FILE(<include> <variable> [<flags>])
         https://cmake.org/cmake/help/latest/module/CheckIncludeFile.html#module:CheckIncludeFile
         """
-        pattern = f"include/(.*/)*{re.escape(include_file)}"
+        pattern = fr"include/(.*/)*{re.escape(include_file)}"
         yield file_to_package(pattern, file_to_package_cache=file_to_package_cache), None
 
     def _check_include_file_cxx(self, include_file, *args, file_to_package_cache=None):
@@ -239,7 +249,7 @@ class CMakeClassifier(DependencyClassifier):
                     "NO_CMAKE_ENVIRONMENT_PATH", "NO_SYSTEM_ENVIRONMENT_PATH",
                     "NO_CMAKE_SYSTEM_PATH", "CMAKE_FIND_ROOT_PATH_BOTH",
                     "ONLY_CMAKE_FIND_ROOT_PATH", "NO_CMAKE_FIND_ROOT_PATH")
-        #args = self._get_names(args, keywords)
+        # args = self._get_names(args, keywords)
         for name in args:
             if name == "NAMES":
                 continue
@@ -252,8 +262,8 @@ class CMakeClassifier(DependencyClassifier):
                 logger.debug(e)
 
     def _get_dependencies(self, path: Path):
-        #assert self.is_available()
-        #assert self.can_classify(path)
+        # assert self.is_available()
+        # assert self.can_classify(path)
         apath = os.path.abspath(path)
         logger.info(f"Getting dependencies for cmake repo {apath}")
         orig_dir = getcwd()
@@ -279,7 +289,8 @@ class CMakeClassifier(DependencyClassifier):
                         cmake_lists.flush()
                     cmake_lists.close()
                     subprocess.run(
-                         ["cmake", "-Wno-dev", "-trace", "--trace-expand", f"--trace-redirect={output}", apath], stdout=subprocess.PIPE).stdout.decode("utf8")
+                        ["cmake", "-Wno-dev", "-trace", "--trace-expand", f"--trace-redirect={output}", apath],
+                        stdout=subprocess.PIPE).stdout.decode("utf8")
                     with open(output, "rt") as outfd:
                         trace = outfd.read()
                 finally:
@@ -305,7 +316,7 @@ class CMakeClassifier(DependencyClassifier):
                     parsed = cmake_parsing.parse(line)
                 except Exception as e:
                     logger.debug("Parsing error", e)
-                    pass #ignore parsing exceptions for now
+                    pass  # ignore parsing exceptions for now
 
                 for token in parsed:
                     try:
@@ -313,8 +324,10 @@ class CMakeClassifier(DependencyClassifier):
                             continue
                         if isinstance(token, cmake_parsing._Command):
                             command = token.name.lower()
-                            if command not in ('project', 'set', 'find_library', 'find_path', 'check_include_file','check_include_file_cxx', 'check_include_files', 'find_package', 'pkg_check_modules', '_pkg_find_libs'):
-                                #It's a trace of cmake.
+                            if command not in ('project', 'set', 'find_library', 'find_path', 'check_include_file',
+                                               'check_include_file_cxx', 'check_include_files', 'find_package',
+                                               'pkg_check_modules', '_pkg_find_libs'):
+                                # It's a trace of cmake.
                                 continue
                             body = sum(map(lambda x: x.contents.split(";"), token.body), [])
 
@@ -322,12 +335,12 @@ class CMakeClassifier(DependencyClassifier):
                             if command not in ("set", "project"):
                                 logger.info(f"Processing CMAKE command {command} {body}")
 
-                            #Dispatch over token name ...
+                            # Dispatch over token name ...
                             if command == "project":
                                 package_name = body[0]
                             elif command == "set":
-                                #detect project version...
-                                value = (body + [None,])[1]
+                                # detect project version...
+                                value = (body + [None, ])[1]
                                 if package_name is not None and body[0].lower() == f"{package_name}_version":
                                     package_version = value
                                 bindings[body[0].upper()] = value
@@ -338,11 +351,14 @@ class CMakeClassifier(DependencyClassifier):
                             elif command == "find_library":
                                 new_packages = self._find_library(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "pkg_check_modules":
-                                new_packages = self._pkg_check_modules(*body, file_to_package_cache=file_to_package_cache)
+                                new_packages = self._pkg_check_modules(*body,
+                                                                       file_to_package_cache=file_to_package_cache)
                             elif command == "check_include_file":
-                                new_packages = self._check_include_file(*body, file_to_package_cache=file_to_package_cache)
+                                new_packages = self._check_include_file(*body,
+                                                                        file_to_package_cache=file_to_package_cache)
                             elif command in ("check_include_files", "check_include_file_cxx"):
-                                new_packages = self._check_include_files(*body, file_to_package_cache=file_to_package_cache)
+                                new_packages = self._check_include_files(*body,
+                                                                         file_to_package_cache=file_to_package_cache)
                             else:
                                 logger.info(f"Not handled {token.name} {body}")
                             new_packages = tuple(new_packages)
