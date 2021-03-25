@@ -141,7 +141,8 @@ class NativeResolver(DependencyResolver):
                                             version = Version.coerce(library.version)
                                             new_package = Package(
                                                 name=library.name,
-                                                version=version
+                                                version=version,
+                                                source=self.source
                                             )
                                             existing.add(new_package)
                                         except ValueError:

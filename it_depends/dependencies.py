@@ -311,6 +311,9 @@ class DependencyResolver:
         else:
             self._cache.set_resolved(dependency_or_package, self.source.name)
 
+    def cache(self, package: Package):
+        self._cache.add(package, self.source)
+
     def resolve(
             self, dependency: Dependency, record_results: bool = True, check_cache: bool = True
     ) -> Iterator[Package]:
@@ -326,7 +329,7 @@ class DependencyResolver:
         # we never tried to resolve this dependency before, so do a manual resolution
         for package in self.resolve_missing(dependency):
             if record_results:
-                self._cache.add(package)
+                self.cache(package)
             yield package
         if record_results:
             self._cache.set_resolved(dependency, source=self.source.name)
