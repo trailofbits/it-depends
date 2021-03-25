@@ -21,6 +21,7 @@ def make_dockerfile(docker_setup: DockerSetup) -> InMemoryDockerfile:
     install_script = InMemoryFile("install.sh", docker_setup.install_package_script.encode("utf-8"))
     run_script = InMemoryFile("run.sh", docker_setup.load_package_script.encode("utf-8"))
     baseline_script = InMemoryFile("baseline.sh", docker_setup.baseline_script.encode("utf-8"))
+    pkgs = " ".join(docker_setup.apt_get_packages)
     return InMemoryDockerfile(f"""
 FROM ubuntu:20.04
 
@@ -28,7 +29,7 @@ RUN mkdir -p /workdir
 
 RUN ln -fs /usr/share/zoneinfo/America/New_York /etc/localtime
 
-RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends strace {" ".join(docker_setup.apt_get_packages)}
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install -y --no-install-recommends strace {pkgs}
 
 {docker_setup.post_install}
 
