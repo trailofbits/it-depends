@@ -92,7 +92,8 @@ class NPMResolver(DependencyResolver):
                     ["npm", "view", "--json", f"{dependency.package}@{dependency.semantic_version!s}", "versions"])
             except subprocess.CalledProcessError as e:
                 raise ValueError(
-                    f"Error running `npm view --json {dependency.package}@{dependency.semantic_version!s} versions`: {e!s}")
+                    f"Error running `npm view --json {dependency.package}@{dependency.semantic_version!s} versions`: "
+                    f"{e!s}")
             if len(output.strip()) == 0:
                 # no available versions!
                 return
@@ -100,7 +101,8 @@ class NPMResolver(DependencyResolver):
                 version_list = json.loads(output)
             except ValueError as e:
                 raise ValueError(
-                    f"Error parsing output of `npm view --json {dependency.package}@{dependency.semantic_version!s} versions`: {e!s}"
+                    f"Error parsing output of `npm view --json {dependency.package}@{dependency.semantic_version!s} "
+                    f"versions`: {e!s}"
                 )
             while version_list and isinstance(version_list[0], list):
                 # TODO: Figure out why sometimes `npm view` returns a list of lists 🤷
