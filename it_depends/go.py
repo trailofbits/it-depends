@@ -7,6 +7,7 @@ from subprocess import check_call, check_output, DEVNULL, CalledProcessError
 from tempfile import TemporaryDirectory
 from typing import Iterable, Iterator, List, Optional, Tuple, Union
 from urllib import request
+from urllib.error import HTTPError
 
 from .dependencies import (
     Dependency, DependencyClassifier, DependencyResolver, SourcePackage, SourceRepository, Package, PackageCache,
@@ -66,7 +67,7 @@ class GoSpec(SimpleSpec):
 
 
 class GoModule:
-    def __init__(self, name: str, dependencies: Iterable[Tuple[str, str]]):
+    def __init__(self, name: str, dependencies: Iterable[Tuple[str, str]] = ()):
         self.name: str = name
         self.dependencies: List[Tuple[str, str]] = list(dependencies)
 
@@ -110,23 +111,46 @@ class GoModule:
     @staticmethod
     def from_github(github_org: str, github_repo: str, tag: str):
         github_url = f"https://raw.githubusercontent.com/{github_org}/{github_repo}/{tag}/go.mod"
-        with request.urlopen(github_url) as response:
-            return GoModule.parse_mod(response.read())
+        try:
+            with request.urlopen(github_url) as response:
+                return GoModule.parse_mod(response.read())
+        except HTTPError as e:
+            if e.code == 404:
+                # If there is no `go.mod`, it likely means the package has no dependencies:
+                return GoModule(f"github.com/{github_org}/{github_repo}")
+            raise
 
     @staticmethod
     def from_git(git_url: str, tag: str):
-        m = GITHUB_URL_MATCH.match(git_url)
+        m = GITHUB_URL_MATCH.fullmatch(git_url)
         if m:
             return GoModule.from_github(m.group(2), m.group(3), tag)
+        module_name = git_url
+        if module_name.startswith("http://"):
+            module_name = module_name[len("http://"):]
+        elif module_name.startswith("https://"):
+            module_name = module_name[len("https://"):]
         if not git_url.endswith(".git"):
             git_url = f"{git_url}.git"
+        else:
+            module_name = module_name[:-len(".git")]
         log.info(f"Attempting to clone {git_url}")
         with TemporaryDirectory() as tempdir:
             check_call(["git", "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
             check_call(["git", "remote", "add", "origin", git_url], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
             git_hash = GoModule.tag_to_git_hash(tag)
+            env = {
+                "GIT_TERMINAL_PROMPT": "0"
+            }
+            if os.environ.get("GIT_SSH", "") == "" and os.environ.get("GIT_SSH_COMMAND", "") == "":
+                # disable any ssh connection pooling by git
+                env["GIT_SSH_COMMAND"] = "ssh -o ControlMaster=no"
             check_call(["git", "fetch", "--depth", "1", "origin", git_hash], cwd=tempdir, stderr=DEVNULL,
-                       stdout=DEVNULL)
+                       stdout=DEVNULL, env=env)
+            go_mod_path = Path(tempdir) / "go.mod"
+            if not go_mod_path.exists():
+                # the package likely doesn't have any dependencies
+                return GoModule(module_name)
             with open(Path(tempdir) / "go.mod", "r") as f:
                 return GoModule.parse_mod(f.read())
 
