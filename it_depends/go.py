@@ -1,4 +1,6 @@
+from dataclasses import dataclass
 from datetime import datetime
+from html.parser import HTMLParser
 from logging import getLogger
 import os
 from pathlib import Path
@@ -9,14 +11,14 @@ from typing import Iterable, Iterator, List, Optional, Tuple, Union
 from urllib import request
 from urllib.error import HTTPError
 
+from semantic_version import Version
+from semantic_version.base import BaseSpec, Range, SimpleSpec
+
 from .dependencies import (
     Dependency, DependencyClassifier, DependencyResolver, SourcePackage, SourceRepository, Package, PackageCache,
     SemanticVersion
 )
-
-from semantic_version import Version
-from semantic_version.base import BaseSpec, Range, SimpleSpec
-
+from . import vcs
 
 log = getLogger(__file__)
 
@@ -28,6 +30,29 @@ REQUIRE_BLOCK_MATCH = re.compile(r"\s*require\s+\(\s*")
 MODULE_MATCH = re.compile(r"\s*module\s+([^\s]+)\s*")
 
 GOPATH: Optional[str] = os.environ.get("GOPATH", None)
+
+
+@dataclass(frozen=True, unsafe_hash=True)
+class MetaImport:
+    prefix: str
+    vcs: str
+    repo_root: str
+
+
+class MetadataParser(HTMLParser):
+    in_meta: bool = False
+    metadata: List[MetaImport] = []
+
+    def error(self, message):
+        pass
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "meta":
+            attrs = dict(attrs)
+            if attrs.get("name", "") == "go-import":
+                fields = attrs.get("content", "").split(" ")
+                if len(fields) == 3:
+                    self.metadata.append(MetaImport(*fields))
 
 
 def git_commit(path: Optional[str] = None) -> Optional[str]:
@@ -121,19 +146,10 @@ class GoModule:
             raise
 
     @staticmethod
-    def from_git(git_url: str, tag: str):
+    def from_git(import_path: str, git_url: str, tag: str):
         m = GITHUB_URL_MATCH.fullmatch(git_url)
         if m:
             return GoModule.from_github(m.group(2), m.group(3), tag)
-        module_name = git_url
-        if module_name.startswith("http://"):
-            module_name = module_name[len("http://"):]
-        elif module_name.startswith("https://"):
-            module_name = module_name[len("https://"):]
-        if not git_url.endswith(".git"):
-            git_url = f"{git_url}.git"
-        else:
-            module_name = module_name[:-len(".git")]
         log.info(f"Attempting to clone {git_url}")
         with TemporaryDirectory() as tempdir:
             check_call(["git", "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
@@ -145,26 +161,108 @@ class GoModule:
             if os.environ.get("GIT_SSH", "") == "" and os.environ.get("GIT_SSH_COMMAND", "") == "":
                 # disable any ssh connection pooling by git
                 env["GIT_SSH_COMMAND"] = "ssh -o ControlMaster=no"
-            check_call(["git", "fetch", "--depth", "1", "origin", git_hash], cwd=tempdir, stderr=DEVNULL,
-                       stdout=DEVNULL, env=env)
+            try:
+                check_call(["git", "fetch", "--depth", "1", "origin", git_hash], cwd=tempdir, stderr=DEVNULL,
+                           stdout=DEVNULL, env=env)
+            except CalledProcessError:
+                # not all git servers support `git fetch --depth 1` on a hash
+                try:
+                    check_call(["git", "fetch", "origin"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env)
+                    check_call(["git", "checkout", git_hash], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env)
+                except CalledProcessError:
+                    log.error(f"Could not clone {git_url} for {import_path!r}")
+                    return GoModule(import_path)
             go_mod_path = Path(tempdir) / "go.mod"
             if not go_mod_path.exists():
                 # the package likely doesn't have any dependencies
-                return GoModule(module_name)
+                return GoModule(import_path)
             with open(Path(tempdir) / "go.mod", "r") as f:
                 return GoModule.parse_mod(f.read())
 
     @staticmethod
-    def from_name(module_name: str, tag: str):
-        if GOPATH is not None:
-            # see if we have the source in our
-            pass
-        return GoModule.from_git(f"https://{module_name}", tag)
+    def url_for_import_path(import_path: str) -> str:
+        """
+        returns a partially-populated URL for the given Go import path.
+
+        The URL leaves the Scheme field blank so that web.Get will try any scheme
+        allowed by the selected security mode.
+        """
+        slash = import_path.find("/")
+        host, path = import_path[:slash], import_path[slash:]
+        if "." not in host:
+            raise vcs.VCSResolutionError("import path does not begin with hostname")
+        if not path.startswith("/"):
+            path = f"/{path}"
+        return f"https://{host}{path}?go-get=1"
 
     @staticmethod
-    def load(name_or_url: str, tag: str = "master"):
+    def match_go_import(imports: Iterable[MetaImport], import_path: str) -> MetaImport:
+        match: Optional[MetaImport] = None
+        for i, m in enumerate(imports):
+            if not import_path.startswith(m.prefix):
+                continue
+            elif match is not None:
+                if match.vcs == "mod" and m.vcs != "mod":
+                    break
+                raise ValueError(f"Multiple meta tags match import path {import_path!r}")
+            match = m
+        if match is None:
+            raise ValueError(f"Unable to match import path {import_path!r}")
+        return match
+
+    @staticmethod
+    def parse_meta_go_imports(metadata: str) -> List[MetaImport]:
+        parser = MetadataParser()
+        parser.feed(metadata)
+        return parser.metadata
+
+    @staticmethod
+    def repo_root_for_import_dynamic(import_path: str) -> vcs.Repository:
+        url = GoModule.url_for_import_path(import_path)
+        try:
+            imports = GoModule.parse_meta_go_imports(request.urlopen(url).read().decode("utf-8"))
+        except HTTPError:
+            raise ValueError(f"Could not download metadata from {url} for import {import_path!s}")
+        meta_import = GoModule.match_go_import(imports, import_path)
+        if meta_import.prefix != import_path:
+            new_url, imports = GoModule.meta_imports_for_prefix(meta_import.prefix)
+            meta_import2 = GoModule.match_go_import(imports, import_path)
+            if meta_import != meta_import2:
+                raise ValueError(f"{url} and {new_url} disagree about go-import for {meta_import.prefix!r}")
+        # validateRepoRoot(meta_import.RepoRoot)
+        if meta_import.vcs == "mod":
+            the_vcs = vcs.VCS_MOD
+        else:
+            the_vcs = vcs.vcs_by_cmd(meta_import.vcs)
+            if the_vcs is None:
+                raise ValueError(f"{url}: unknown VCS {meta_import.vcs!r}")
+        vcs.check_go_vcs(the_vcs, meta_import.prefix)
+        return vcs.Repository(repo=meta_import.repo_root, root=meta_import.prefix, is_custom=True, vcs=the_vcs)
+
+    @staticmethod
+    def repo_root_for_import_path(import_path: str) -> vcs.Repository:
+        try:
+            return vcs.resolve(import_path)
+        except vcs.VCSResolutionError:
+            pass
+        return GoModule.repo_root_for_import_dynamic(import_path)
+
+    @staticmethod
+    def from_import(import_path: str, tag: str) -> "GoModule":
+        try:
+            repo = GoModule.repo_root_for_import_path(import_path)
+        except ValueError as e:
+            log.warning(str(e))
+            return GoModule(import_path)
+        if repo.vcs.name == "Git":
+            return GoModule.from_git(import_path, repo.repo, tag)
+        else:
+            raise NotImplementedError(f"TODO: add support for VCS type {repo.vcs.name}")
+
+    @staticmethod
+    def load(name_or_url: str, tag: str = "master") -> "GoModule":
         if not name_or_url.startswith("http://") and not name_or_url.startswith("https://"):
-            return GoModule.from_name(name_or_url, tag)
+            return GoModule.from_import(name_or_url, tag)
         else:
             return GoModule.from_git(name_or_url, tag)
 
@@ -176,7 +274,7 @@ class GoResolver(DependencyResolver):
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         assert isinstance(dependency.semantic_version, GoSpec)
         version_string = str(dependency.semantic_version)
-        module = GoModule.from_name(dependency.package, version_string)
+        module = GoModule.from_import(dependency.package, version_string)
         yield Package(
             name=module.name,
             version=GoVersion(version_string),  # type: ignore

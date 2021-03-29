@@ -14,6 +14,14 @@ import subprocess
 from typing import Callable, cast, Dict, Iterable, List, Optional, Type, TypeVar
 
 
+class VCSResolutionError(ValueError):
+    pass
+
+
+class GoVCSConfigError(VCSResolutionError):
+    pass
+
+
 T = TypeVar("T")
 
 
@@ -67,9 +75,9 @@ VCSes: List[VCS] = [
     vcs.default_instance() for vcs in (Git,)
 ]
 
-# _VCS_MOD is a stub for the "mod" scheme. It's returned by
+# VCS_MOD is a stub for the "mod" scheme. It's returned by
 # repoRootForImportPathDynamic, but is otherwise not treated as a VCS command.
-_VCS_MOD = VCS(name="mod", cmd="", scheme=(), ping_cmd=())
+VCS_MOD = VCS(name="mod", cmd="", scheme=(), ping_cmd=())
 
 
 @dataclass
@@ -77,6 +85,7 @@ class Match:
     prefix: str
     import_path: str
     repo: str = ""
+    vcs: str = ""
     root: Optional[str] = None
 
     def expand(self, s: str) -> str:
@@ -96,7 +105,7 @@ class VCSPath:
     schemeless_repo: bool = False
 
 
-class VCSMatchError(ValueError):
+class VCSMatchError(VCSResolutionError):
     pass
 
 
@@ -129,11 +138,19 @@ GITHUB = _register(VCSPath(
 ))
 
 
+GENERAL_REPO = _register(VCSPath(
+    regexp=re.compile(r"(?P<root>(?P<repo>([a-z0-9.\-]+\.)+[a-z0-9.\-]+(:[0-9]+)?(/~?[A-Za-z0-9_.\-]+)+?)\."
+                      r"(?P<vcs>bzr|fossil|git|hg|svn))(/~?[A-Za-z0-9_.\-]+)*$"),
+    schemeless_repo=True
+))
+
+
 @dataclass
 class Repository:
     repo: str
     root: str
     vcs: VCS
+    is_custom: bool = False
 
 
 def vcs_by_cmd(cmd: str) -> Optional[VCS]:
@@ -168,32 +185,32 @@ def parse_go_vcs(s: str) -> Optional[List[GoVCSRule]]:
     for item in s.split(","):
         item = item.strip()
         if not item:
-            raise ValueError(f"Empty entry in GOVCS")
+            raise GoVCSConfigError(f"Empty entry in GOVCS")
         i = item.find(":")
         if i < 0:
-            raise ValueError(f"Malformed entry in GOVCS (missing colon): {item!r}")
+            raise GoVCSConfigError(f"Malformed entry in GOVCS (missing colon): {item!r}")
         pattern, vcs_list = item[:i].strip(), item[i+1:].strip()
         if not pattern:
-            raise ValueError(f"Empty pattern in GOVCS: {item!r}")
+            raise GoVCSConfigError(f"Empty pattern in GOVCS: {item!r}")
         if not vcs_list:
-            raise ValueError(f"Empty VCS list in GOVCS: {item!r}")
+            raise GoVCSConfigError(f"Empty VCS list in GOVCS: {item!r}")
         if not os.path.isabs(pattern):
-            raise ValueError(f"Relative pattern not allowed in GOVCS: {pattern!r}")
+            raise GoVCSConfigError(f"Relative pattern not allowed in GOVCS: {pattern!r}")
         if have.get(pattern, default=""):
-            raise ValueError(f"Unreachable pattern in GOVCS: {item!r} after {have[pattern]!r}")
+            raise GoVCSConfigError(f"Unreachable pattern in GOVCS: {item!r} after {have[pattern]!r}")
         have[pattern] = item
         allowed = [
             a.strip()
             for a in vcs_list.split("|")
         ]
         if any(not a for a in allowed):
-            raise ValueError(f"Empty VCS name in GOVCS: {item!r}")
+            raise GoVCSConfigError(f"Empty VCS name in GOVCS: {item!r}")
         rules.append(GoVCSRule(pattern=pattern, allowed=allowed))
     return rules
 
 
 def check_go_vcs(vcs: VCS, root: str):
-    if vcs == _VCS_MOD:
+    if vcs == VCS_MOD:
         return
     global GO_VCS_RULES
     if GO_VCS_RULES is None:
@@ -217,13 +234,14 @@ def resolve(path: str) -> Repository:
         if not path.startswith(service.path_prefix):
             continue
         m = service.regexp.match(path)
-        if not m:
+        if m is None:
             if service.path_prefix:
                 raise VCSMatchError(f"Invalid {service.path_prefix} import path {path!r}")
         match = Match(prefix=f"{service.path_prefix}/", import_path=path)
-        for name, value in m.groupdict().items():
-            if name and value:
-                setattr(match, name, value)
+        if m:
+            for name, value in m.groupdict().items():
+                if name and value:
+                    setattr(match, name, value)
         if service.vcs is not None:
             match.vcs = match.expand(service.vcs)
         if service.repo:
@@ -232,7 +250,7 @@ def resolve(path: str) -> Repository:
             service.check(match)
         vcs = vcs_by_cmd(match.vcs)
         if vcs is None:
-            raise ValueError(f"unknown version control system {match.vcs}")
+            raise VCSResolutionError(f"unknown version control system {match.vcs!r}")
         check_go_vcs(vcs, match.root)
         if not service.schemeless_repo:
             repo_url: str = match.repo
@@ -242,4 +260,4 @@ def resolve(path: str) -> Repository:
                 scheme = vcs.scheme[0]
             repo_url = f"{scheme}://{match.repo}"
         return Repository(repo=repo_url, root=match.root, vcs=vcs)
-    raise ValueError(f"Unable to resolve repository for {path!r}")
+    raise VCSResolutionError(f"Unable to resolve repository for {path!r}")
