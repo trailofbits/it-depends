@@ -106,7 +106,7 @@ class CMakeClassifier(DependencyClassifier):
             version = args[0]
         name = re.escape(package)
         try:
-            name = fr"({name}\.pc|{name}Config\.cmake|{name.lower()}Config\.cmake|{name.lower()}\-config\.cmake)"
+            name = fr"({name}\.pc|{name}Config\.cmake|{name}Config\.cmake|{name.lower()}\-config\.cmake)"
             yield file_to_package(name, file_to_package_cache=file_to_package_cache), version
         except ValueError:
             found_package = search_package(package)
