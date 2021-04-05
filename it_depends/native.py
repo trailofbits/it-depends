@@ -100,6 +100,7 @@ class NativeResolver(DependencyResolver):
     def expand(self, existing: PackageCache, max_workers: Optional[int] = None):
         sources: Set[DependencyClassifier] = set()
         for package in existing:
+            # Loop over all of the packages that have already been classified by other classifiers
             if package.source is not None and package.source not in sources \
                     and package.source.docker_setup() is not None:
                 sources.add(package.source)
@@ -167,6 +168,7 @@ class NativeClassifier(DependencyClassifier):
     description = "attempts to detect native library usage by loading packages in a container"
 
     def __lt__(self, other):
+        """Make sure that the Native Classifier runs last"""
         return False
 
     def is_available(self) -> ClassifierAvailability:
