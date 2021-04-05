@@ -168,8 +168,8 @@ class NativeClassifier(DependencyClassifier):
     description = "attempts to detect native library usage by loading packages in a container"
 
     def __lt__(self, other):
-        """Make sure that the Native Classifier runs last"""
-        return False
+        """Make sure that the Native Classifier runs second-to-last, before the Ubuntu Classifier"""
+        return other.name == "ubuntu"
 
     def is_available(self) -> ClassifierAvailability:
         if shutil.which("docker") is None:

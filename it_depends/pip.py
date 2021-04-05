@@ -92,7 +92,7 @@ class PipResolver(DependencyResolver):
                 queue.extend((child, self._get_specifier(child)) for child in dist.children)
         return packages
 
-    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
+    def resolve_missing(self, dependency: Dependency, for_package: Optional[Package] = None) -> Iterator[Package]:
         try:
             return iter(self.resolve_dist(
                 JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version,

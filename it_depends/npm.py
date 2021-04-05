@@ -42,7 +42,7 @@ class NPMResolver(DependencyResolver):
             for dep_name, dep_version in dependencies.items()
         ))
 
-    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
+    def resolve_missing(self, dependency: Dependency, for_package: Optional[Package] = None) -> Iterator[Package]:
         """Yields all packages that satisfy the dependency without expanding those packages' dependencies"""
         try:
             output = subprocess.check_output(["npm", "view", "--json",
