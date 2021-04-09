@@ -19,16 +19,19 @@ class UbuntuResolver(DependencyResolver):
         source = for_package.source.name
         if not (source == "native" or source == "ubuntu" or source == "cmake" or source == "autotools"):
             return
-        # TODO: Match dependency.package against an Ubuntu package name and yield all of its dependencies from the
-        #       ubuntu package DB
+
+        # Parses the dependencies of dependency.package out of the `apt show` command
         logger.info(f"Running apt-cache depends {dependency.package}")
         contents = subprocess.run(["apt", "show", dependency.package],
                                   stdout=subprocess.PIPE).stdout.decode("utf8")
 
+        # Possibly means that the package does not appear ubuntu with the exact name
         if not contents:
             logger.info(f"Package {dependency.package} not found in ubuntu installed apt sources")
             return
 
+        # Example depends line:
+        # Depends: libc6 (>= 2.29), libgcc-s1 (>= 3.4), libstdc++6 (>= 9)
         version = None
         deps = []
         for line in contents.split("\n"):
@@ -46,7 +49,6 @@ class UbuntuResolver(DependencyResolver):
         if version is None:
             logger.info(f"Package {dependency.package} not found in ubuntu installed apt sources")
             return
-
 
         version = Version.coerce(version)
         yield Package(name=dependency.package, version=version,
