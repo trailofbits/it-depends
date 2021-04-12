@@ -38,6 +38,8 @@ class UbuntuResolver(DependencyResolver):
             if line.startswith("Depends: "):
                 for dep in line[9:].split(","):
                     matched = self._pattern.match(dep)
+                    if not matched:
+                        raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
                     dep_package = matched.group('package')
                     dep_version = matched.group('version')
                     dep_version = "*" # Yolo FIXME
