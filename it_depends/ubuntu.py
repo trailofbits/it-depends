@@ -42,11 +42,10 @@ class UbuntuResolver(DependencyResolver):
                         raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
                     dep_package = matched.group('package')
                     dep_version = matched.group('version')
-                    dep_version = "*" # Yolo FIXME
+                    dep_version = "*" # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
                     deps.append((dep_package, dep_version))
             if line.startswith("Version: "):
-                version = line[9:].split(":")[-1]
-                version = "0.0.0"  # Yolo FIXME
+                version = line[9:]
 
         if version is None:
             logger.info(f"Package {dependency.package} not found in ubuntu installed apt sources")
