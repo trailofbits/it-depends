@@ -4,7 +4,7 @@ import os
 import re
 import logging
 import subprocess
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 from urllib import request
 
 logger = logging.getLogger(__name__)
@@ -43,22 +43,22 @@ def _popularity(packagename):
     return 0
 '''
 
-all_packages = None
+all_packages: Optional[Tuple[str, ...]] = None
 
 
-def get_apt_packages():
+def get_apt_packages() -> Tuple[str, ...]:
     global all_packages
     if all_packages is None:
         logger.info("Rebuilding global apt package list.")
-        all_packages = subprocess.check_output(["apt", "list"]).decode("utf8")
-        all_packages = tuple(x.split("/")[0] for x in all_packages.splitlines() if x)
+        raw_packages = subprocess.check_output(["apt", "list"]).decode("utf8")
+        all_packages = tuple(x.split("/")[0] for x in raw_packages.splitlines() if x)
 
         logger.info(f"Global apt package count {len(all_packages)}")
     return all_packages
 
 
-def search_package(package):
-    found_packages = list()
+def search_package(package: str) -> str:
+    found_packages: List[str] = []
     for apt_package in get_apt_packages():
         if package.lower() not in apt_package:
             continue
@@ -78,7 +78,7 @@ contents_db: Dict[str, List[str]] = {}
 
 
 @functools.lru_cache(maxsize=128)
-def _file_to_package_contents(filename, arch="amd64"):
+def _file_to_package_contents(filename: str, arch: str = "amd64"):
     """
     Downloads and uses apt-file database directly
     # http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-amd64.gz
@@ -119,13 +119,13 @@ def _file_to_package_contents(filename, arch="amd64"):
 
 
 @functools.lru_cache(maxsize=128)
-def _file_to_package_apt_file(filename, arch="amd64"):
+def _file_to_package_apt_file(filename: str, arch: str = "amd64") -> str:
     if arch not in ("amd64", "i386"):
         raise ValueError("Only amd64 and i386 supported")
     logger.info(f'Running [{" ".join(["apt-file", "-x", "search", filename])}]')
     contents = subprocess.run(["apt-file", "-x", "search", filename],
                               stdout=subprocess.PIPE).stdout.decode("utf8")
-    db = {}
+    db: Dict[str, str] = {}
     selected = None
     for line in contents.split("\n"):
         if not line:
@@ -145,13 +145,13 @@ def _file_to_package_apt_file(filename, arch="amd64"):
 
 
 @functools.lru_cache(maxsize=128)
-def file_to_package(filename, arch="amd64"):
+def file_to_package(filename: str, arch: str = "amd64") -> str:
     filename = f"/{filename}$"
     return _file_to_package_apt_file(filename, arch=arch)
     # return _file_to_package_contents(filename, arch=arch)
 
 
-def cached_file_to_package(pattern, file_to_package_cache=None):
+def cached_file_to_package(pattern: str, file_to_package_cache: Optional[List[Tuple[str, str]]] = None) -> str:
     # file_to_package_cache contains all the files that are provided be previous
     # dependencies. If a file pattern is already sastified by current files
     # use the package already included as a dependency

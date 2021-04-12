@@ -5,7 +5,7 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Optional
+from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
 from .utils import cached_file_to_package as file_to_package, search_package
 import logging
 try:
@@ -66,7 +66,9 @@ class CMakeClassifier(DependencyClassifier):
     def can_classify(self, repo: SourceRepository) -> bool:
         return (repo.path / "CMakeLists.txt").exists()
 
-    def _find_package(self, package, *args, file_to_package_cache=None):
+    def _find_package(
+            self, package: str, *args, file_to_package_cache: Optional[List[Tuple[str, str]]] = None
+    ) -> Iterator[Tuple[str, Optional[str]]]:
         """
         The command searches for a file called <PackageName>Config.cmake or <lower-case-package-name>-config.cmake for
         each name specified.
@@ -113,11 +115,12 @@ class CMakeClassifier(DependencyClassifier):
 
             contents = subprocess.run(["apt-file", "list", found_package],
                                       stdout=subprocess.PIPE).stdout.decode("utf8")
-            for line in contents.split("\n"):
-                if ": " not in line:
-                    continue
-                package_i, filename_i = line.split(": ")
-                file_to_package_cache.append((package_i, filename_i))
+            if file_to_package_cache is not None:
+                for line in contents.split("\n"):
+                    if ": " not in line:
+                        continue
+                    package_i, filename_i = line.split(": ")
+                    file_to_package_cache.append((package_i, filename_i))
 
             yield found_package, version
 
@@ -301,8 +304,8 @@ class CMakeClassifier(DependencyClassifier):
         package_name = None
         package_version = None
 
-        file_to_package_cache = []
-        deps = []
+        file_to_package_cache: List[Tuple[str, str]] = []
+        deps: List[Tuple[str, Optional[str]]] = []
         bindings = {}
         try:
             for line in (re.split(r"/.*\([0-9]+\):\s+", trace)):
@@ -310,7 +313,7 @@ class CMakeClassifier(DependencyClassifier):
                     continue
 
                 line = line.strip("\n")
-                parsed = ()
+                parsed: Iterable[Union[cmake_parsing.BlankLine, cmake_parsing._Command]] = ()
 
                 try:
                     parsed = cmake_parsing.parse(line)
@@ -329,39 +332,40 @@ class CMakeClassifier(DependencyClassifier):
                                                'pkg_check_modules', '_pkg_find_libs'):
                                 # It's a trace of cmake.
                                 continue
-                            body = sum(map(lambda x: x.contents.split(";"), token.body), [])
+                            body: List[str] = sum(map(lambda x: x.contents.split(";"), token.body), [])
 
-                            new_packages = ()
                             if command not in ("set", "project"):
                                 logger.info(f"Processing CMAKE command {command} {body}")
+
+                            package_iter: Iterator[Tuple[str, Optional[str]]] = iter(())
 
                             # Dispatch over token name ...
                             if command == "project":
                                 package_name = body[0]
                             elif command == "set":
                                 # detect project version...
-                                value = (body + [None, ])[1]
+                                value: Optional[str] = (body + [None, ])[1]  # type: ignore
                                 if package_name is not None and body[0].lower() == f"{package_name}_version":
                                     package_version = value
                                 bindings[body[0].upper()] = value
                             elif command == "find_package":
-                                new_packages = self._find_package(*body, file_to_package_cache=file_to_package_cache)
+                                package_iter = self._find_package(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "find_path":
-                                new_packages = self._find_path(*body, file_to_package_cache=file_to_package_cache)
+                                package_iter = self._find_path(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "find_library":
-                                new_packages = self._find_library(*body, file_to_package_cache=file_to_package_cache)
+                                package_iter = self._find_library(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "pkg_check_modules":
-                                new_packages = self._pkg_check_modules(*body,
+                                package_iter = self._pkg_check_modules(*body,
                                                                        file_to_package_cache=file_to_package_cache)
                             elif command == "check_include_file":
-                                new_packages = self._check_include_file(*body,
+                                package_iter = self._check_include_file(*body,
                                                                         file_to_package_cache=file_to_package_cache)
                             elif command in ("check_include_files", "check_include_file_cxx"):
-                                new_packages = self._check_include_files(*body,
+                                package_iter = self._check_include_files(*body,
                                                                          file_to_package_cache=file_to_package_cache)
                             else:
                                 logger.info(f"Not handled {token.name} {body}")
-                            new_packages = tuple(new_packages)
+                            new_packages = tuple(package_iter)
                             deps.extend(new_packages)
                             if command not in ("set", "project"):
                                 logger.info(f"    GOT: {new_packages}")
@@ -372,7 +376,7 @@ class CMakeClassifier(DependencyClassifier):
             raise
 
         # remove "-dev" and dupplicates
-        depsd = {}
+        depsd: Dict[str, Optional[str]] = {}
         for name, version in deps:
             name = name.replace("-dev", "")
             if name not in depsd or depsd[name] is None:
@@ -385,6 +389,8 @@ class CMakeClassifier(DependencyClassifier):
 
         if package_version is None:
             package_version = "0.0.0"
+        if package_name is None:
+            raise ValueError(f"Unable to determine package name for {path}")
         yield SourcePackage(
             name=package_name,
             version=Version.coerce(package_version),
