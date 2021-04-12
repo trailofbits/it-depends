@@ -87,11 +87,18 @@ class InMemoryFile:
 
 class InMemoryDockerfile(Dockerfile):
     def __init__(self, content: str, local_files: Iterable[InMemoryFile] = ()):
-        super().__init__(None)
+        super().__init__(None)  # type: ignore
         self.content: str = content
         self.local_files: List[InMemoryFile] = list(local_files)
         self._entries: int = 0
         self._tmpdir: Optional[Path] = None
+
+    @Dockerfile.path.getter  # type: ignore
+    def path(self) -> Path:
+        path = super().path
+        if path is None:
+            raise ValueError("InMemoryDockerfile only has a valid path when inside of its context manager")
+        return path
 
     def __enter__(self) -> "InMemoryDockerfile":
         self._entries += 1
@@ -110,7 +117,7 @@ class InMemoryDockerfile(Dockerfile):
         if self._entries == 0:
             self.path.unlink()
             shutil.rmtree(self._tmpdir)
-            self.path = ""
+            self.path = None  # type: ignore
 
 
 class DockerContainer:

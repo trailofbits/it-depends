@@ -4,6 +4,7 @@ import os
 import re
 import logging
 import subprocess
+from typing import Dict, List
 from urllib import request
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ def search_package(package):
     return found_packages[0]
 
 
-contents_db = {}
+contents_db: Dict[str, List[str]] = {}
 
 
 @functools.lru_cache(maxsize=128)
