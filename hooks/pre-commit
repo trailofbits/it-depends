@@ -83,12 +83,12 @@ EOF
   exit 1
 fi
 
-# echo Type-checking Python code...
-# mypy --ignore-missing-imports it_depends test
-# RESULT=$?
-# if [ $RESULT -ne 0 ]; then
-#   exit $RESULT
-# fi
+echo Type-checking Python code...
+mypy --ignore-missing-imports it_depends test
+RESULT=$?
+if [ $RESULT -ne 0 ]; then
+  exit $RESULT
+fi
 
 # If there are whitespace errors, print the offending file names and fail.
 git diff-index --check --cached $against --
