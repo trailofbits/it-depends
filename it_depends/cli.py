@@ -2,13 +2,13 @@ import os
 import argparse
 import json
 import sys
-from typing import Iterable, Optional
+from typing import Optional, Sequence
 
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import CLASSIFIERS_BY_NAME, resolve
 
 
-def main(argv: Optional[Iterable[str]] = None) -> int:
+def main(argv: Optional[Sequence[str]] = None) -> int:
     if argv is None:
         argv = sys.argv
 
@@ -26,7 +26,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         sys.stdout.flush()
         sys.stderr.write(f"Available classifiers for {os.path.abspath(args.PATH)}:\n")
         sys.stderr.flush()
-        for name, classifier in sorted(CLASSIFIERS_BY_NAME.items()):
+        for name, classifier in sorted(CLASSIFIERS_BY_NAME.items()):  # type: ignore
             sys.stdout.write(name + " "*(12-len(name)))
             sys.stdout.flush()
             available = classifier.is_available()
