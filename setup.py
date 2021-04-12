@@ -18,7 +18,7 @@ setup(
         "tqdm>=4.48.0"
     ],
     extras_require={
-        "dev": ["flake8", "pytest", "twine"]
+        "dev": ["flake8", "pytest", "twine", "mypy"]
     },
     entry_points={
         "console_scripts": [
