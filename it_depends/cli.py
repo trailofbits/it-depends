@@ -43,3 +43,5 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     with DBPackageCache(args.database) as cache:
         package_list = resolve(args.PATH, cache)
         print(json.dumps(package_list.to_obj(), indent=4))
+
+    return 0
