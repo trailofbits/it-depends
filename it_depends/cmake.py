@@ -249,7 +249,6 @@ class CMakeClassifier(DependencyClassifier):
                     "NO_CMAKE_ENVIRONMENT_PATH", "NO_SYSTEM_ENVIRONMENT_PATH",
                     "NO_CMAKE_SYSTEM_PATH", "CMAKE_FIND_ROOT_PATH_BOTH",
                     "ONLY_CMAKE_FIND_ROOT_PATH", "NO_CMAKE_FIND_ROOT_PATH")
-        # args = self._get_names(args, keywords)
         for name in args:
             if name == "NAMES":
                 continue
@@ -374,7 +373,7 @@ class CMakeClassifier(DependencyClassifier):
         # remove "-dev" and dupplicates
         depsd = {}
         for name, version in deps:
-            name = name.replace("-dev", "")
+            #name = name.replace("-dev", "")
             if name not in depsd or depsd[name] is None:
                 depsd[name] = version
             else:
