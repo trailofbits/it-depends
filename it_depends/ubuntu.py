@@ -4,6 +4,7 @@ import subprocess
 import logging
 import re
 from .dependencies import Version, SimpleSpec
+
 logger = logging.getLogger(__name__)
 
 from .dependencies import (
@@ -14,7 +15,7 @@ from .dependencies import (
 
 class UbuntuResolver(DependencyResolver):
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
-
+    _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
     def resolve_missing(self, dependency: Dependency, for_package: Optional[Package] = None) -> Iterator[Package]:
         source = for_package.source.name
         if not (source == "native" or source == "ubuntu" or source == "cmake" or source == "autotools"):
@@ -51,7 +52,9 @@ class UbuntuResolver(DependencyResolver):
             logger.info(f"Package {dependency.package} not found in ubuntu installed apt sources")
             return
 
-        version = Version.coerce(version)
+        matched = self._ubuntu_version.match(version)
+        version = Version.coerce(matched.group("version"))
+
         yield Package(name=dependency.package, version=version,
                       source=UbuntuClassifier.default_instance(),
                       dependencies=(
