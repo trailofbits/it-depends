@@ -178,7 +178,7 @@ class NativeClassifier(DependencyClassifier):
         return ClassifierAvailability(True)
 
     def can_classify(self, repo: SourceRepository) -> bool:
-        for classifier in CLASSIFIERS_BY_NAME.values():
+        for classifier in CLASSIFIERS_BY_NAME.values():  # type: ignore
             if classifier.docker_setup() is not None and classifier.can_classify(repo):
                 return True
         return False

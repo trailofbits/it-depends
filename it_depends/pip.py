@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import subprocess
 import sys
-from typing import Iterable, Iterator, Optional
+from typing import Iterable, Iterator, List, Optional
 
 from johnnydep import JohnnyDist
 from johnnydep.logs import configure_logging
@@ -64,7 +64,7 @@ class PipResolver(DependencyResolver):
             self, dist: JohnnyDist, recurse: bool = True, version: SemanticVersion = SimpleSpec("*")
     ) -> Iterable[Package]:
         queue = [(dist, version)]
-        packages = []
+        packages: List[Package] = []
         while queue:
             dist, sem_version = queue.pop()
             for version in sem_version.filter(
