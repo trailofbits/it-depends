@@ -1,0 +1,15 @@
+#!/bin/sh
+
+which pytest >/dev/null 2>/dev/null
+RESULT=$?
+if [ $RESULT -ne 0 ]; then
+  cat << \EOF
+pytest is not installed! Run this from the root of the it-depends repo:
+
+    pip3 install -e .[dev]
+EOF
+  exit 1
+fi
+
+pytest test
+exit $?

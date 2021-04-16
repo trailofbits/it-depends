@@ -111,9 +111,9 @@ class AutotoolsClassifier(DependencyClassifier):
         """
         if "$" not in token:
             return token
-        vars = re.findall(r"\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
-        vars = set(var for var in itertools.chain(*vars) if var)  # remove dups and empty
-        for var in vars:
+        variable_list = re.findall(r"\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
+        variables = set(var for var in itertools.chain(*variable_list) if var)  # remove dups and empty
+        for var in variables:
             logger.info(f"Trying to find bindings for {var} in configure")
 
             # This tries to find a single assign to the variable in question
@@ -164,7 +164,7 @@ class AutotoolsClassifier(DependencyClassifier):
             logger.debug(f"Handling: {macro}")
             macro, *arguments = macro.split(":")
             try:
-                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)
+                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)  # type: ignore
             except Exception as e:
                 logger.info(str(e))
                 continue
