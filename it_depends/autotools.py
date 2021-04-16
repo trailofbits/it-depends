@@ -6,7 +6,7 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Optional
+from typing import Optional, List, Tuple
 from semantic_version.base import Always, BaseSpec
 import logging
 import tempfile
@@ -158,7 +158,7 @@ class AutotoolsClassifier(DependencyClassifier):
         finally:
             chdir(orig_dir)
 
-        file_to_package_cache = []
+        file_to_package_cache: List[Tuple[str]]  = []
         deps = []
         for macro in trace.split('\n'):
             logger.debug(f"Handling: {macro}")
