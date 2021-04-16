@@ -330,7 +330,7 @@ class DependencyResolver:
 
     def resolve(
             self, dependency: Dependency, record_results: bool = True, check_cache: bool = True,
-            for_package: Optional[Package] = None
+            from_package: Optional[Package] = None
     ) -> Iterator[Package]:
         """Yields all packages that satisfy the given dependency, resolving the dependency if necessary
 
@@ -346,16 +346,16 @@ class DependencyResolver:
             yield from self._cache.match(dependency)
             return
         # we never tried to resolve this dependency before, so do a manual resolution
-        for package in self.resolve_missing(dependency, for_package=for_package):
+        for package in self.resolve_missing(dependency, from_package=from_package):
             if record_results:
                 self.cache(package)
             yield package
         if record_results:
             self._cache.set_resolved(dependency, source=source_name)
 
-    def _resolve_worker(self, dependency: Dependency, for_package: Package) -> Tuple[Dependency, List[Package]]:
+    def _resolve_worker(self, dependency: Dependency, from_package: Package) -> Tuple[Dependency, List[Package]]:
         return dependency, list(self.resolve(
-            dependency, record_results=False, check_cache=False, for_package=for_package
+            dependency, record_results=False, check_cache=False, from_package=from_package
         ))
 
     def resolve_unsatisfied(self, packages: PackageCache, max_workers: Optional[int] = None):

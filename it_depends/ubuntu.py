@@ -16,8 +16,10 @@ from .dependencies import (
 class UbuntuResolver(DependencyResolver):
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
-    def resolve_missing(self, dependency: Dependency, for_package: Optional[Package] = None) -> Iterator[Package]:
-        source = for_package.source.name
+    def resolve_missing(self, dependency: Dependency, from_package: Optional[Package] = None) -> Iterator[Package]:
+        if from_package is None or from_package.source is None:
+            return
+        source = from_package.source.name
         if not (source == "native" or source == "ubuntu" or source == "cmake" or source == "autotools"):
             return
 
@@ -53,6 +55,10 @@ class UbuntuResolver(DependencyResolver):
             return
 
         matched = self._ubuntu_version.match(version)
+        if not matched:
+            logger.info(
+                f"Failed to parse package {dependency.package} version: {version}")
+            return
         version = Version.coerce(matched.group("version"))
 
         yield Package(name=dependency.package, version=version,
