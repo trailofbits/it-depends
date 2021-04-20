@@ -6,7 +6,6 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Optional, List, Tuple
 from semantic_version.base import Always, BaseSpec
 import logging
 import tempfile
@@ -18,27 +17,6 @@ from .dependencies import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-@BaseSpec.register_syntax
-class AutoSpec(SimpleSpec):
-    SYNTAX = 'autotools'
-
-    class Parser(SimpleSpec.Parser):
-        @classmethod
-        def parse(cls, expression):
-            blocks = [b.strip() for b in expression.split(',')]
-            clause = Always()
-            for block in blocks:
-                if not cls.NAIVE_SPEC.match(block):
-                    raise ValueError("Invalid simple block %r" % block)
-                    # clause &= cls.parse_block(block)
-
-            return clause
-
-    def __str__(self):
-        # remove the whitespace to canonicalize the spec
-        return ",".join(b.strip() for b in self.expression.split(','))
 
 
 class AutotoolsClassifier(DependencyClassifier):
