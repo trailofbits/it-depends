@@ -161,16 +161,16 @@ def vcs_by_cmd(cmd: str) -> Optional[VCS]:
     return None
 
 
-DEFAULT_GO_VCS: Dict[str, List[str]] = {
-    "private": ["all"],
-    "public": ["git", "hg"]
-}
-
-
 @dataclass
 class GoVCSRule:
     pattern: str
     allowed: List[str]
+
+
+DEFAULT_GO_VCS: List[GoVCSRule] = [
+    GoVCSRule("private", ["all"]),
+    GoVCSRule("public", ["git", "hg"])
+]
 
 
 GO_VCS_RULES: Optional[List[GoVCSRule]] = None
@@ -251,6 +251,8 @@ def resolve(path: str) -> Repository:
         vcs = vcs_by_cmd(match.vcs)
         if vcs is None:
             raise VCSResolutionError(f"unknown version control system {match.vcs!r}")
+        elif match.root is None:
+            raise VCSResolutionError(f"{match!r} was expected to have a non-None root!")
         check_go_vcs(vcs, match.root)
         if not service.schemeless_repo:
             repo_url: str = match.repo
