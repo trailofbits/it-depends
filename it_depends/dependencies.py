@@ -32,6 +32,9 @@ class Dependency:
     def __hash__(self):
         return hash((self.package, self.semantic_version))
 
+    def __str__(self):
+        return f"{self.package}@{self.semantic_version!s}"
+
 
 class Package:
     def __init__(
@@ -182,17 +185,29 @@ class PackageCache(ABC):
         else:
             dot = Digraph(comment=f"Dependencies for {', '.join(map(str, sources))}")
         package_ids: Dict[Package, int] = {}
-        def add_package(package: Package) -> int:
+        def add_package(package: Package) -> str:
             if package not in package_ids:
                 pid = len(package_ids)
                 package_ids[package] = pid
-                dot.node(f"package{pid}", label=str(package))
-                return pid
+                dot.node(f"package{pid}", label=str(package), shape="rectangle")
+                return f"package{pid}"
             else:
-                return package_ids[package]
+                return f"package{package_ids[package]}"
+        dependencies = 0
         while sources:
             package = sources.pop()
             pid = add_package(package)
+            for dependency in package.dependencies:
+                dep_id = f"dep{dependencies}"
+                dependencies += 1
+                dot.node(dep_id, label=str(dependency), shape="oval")
+                dot.edge(pid, dep_id)
+                for satisfied_dep in self.match(dependency):
+                    already_expanded = satisfied_dep in package_ids
+                    spid = add_package(satisfied_dep)
+                    dot.edge(dep_id, spid)
+                    if not already_expanded:
+                        sources.append(satisfied_dep)
         return dot
 
     @abstractmethod
