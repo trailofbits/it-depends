@@ -79,7 +79,10 @@ class Package:
         return hash((self.name, self.version))
 
     def __str__(self):
-        return f"{self.source.name}:{self.name}@{self.version}"
+        if self.source is not None:
+            return f"{self.source.name}:{self.name}@{self.version}"
+        else:
+            return f"{self.name}@{self.version}"
 
 
 class PackageCache(ABC):
@@ -466,7 +469,7 @@ class SourcePackage(Package):
         self.source_path: Path = source_path
 
     def __str__(self):
-        return f"{self.source.name}:{self.name}@{self.version}:{self.source_path.absolute()!s}"
+        return f"{super().__str__()}:{self.source_path.absolute()!s}"
 
 
 class SourceRepository(InMemoryPackageCache):
