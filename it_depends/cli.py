@@ -45,7 +45,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     with DBPackageCache(args.database) as cache:
         package_list = resolve(args.PATH, cache)
         if args.output_format == "dot":
-            print(package_list.to_dot())
+            print(cache.to_dot(package_list.source_packages))
         elif args.output_format == "json":
             # assume JSON
             print(json.dumps(package_list.to_obj(), indent=4))

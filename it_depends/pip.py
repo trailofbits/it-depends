@@ -121,7 +121,7 @@ class PipSourcePackage(SourcePackage):
         with TemporaryDirectory() as tmp_dir:
             subprocess.check_call([
                 sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", tmp_dir, str(repo.path)
-            ])
+            ], stdout=sys.stderr)
             wheel = None
             for whl in Path(tmp_dir).glob("*.whl"):
                 if wheel is not None:
