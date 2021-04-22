@@ -196,6 +196,12 @@ class GoModule:
         return f"https://{host}{path}?go-get=1"
 
     @staticmethod
+    def meta_imports_for_prefix(import_prefix: str) -> Tuple[str, List[MetaImport]]:
+        url = GoModule.url_for_import_path(import_prefix)
+        with request.urlopen(url) as req:
+            return url, GoModule.parse_meta_go_imports(req.read())
+
+    @staticmethod
     def match_go_import(imports: Iterable[MetaImport], import_path: str) -> MetaImport:
         match: Optional[MetaImport] = None
         for i, m in enumerate(imports):
