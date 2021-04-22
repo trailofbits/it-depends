@@ -11,6 +11,7 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "docker>=4.4.0",
+        "graphviz>=0.14.1",
         "johnnydep~=1.7",
         "parse_cmake",
         "semantic_version~=2.8.5",
@@ -18,7 +19,7 @@ setup(
         "tqdm>=4.48.0"
     ],
     extras_require={
-        "dev": ["flake8", "pytest", "twine"]
+        "dev": ["flake8", "pytest", "twine", "mypy"]
     },
     entry_points={
         "console_scripts": [

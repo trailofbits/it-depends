@@ -6,10 +6,12 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Optional
 from semantic_version.base import Always, BaseSpec
 import logging
-from .utils import file_to_package
+import tempfile
+from typing import List, Optional, Tuple
+
+from .utils import cached_file_to_package as file_to_package
 
 from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, PackageCache, SimpleSpec, SourcePackage, SourceRepository,
@@ -17,27 +19,6 @@ from .dependencies import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-@BaseSpec.register_syntax
-class AutoSpec(SimpleSpec):
-    SYNTAX = 'autotools'
-
-    class Parser(SimpleSpec.Parser):
-        @classmethod
-        def parse(cls, expression):
-            blocks = [b.strip() for b in expression.split(',')]
-            clause = Always()
-            for block in blocks:
-                if not cls.NAIVE_SPEC.match(block):
-                    raise ValueError("Invalid simple block %r" % block)
-                    # clause &= cls.parse_block(block)
-
-            return clause
-
-    def __str__(self):
-        # remove the whitespace to canonicalize the spec
-        return ",".join(b.strip() for b in self.expression.split(','))
 
 
 class AutotoolsClassifier(DependencyClassifier):
@@ -62,22 +43,20 @@ class AutotoolsClassifier(DependencyClassifier):
         return (repo.path / "configure.ac").exists()
 
     @staticmethod
-    @functools.lru_cache(maxsize=128)
-    def _ac_check_header(header_file):
+    def _ac_check_header(header_file, file_to_package_cache=None):
         """
         Macro: AC_CHECK_HEADER
         Checks if the system header file header-file is compilable.
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Generic-Headers.html
         """
         logger.info(f"AC_CHECK_HEADER {header_file}")
-        package_name = file_to_package(f"{re.escape(header_file)}")
+        package_name = file_to_package(f"{re.escape(header_file)}", file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name,
                           semantic_version=SimpleSpec("*"),
                           )
 
     @staticmethod
-    @functools.lru_cache(maxsize=128)
-    def _ac_check_lib(function):
+    def _ac_check_lib(function, file_to_package_cache=None):
         """
         Macro: AC_CHECK_LIB
         Checks for the presence of certain C, C++, or Fortran library archive files.
@@ -85,11 +64,11 @@ class AutotoolsClassifier(DependencyClassifier):
         """
         lib_file, function_name = function.split(".")
         logger.info(f"AC_CHECK_LIB {lib_file}")
-        package_name = file_to_package(f"lib{re.escape(lib_file)}(.a|.so)")
+        package_name = file_to_package(f"lib{re.escape(lib_file)}(.a|.so)", file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"))
 
     @staticmethod
-    def _pkg_check_modules(module_name, version=None):
+    def _pkg_check_modules(module_name, version=None, file_to_package_cache=None):
         """
         Macro: PKG_CHECK_MODULES
         The main interface between autoconf and pkg-config.
@@ -100,7 +79,7 @@ class AutotoolsClassifier(DependencyClassifier):
             version = "*"
         module_file = re.escape(module_name + ".pc")
         logger.info(f"PKG_CHECK_MODULES {module_file}, {version}")
-        package_name = file_to_package(module_file)
+        package_name = file_to_package(module_file, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec(version))
 
     @staticmethod
@@ -112,9 +91,9 @@ class AutotoolsClassifier(DependencyClassifier):
         """
         if "$" not in token:
             return token
-        vars = re.findall(r"\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
-        vars = set(var for var in itertools.chain(*vars) if var)  # remove dups and empty
-        for var in vars:
+        variable_list = re.findall(r"\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
+        variables = set(var for var in itertools.chain(*variable_list) if var)  # remove dups and empty
+        for var in variables:
             logger.info(f"Trying to find bindings for {var} in configure")
 
             # This tries to find a single assign to the variable in question
@@ -143,32 +122,40 @@ class AutotoolsClassifier(DependencyClassifier):
         orig_dir = getcwd()
         chdir(path)
         try:
-            trace = subprocess.check_output(
-                ["autoconf", "-t", 'AC_CHECK_HEADER:$n:$1',
-                             "-t", 'AC_CHECK_LIB:$n:$1.$2',
-                             "-t", 'PKG_CHECK_MODULES:$n:$2',
-                             "-t", 'PKG_CHECK_MODULES_STATIC:$n', "./configure.ac"]).decode("utf8")
-            configure = subprocess.check_output(["autoconf", "./configure.ac"]).decode("utf8")
+            with tempfile.NamedTemporaryFile() as tmp:
+                #builds a temporary copy of configure.ac containing aclocal env
+                subprocess.check_output(("aclocal",f"--output={tmp.name}"))
+                with open(tmp.name, "ab") as tmp2:
+                    with open("./configure.ac", "rb") as conf:
+                        tmp2.write(conf.read())
+
+                trace = subprocess.check_output(
+                    ["autoconf", "-t", 'AC_CHECK_HEADER:$n:$1',
+                                 "-t", 'AC_CHECK_LIB:$n:$1.$2',
+                                 "-t", 'PKG_CHECK_MODULES:$n:$2',
+                                 "-t", 'PKG_CHECK_MODULES_STATIC:$n', tmp.name]).decode("utf8")
+                configure = subprocess.check_output(["autoconf", tmp.name]).decode("utf8")
         finally:
             chdir(orig_dir)
 
+        file_to_package_cache: List[Tuple[str]]  = []
         deps = []
         for macro in trace.split('\n'):
             logger.debug(f"Handling: {macro}")
             macro, *arguments = macro.split(":")
             try:
-                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)
+                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)  # type: ignore
             except Exception as e:
                 logger.info(str(e))
                 continue
             try:
                 if macro == "AC_CHECK_HEADER":
-                    deps.append(self._ac_check_header(header_file=arguments[0]))
+                    deps.append(self._ac_check_header(header_file=arguments[0], file_to_package_cache=file_to_package_cache))
                 elif macro == "AC_CHECK_LIB":
-                    deps.append(self._ac_check_lib(function=arguments[0]))
+                    deps.append(self._ac_check_lib(function=arguments[0], file_to_package_cache=file_to_package_cache))
                 elif macro == "PKG_CHECK_MODULES":
                     module_name, *version = arguments[0].split(" ")
-                    deps.append(self._pkg_check_modules(module_name=module_name, version="".join(version)))
+                    deps.append(self._pkg_check_modules(module_name=module_name, version="".join(version), file_to_package_cache=file_to_package_cache))
                 else:
                     logger.error("Macro not supported", macro)
             except Exception as e:

@@ -2,6 +2,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from tempfile import mkdtemp
 from tqdm import tqdm
@@ -87,11 +88,18 @@ class InMemoryFile:
 
 class InMemoryDockerfile(Dockerfile):
     def __init__(self, content: str, local_files: Iterable[InMemoryFile] = ()):
-        super().__init__(None)
+        super().__init__(None)  # type: ignore
         self.content: str = content
         self.local_files: List[InMemoryFile] = list(local_files)
         self._entries: int = 0
         self._tmpdir: Optional[Path] = None
+
+    @Dockerfile.path.getter  # type: ignore
+    def path(self) -> Path:
+        path = super().path
+        if path is None:
+            raise ValueError("InMemoryDockerfile only has a valid path when inside of its context manager")
+        return path
 
     def __enter__(self) -> "InMemoryDockerfile":
         self._entries += 1
@@ -110,7 +118,7 @@ class InMemoryDockerfile(Dockerfile):
         if self._entries == 0:
             self.path.unlink()
             shutil.rmtree(self._tmpdir)
-            self.path = ""
+            self.path = None  # type: ignore
 
 
 class DockerContainer:
@@ -185,7 +193,7 @@ class DockerContainer:
         cmd_args.extend(args)
 
         if interactive:
-            return subprocess.call(cmd_args, cwd=cwd)
+            return subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)
         else:
             return subprocess.run(cmd_args, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
 

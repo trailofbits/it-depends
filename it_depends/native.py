@@ -100,6 +100,7 @@ class NativeResolver(DependencyResolver):
     def expand(self, existing: PackageCache, max_workers: Optional[int] = None):
         sources: Set[DependencyClassifier] = set()
         for package in existing:
+            # Loop over all of the packages that have already been classified by other classifiers
             if package.source is not None and package.source not in sources \
                     and package.source.docker_setup() is not None:
                 sources.add(package.source)
@@ -167,7 +168,8 @@ class NativeClassifier(DependencyClassifier):
     description = "attempts to detect native library usage by loading packages in a container"
 
     def __lt__(self, other):
-        return False
+        """Make sure that the Native Classifier runs second-to-last, before the Ubuntu Classifier"""
+        return other.name == "ubuntu"
 
     def is_available(self) -> ClassifierAvailability:
         if shutil.which("docker") is None:
@@ -176,7 +178,7 @@ class NativeClassifier(DependencyClassifier):
         return ClassifierAvailability(True)
 
     def can_classify(self, repo: SourceRepository) -> bool:
-        for classifier in CLASSIFIERS_BY_NAME.values():
+        for classifier in CLASSIFIERS_BY_NAME.values():  # type: ignore
             if classifier.docker_setup() is not None and classifier.can_classify(repo):
                 return True
         return False

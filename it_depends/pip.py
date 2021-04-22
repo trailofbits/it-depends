@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import subprocess
 import sys
-from typing import Iterable, Iterator, Optional
+from typing import Iterable, Iterator, List, Optional
 
 from johnnydep import JohnnyDist
 from johnnydep.logs import configure_logging
@@ -64,14 +64,18 @@ class PipResolver(DependencyResolver):
             self, dist: JohnnyDist, recurse: bool = True, version: SemanticVersion = SimpleSpec("*")
     ) -> Iterable[Package]:
         queue = [(dist, version)]
-        packages = []
+        packages: List[Package] = []
         while queue:
             dist, sem_version = queue.pop()
+            if dist.version_installed is not None:
+                none_default = Version.coerce(dist.version_installed)
+            else:
+                none_default = None
             for version in sem_version.filter(
                     filter(
                         lambda v: v is not None,
                         (
-                                PipResolver.get_version(v_str, none_default=Version.coerce(dist.version_installed))
+                                PipResolver.get_version(v_str, none_default=none_default)
                                 for v_str in dist.versions_available
                         )
                     )
@@ -92,7 +96,7 @@ class PipResolver(DependencyResolver):
                 queue.extend((child, self._get_specifier(child)) for child in dist.children)
         return packages
 
-    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
+    def resolve_missing(self, dependency: Dependency, from_package: Optional[Package] = None) -> Iterator[Package]:
         try:
             return iter(self.resolve_dist(
                 JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version,
@@ -117,7 +121,7 @@ class PipSourcePackage(SourcePackage):
         with TemporaryDirectory() as tmp_dir:
             subprocess.check_call([
                 sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", tmp_dir, str(repo.path)
-            ])
+            ], stdout=sys.stderr)
             wheel = None
             for whl in Path(tmp_dir).glob("*.whl"):
                 if wheel is not None:
