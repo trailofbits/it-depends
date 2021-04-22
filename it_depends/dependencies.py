@@ -212,14 +212,16 @@ class PackageCache(ABC):
             package = sources.pop()
             pid = add_package(package)
             for dependency in package.dependencies.values():
+                already_expanded = dependency in dependency_ids
                 did = add_dependency(dependency)
                 dot.edge(pid, did)
-                for satisfied_dep in self.match(dependency):
-                    already_expanded = satisfied_dep in package_ids
-                    spid = add_package(satisfied_dep)
-                    dot.edge(did, spid)
-                    if not already_expanded:
-                        sources.append(satisfied_dep)
+                if not already_expanded:
+                    for satisfied_dep in self.match(dependency):
+                        already_expanded = satisfied_dep in package_ids
+                        spid = add_package(satisfied_dep)
+                        dot.edge(did, spid)
+                        if not already_expanded:
+                            sources.append(satisfied_dep)
         return dot
 
     @abstractmethod

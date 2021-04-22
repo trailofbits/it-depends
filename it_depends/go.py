@@ -90,6 +90,9 @@ class GoSpec(SimpleSpec):
         def parse(cls, expression):
             return Range(operator=Range.OP_EQ, target=GoVersion(expression))
 
+    def __contains__(self, item):
+        return item == self.clause.target
+
 
 class GoModule:
     def __init__(self, name: str, dependencies: Iterable[Tuple[str, str]] = ()):
