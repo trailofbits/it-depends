@@ -185,6 +185,7 @@ class PackageCache(ABC):
         else:
             dot = Digraph(comment=f"Dependencies for {', '.join(map(str, sources))}")
         package_ids: Dict[Package, int] = {}
+
         def add_package(package: Package) -> str:
             if package not in package_ids:
                 pid = len(package_ids)
@@ -193,6 +194,7 @@ class PackageCache(ABC):
                 return f"package{pid}"
             else:
                 return f"package{package_ids[package]}"
+
         dependencies = 0
         while sources:
             package = sources.pop()
