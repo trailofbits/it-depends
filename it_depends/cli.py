@@ -19,6 +19,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--database", "-db", type=str, nargs="?", default=DEFAULT_DB_PATH,
                         help="alternative path to load/store the database, or \":memory:\" to cache all results in "
                              f"memory rather than reading/writing to disk (default is {DEFAULT_DB_PATH!s})")
+    parser.add_argument("--output-format", "-f", choices=("json", "dot"), default="json",
+                        help="how the output should be formatted (default is JSON)")
 
     args = parser.parse_args(argv[1:])
 
@@ -42,6 +44,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     with DBPackageCache(args.database) as cache:
         package_list = resolve(args.PATH, cache)
-        print(json.dumps(package_list.to_obj(), indent=4))
+        if args.output_format == "dot":
+            print(package_list.to_dot())
+        elif args.output_format == "json":
+            # assume JSON
+            print(json.dumps(package_list.to_obj(), indent=4))
+        else:
+            raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
 
     return 0

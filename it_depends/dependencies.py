@@ -11,6 +11,7 @@ from typing import (
 )
 import sys
 
+from graphviz import Digraph
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
 from tqdm import tqdm
@@ -73,6 +74,9 @@ class Package:
 
     def __hash__(self):
         return hash((self.name, self.version))
+
+    def __str__(self):
+        return f"{self.source.name}:{self.name}@{self.version}"
 
 
 class PackageCache(ABC):
@@ -155,6 +159,41 @@ class PackageCache(ABC):
             }
             for package_name in self.package_names()
         }
+
+    @property
+    def source_packages(self) -> Set["SourcePackage"]:
+        return {package for package in self if isinstance(package, SourcePackage)}
+
+    def to_dot(self, sources: Optional[Iterable[Package]] = None) -> Digraph:
+        """Renders a Graphviz Dot graph of the dependency hierarchy.
+
+        If sources is not None, only render the graph rooted at the sources.
+
+        If sources is None and there is at least one SourcePackage in the cache, render the graph using that
+        SourcePackage as a root.
+
+        """
+        if sources is None:
+            return self.to_dot(self.source_packages)
+        sources = list(sources)
+        if not sources:
+            sources = list(self)
+            dot = Digraph()
+        else:
+            dot = Digraph(comment=f"Dependencies for {', '.join(map(str, sources))}")
+        package_ids: Dict[Package, int] = {}
+        def add_package(package: Package) -> int:
+            if package not in package_ids:
+                pid = len(package_ids)
+                package_ids[package] = pid
+                dot.node(f"package{pid}", label=str(package))
+                return pid
+            else:
+                return package_ids[package]
+        while sources:
+            package = sources.pop()
+            pid = add_package(package)
+        return dot
 
     @abstractmethod
     def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
@@ -408,6 +447,9 @@ class SourcePackage(Package):
     ):
         super().__init__(name=name, version=version, dependencies=dependencies, source=source)
         self.source_path: Path = source_path
+
+    def __str__(self):
+        return f"{self.source.name}:{self.name}@{self.version}:{self.source_path.absolute()!s}"
 
 
 class SourceRepository(InMemoryPackageCache):

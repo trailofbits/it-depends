@@ -11,6 +11,7 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "docker>=4.4.0",
+        "graphviz>=0.14.1",
         "johnnydep~=1.7",
         "parse_cmake",
         "semantic_version~=2.8.5",
