@@ -61,7 +61,7 @@ def git_commit(path: Optional[str] = None) -> Optional[str]:
             ["git", "rev-parse", "HEAD"],
             cwd=path,
             stderr=DEVNULL
-        )
+        ).decode("utf-8")
     except CalledProcessError:
         return None
 
@@ -233,7 +233,7 @@ class GoModule:
         if meta_import.vcs == "mod":
             the_vcs = vcs.VCS_MOD
         else:
-            the_vcs = vcs.vcs_by_cmd(meta_import.vcs)
+            the_vcs = vcs.vcs_by_cmd(meta_import.vcs)  # type: ignore
             if the_vcs is None:
                 raise ValueError(f"{url}: unknown VCS {meta_import.vcs!r}")
         vcs.check_go_vcs(the_vcs, meta_import.prefix)
@@ -264,7 +264,7 @@ class GoModule:
         if not name_or_url.startswith("http://") and not name_or_url.startswith("https://"):
             return GoModule.from_import(name_or_url, tag)
         else:
-            return GoModule.from_git(name_or_url, tag)
+            return GoModule.from_git(name_or_url, name_or_url, tag)
 
 
 class GoResolver(DependencyResolver):
