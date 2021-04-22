@@ -9,7 +9,7 @@ from subprocess import check_call, check_output, DEVNULL, CalledProcessError
 from tempfile import TemporaryDirectory
 from typing import Iterable, Iterator, List, Optional, Tuple, Union
 from urllib import request
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 
 from semantic_version import Version
 from semantic_version.base import BaseSpec, Range, SimpleSpec
@@ -68,7 +68,7 @@ def git_commit(path: Optional[str] = None) -> Optional[str]:
 
 class GoVersion:
     def __init__(self, go_version_string: str):
-        self.version_string: str = go_version_string
+        self.version_string: str = go_version_string.strip()
         self.build: bool = False  # This is to appease semantic_version.base.SimpleSpec
 
     def __eq__(self, other):
@@ -199,7 +199,7 @@ class GoModule:
     def meta_imports_for_prefix(import_prefix: str) -> Tuple[str, List[MetaImport]]:
         url = GoModule.url_for_import_path(import_prefix)
         with request.urlopen(url) as req:
-            return url, GoModule.parse_meta_go_imports(req.read())
+            return url, GoModule.parse_meta_go_imports(req.read().decode("utf-8"))
 
     @staticmethod
     def match_go_import(imports: Iterable[MetaImport], import_path: str) -> MetaImport:
@@ -227,7 +227,7 @@ class GoModule:
         url = GoModule.url_for_import_path(import_path)
         try:
             imports = GoModule.parse_meta_go_imports(request.urlopen(url).read().decode("utf-8"))
-        except HTTPError:
+        except (HTTPError, URLError):
             raise ValueError(f"Could not download metadata from {url} for import {import_path!s}")
         meta_import = GoModule.match_go_import(imports, import_path)
         if meta_import.prefix != import_path:
