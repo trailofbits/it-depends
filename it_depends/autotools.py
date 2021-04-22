@@ -9,6 +9,8 @@ import subprocess
 from semantic_version.base import Always, BaseSpec
 import logging
 import tempfile
+from typing import List, Optional, Tuple
+
 from .utils import cached_file_to_package as file_to_package
 
 from .dependencies import (
