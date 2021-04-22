@@ -30,7 +30,7 @@ go 1.12
 
 class TestGo(TestCase):
     def test_load_from_github(self):
-        GoModule.from_git("https://github.com/golang/protobuf", tag="v1.4.3")
+        GoModule.from_git("github.com/golang/protobuf", "https://github.com/golang/protobuf", tag="v1.4.3")
 
     def test_parsing(self):
         module = GoModule.parse_mod(EXAMPLE_MOD)
