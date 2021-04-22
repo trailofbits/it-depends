@@ -186,14 +186,14 @@ class PackageCache(ABC):
             dot = Digraph(comment=f"Dependencies for {', '.join(map(str, sources))}")
         package_ids: Dict[Package, int] = {}
 
-        def add_package(package: Package) -> str:
-            if package not in package_ids:
-                pid = len(package_ids)
-                package_ids[package] = pid
-                dot.node(f"package{pid}", label=str(package), shape="rectangle")
-                return f"package{pid}"
+        def add_package(pkg: Package) -> str:
+            if pkg not in package_ids:
+                pkg_id = len(package_ids)
+                package_ids[pkg] = pkg_id
+                dot.node(f"package{pkg_id}", label=str(pkg), shape="rectangle")
+                return f"package{pkg_id}"
             else:
-                return f"package{package_ids[package]}"
+                return f"package{package_ids[pkg]}"
 
         dependencies = 0
         while sources:
