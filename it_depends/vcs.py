@@ -5,7 +5,7 @@ Logic largely taken from the implementation of `go get`:
     https://golang.org/src/cmd/go/internal/vcs/vcs.go
 
 """
-
+import sys
 from dataclasses import dataclass
 import os
 import re
@@ -95,9 +95,15 @@ class Match:
         return s
 
 
+if sys.version_info >= (3, 9):
+    REGEXP_TYPE = Pattern[str]
+else:
+    REGEXP_TYPE = Pattern
+
+
 @dataclass
 class VCSPath:
-    regexp: Pattern[str]
+    regexp: REGEXP_TYPE
     repo: str = ""
     path_prefix: str = ""
     check: Optional[Callable[[Match], None]] = None
