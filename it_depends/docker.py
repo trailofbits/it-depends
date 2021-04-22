@@ -2,6 +2,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from tempfile import mkdtemp
 from tqdm import tqdm
@@ -192,7 +193,7 @@ class DockerContainer:
         cmd_args.extend(args)
 
         if interactive:
-            return subprocess.call(cmd_args, cwd=cwd)
+            return subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)
         else:
             return subprocess.run(cmd_args, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
 
