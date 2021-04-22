@@ -67,11 +67,15 @@ class PipResolver(DependencyResolver):
         packages: List[Package] = []
         while queue:
             dist, sem_version = queue.pop()
+            if dist.version_installed is not None:
+                none_default = Version.coerce(dist.version_installed)
+            else:
+                none_default = None
             for version in sem_version.filter(
                     filter(
                         lambda v: v is not None,
                         (
-                                PipResolver.get_version(v_str, none_default=Version.coerce(dist.version_installed))
+                                PipResolver.get_version(v_str, none_default=none_default)
                                 for v_str in dist.versions_available
                         )
                     )
@@ -92,7 +96,7 @@ class PipResolver(DependencyResolver):
                 queue.extend((child, self._get_specifier(child)) for child in dist.children)
         return packages
 
-    def resolve_missing(self, dependency: Dependency, for_package: Optional[Package] = None) -> Iterator[Package]:
+    def resolve_missing(self, dependency: Dependency, from_package: Optional[Package] = None) -> Iterator[Package]:
         try:
             return iter(self.resolve_dist(
                 JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version,
