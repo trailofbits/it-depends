@@ -187,30 +187,37 @@ class PackageCache(ABC):
             dot = Digraph()
         else:
             dot = Digraph(comment=f"Dependencies for {', '.join(map(str, sources))}")
-        package_ids: Dict[Package, int] = {}
+        package_ids: Dict[Package, str] = {}
+        dependency_ids: Dict[Dependency, str] = {}
 
         def add_package(pkg: Package) -> str:
             if pkg not in package_ids:
-                pkg_id = len(package_ids)
+                pkg_id = f"package{len(package_ids)}"
                 package_ids[pkg] = pkg_id
-                dot.node(f"package{pkg_id}", label=str(pkg), shape="rectangle")
-                return f"package{pkg_id}"
+                dot.node(pkg_id, label=str(pkg), shape="rectangle")
+                return pkg_id
             else:
-                return f"package{package_ids[pkg]}"
+                return package_ids[pkg]
 
-        dependencies = 0
+        def add_dependency(dep: Dependency) -> str:
+            if dep not in dependency_ids:
+                dep_id = f"dep{len(dependency_ids)}"
+                dependency_ids[dep] = dep_id
+                dot.node(dep_id, label=str(dep), shape="oval")
+                return dep_id
+            else:
+                return dependency_ids[dep]
+
         while sources:
             package = sources.pop()
             pid = add_package(package)
-            for dependency in package.dependencies:
-                dep_id = f"dep{dependencies}"
-                dependencies += 1
-                dot.node(dep_id, label=str(dependency), shape="oval")
-                dot.edge(pid, dep_id)
+            for dependency in package.dependencies.values():
+                did = add_dependency(dependency)
+                dot.edge(pid, did)
                 for satisfied_dep in self.match(dependency):
                     already_expanded = satisfied_dep in package_ids
                     spid = add_package(satisfied_dep)
-                    dot.edge(dep_id, spid)
+                    dot.edge(did, spid)
                     if not already_expanded:
                         sources.append(satisfied_dep)
         return dot
