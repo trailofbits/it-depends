@@ -1,11 +1,23 @@
 import os
 import argparse
+from contextlib import contextmanager
 import json
 import sys
-from typing import Optional, Sequence
+from typing import Iterator, Optional, Sequence, TextIO
 
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import CLASSIFIERS_BY_NAME, resolve
+
+
+@contextmanager
+def no_stdout() -> Iterator[TextIO]:
+    """A context manager that redirects STDOUT to STDERR"""
+    saved_stdout = sys.stdout
+    sys.stdout = sys.stderr
+    try:
+        yield saved_stdout
+    finally:
+        sys.stdout = saved_stdout
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -42,14 +54,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             sys.stdout.flush()
         return 0
 
-    with DBPackageCache(args.database) as cache:
-        package_list = resolve(args.PATH, cache)
-        if args.output_format == "dot":
-            print(cache.to_dot(package_list.source_packages))
-        elif args.output_format == "json":
-            # assume JSON
-            print(json.dumps(package_list.to_obj(), indent=4))
-        else:
-            raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
+    with no_stdout() as real_stdout:
+        with DBPackageCache(args.database) as cache:
+            package_list = resolve(args.PATH, cache)
+            if args.output_format == "dot":
+                real_stdout.write(cache.to_dot(package_list.source_packages).source)
+            elif args.output_format == "json":
+                # assume JSON
+                real_stdout.write(json.dumps(package_list.to_obj(), indent=4))
+            else:
+                raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
 
     return 0
