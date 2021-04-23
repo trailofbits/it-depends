@@ -11,6 +11,7 @@ from typing import (
 )
 import sys
 
+from graphviz import Digraph
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
 from tqdm import tqdm
@@ -30,6 +31,9 @@ class Dependency:
 
     def __hash__(self):
         return hash((self.package, self.semantic_version))
+
+    def __str__(self):
+        return f"{self.package}@{self.semantic_version!s}"
 
 
 class Package:
@@ -73,6 +77,12 @@ class Package:
 
     def __hash__(self):
         return hash((self.name, self.version))
+
+    def __str__(self):
+        if self.source is not None:
+            return f"{self.source.name}:{self.name}@{self.version}"
+        else:
+            return f"{self.name}@{self.version}"
 
 
 class PackageCache(ABC):
@@ -155,6 +165,62 @@ class PackageCache(ABC):
             }
             for package_name in self.package_names()
         }
+
+    @property
+    def source_packages(self) -> Set["SourcePackage"]:
+        return {package for package in self if isinstance(package, SourcePackage)}
+
+    def to_dot(self, sources: Optional[Iterable[Package]] = None) -> Digraph:
+        """Renders a Graphviz Dot graph of the dependency hierarchy.
+
+        If sources is not None, only render the graph rooted at the sources.
+
+        If sources is None and there is at least one SourcePackage in the cache, render the graph using that
+        SourcePackage as a root.
+
+        """
+        if sources is None:
+            return self.to_dot(self.source_packages)
+        sources = list(sources)
+        if not sources:
+            sources = list(self)
+            dot = Digraph()
+        else:
+            dot = Digraph(comment=f"Dependencies for {', '.join(map(str, sources))}")
+        package_ids: Dict[Package, str] = {}
+        dependency_ids: Dict[Dependency, str] = {}
+
+        def add_package(pkg: Package) -> str:
+            if pkg not in package_ids:
+                pkg_id = f"package{len(package_ids)}"
+                package_ids[pkg] = pkg_id
+                dot.node(pkg_id, label=str(pkg), shape="rectangle")
+                return pkg_id
+            else:
+                return package_ids[pkg]
+
+        def add_dependency(dep: Dependency) -> str:
+            if dep not in dependency_ids:
+                dep_id = f"dep{len(dependency_ids)}"
+                dependency_ids[dep] = dep_id
+                dot.node(dep_id, label=str(dep), shape="oval")
+                return dep_id
+            else:
+                return dependency_ids[dep]
+
+        while sources:
+            package = sources.pop()
+            pid = add_package(package)
+            for dependency in package.dependencies.values():
+                did = add_dependency(dependency)
+                dot.edge(pid, did)
+                for satisfied_dep in self.match(dependency):
+                    already_expanded = satisfied_dep in package_ids
+                    spid = add_package(satisfied_dep)
+                    dot.edge(did, spid)
+                    if not already_expanded:
+                        sources.append(satisfied_dep)
+        return dot
 
     @abstractmethod
     def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
@@ -408,6 +474,9 @@ class SourcePackage(Package):
     ):
         super().__init__(name=name, version=version, dependencies=dependencies, source=source)
         self.source_path: Path = source_path
+
+    def __str__(self):
+        return f"{super().__str__()}:{self.source_path.absolute()!s}"
 
 
 class SourceRepository(InMemoryPackageCache):
