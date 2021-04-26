@@ -588,9 +588,11 @@ class DependencyClassifier(ABC):
 def resolve(path: Union[str, Path], cache: Optional[PackageCache] = None) -> SourceRepository:
     repo = SourceRepository(path)
     try:
-        cm = cache
-        if cm is None:
+        if cache is None:
             cm = nullcontext()
+        else:
+            cm = cache
+
         with cm:
             for classifier in CLASSIFIERS_BY_NAME.values():  # type: ignore
                 if classifier.is_available() and classifier.can_classify(repo):
