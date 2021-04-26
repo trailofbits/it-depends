@@ -15,7 +15,7 @@ from graphviz import Digraph
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
 from tqdm import tqdm
-
+from contextlib import nullcontext
 
 class Dependency:
     def __init__(self, package: str, semantic_version: SemanticVersion = SimpleSpec("*")):
@@ -588,15 +588,13 @@ class DependencyClassifier(ABC):
 def resolve(path: Union[str, Path], cache: Optional[PackageCache] = None) -> SourceRepository:
     repo = SourceRepository(path)
     try:
-        if cache is not None:
-            with cache:
-                for classifier in CLASSIFIERS_BY_NAME.values():  # type: ignore
-                    if classifier.is_available() and classifier.can_classify(repo):
-                        classifier.classify(repo, cache=cache)
-        else:
+        cm = cache
+        if cm is None:
+            cm = nullcontext()
+        with cm:
             for classifier in CLASSIFIERS_BY_NAME.values():  # type: ignore
                 if classifier.is_available() and classifier.can_classify(repo):
-                    classifier.classify(repo)
+                    classifier.classify(repo, cache=cache)
     except KeyboardInterrupt:
         if sys.stderr.isatty() and sys.stdin.isatty():
             try:
