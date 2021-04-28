@@ -6,7 +6,7 @@ import sys
 from typing import Iterator, Optional, Sequence, TextIO
 
 from .db import DEFAULT_DB_PATH, DBPackageCache
-from .dependencies import CLASSIFIERS_BY_NAME, resolve
+from .dependencies import classifiers, resolve
 
 
 @contextmanager
@@ -40,7 +40,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         sys.stdout.flush()
         sys.stderr.write(f"Available classifiers for {os.path.abspath(args.PATH)}:\n")
         sys.stderr.flush()
-        for name, classifier in sorted(CLASSIFIERS_BY_NAME.items()):  # type: ignore
+        for name, classifier in sorted((c.name, c) for c in classifiers()):
             sys.stdout.write(name + " "*(12-len(name)))
             sys.stdout.flush()
             available = classifier.is_available()

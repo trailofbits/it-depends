@@ -20,7 +20,7 @@ log = getLogger(__file__)
 
 class PipResolver(DependencyResolver):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, source=PipClassifier.default_instance())
+        super().__init__(*args, **kwargs, source=PipClassifier())
 
     @staticmethod
     def _get_specifier(dist: JohnnyDist) -> SimpleSpec:
@@ -88,7 +88,7 @@ class PipResolver(DependencyResolver):
                         name=dist.name,
                         version=version,
                         dependencies=self.get_dependencies(dist),
-                        source=PipClassifier.default_instance()
+                        source=PipClassifier()
                     )
                     packages.append(package)
                 if not recurse:
@@ -114,7 +114,7 @@ class PipSourcePackage(SourcePackage):
             version_str = version_str[2:]
         super().__init__(name=dist.name, version=PipResolver.get_version(version_str),
                          dependencies=PipResolver.get_dependencies(dist), source_path=source_path,
-                         source=PipClassifier.default_instance())
+                         source=PipClassifier())
 
     @staticmethod
     def from_repo(repo: SourceRepository) -> "PipSourcePackage":

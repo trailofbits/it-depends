@@ -37,7 +37,7 @@ class NPMResolver(DependencyResolver):
             version = "0"
         version = Version.coerce(version)
         return SourcePackage(package["name"], version, source_path=path.parent,
-                             source=NPMClassifier.default_instance(), dependencies=(
+                             source=NPMClassifier(), dependencies=(
             Dependency(package=dep_name, semantic_version=NPMClassifier.parse_spec(dep_version))
             for dep_name, dep_version in dependencies.items()
         ))
@@ -81,7 +81,7 @@ class NPMResolver(DependencyResolver):
                     versions.append(line)
             for pkg_version, dep_dict in zip(versions, deps):
                 version = Version.coerce(pkg_version[len(dependency.package)+1:])
-                yield Package(name=dependency.package, version=version, source=NPMClassifier.default_instance(),
+                yield Package(name=dependency.package, version=version, source=NPMClassifier(),
                               dependencies=(
                     Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version))
                     for dep, dep_version in dep_dict.items()
@@ -113,7 +113,7 @@ class NPMResolver(DependencyResolver):
                 except ValueError:
                     continue
                 if version in dependency.semantic_version:
-                    yield Package(name=dependency.package, version=version, source=NPMClassifier.default_instance(),
+                    yield Package(name=dependency.package, version=version, source=NPMClassifier(),
                                   dependencies=(
                         Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version))
                         for dep, dep_version in deps.items()

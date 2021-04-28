@@ -41,15 +41,17 @@ class Package:
             self,
             name: str,
             version: Version,
+            source: Optional["DependencyClassifier"] = None,
             dependencies: Iterable[Dependency] = (),
-            source: Optional["DependencyClassifier"] = None
     ):
         self.name: str = name
         self.version: Version = version
         self.dependencies: Dict[str, Dependency] = {
             dep.package: dep for dep in dependencies
         }
-        self.source: Optional[DependencyClassifier] = source
+        if source is None:
+            source = UnusedClassifier()
+        self.source: DependencyClassifier = source
 
     def to_dependency(self) -> Dependency:
         return Dependency(package=self.name, semantic_version=SemanticVersion.parse(str(self.version)))
@@ -329,12 +331,12 @@ class _ResolutionCache:
 
 
 class DependencyResolver:
-    def __init__(self, source: Optional["DependencyClassifier"] = None, cache: Optional[PackageCache] = None):
+    def __init__(self, source: "DependencyClassifier", cache: Optional[PackageCache] = None):
         if cache is None:
             self._cache: PackageCache = InMemoryPackageCache()
         else:
             self._cache = cache
-        self.source: Optional[DependencyClassifier] = source
+        self.source: DependencyClassifier = source
         self._entries: int = 0
 
     def open(self):
@@ -469,8 +471,8 @@ class SourcePackage(Package):
             name: str,
             version: Version,
             source_path: Path,
+            source: "DependencyClassifier",
             dependencies: Iterable[Dependency] = (),
-            source: Optional["DependencyClassifier"] = None
     ):
         super().__init__(name=name, version=version, dependencies=dependencies, source=source)
         self.source_path: Path = source_path
@@ -504,8 +506,6 @@ class SourceRepository(InMemoryPackageCache):
         super().add(package=package, source=source)
 
 
-CLASSIFIERS_BY_NAME: OrderedDictType[str, "DependencyClassifier"] = OrderedDict()  # type: ignore
-
 
 class ClassifierAvailability:
     def __init__(self, is_available: bool, reason: str = ""):
@@ -530,25 +530,41 @@ class DockerSetup:
 C = TypeVar("C")
 
 
+import functools
+@functools.lru_cache()
+def classifiers():
+    """ Sorted collection of all the default instances of DependencyClassifiers
+    The result of this function is cached so the sorting is done only once.
+    Though if a new subclass of DependencyClassifier is created the cache is
+    recreated. Note that previous DependencyClassifier instances will not change.
+    """
+    return tuple(sorted(cls() for cls in DependencyClassifier.__subclasses__()))
+
+@functools.lru_cache()
+def classifier_by_name(name:str):
+    """ Finds a classifier instance by name. The result is cached."""
+    for instance in classifiers():
+        if instance.name == name:
+            return instance
+    raise KeyError(name)
+
 class DependencyClassifier(ABC):
     name: str
     description: str
+
+    _instance = None
+    def __new__(class_, *args, **kwargs):
+        """ A singleton (Only one default instance exists) """
+        if not isinstance(class_._instance, class_):
+            class_._instance = super().__new__(class_, *args, **kwargs)
+        return class_._instance
 
     def __init_subclass__(cls, **kwargs):
         if not hasattr(cls, "name") or cls.name is None:
             raise TypeError(f"{cls.__name__} must define a `name` class member")
         elif not hasattr(cls, "description") or cls.description is None:
             raise TypeError(f"{cls.__name__} must define a `description` class member")
-        global CLASSIFIERS_BY_NAME
-        copy = CLASSIFIERS_BY_NAME.copy()
-        copy[cls.name] = cls()
-        CLASSIFIERS_BY_NAME.clear()
-        for c in sorted(copy.values()):
-            CLASSIFIERS_BY_NAME[c.name] = c
-
-    @classmethod
-    def default_instance(cls: Type[C]) -> C:
-        return CLASSIFIERS_BY_NAME[cls.name]  # type: ignore
+        classifiers.cache_clear()
 
     @classmethod
     def parse_spec(cls, spec: str) -> SemanticVersion:
@@ -584,17 +600,28 @@ class DependencyClassifier(ABC):
         """Resolves any new `SourcePackage`s in this repo, as well as their dependencies"""
         raise NotImplementedError()
 
+class UnusedClassifier(DependencyClassifier):
+    name: str = "unknown"
+    description: str = "Used for testing"
+
+    def is_available(self) -> ClassifierAvailability:
+        return ClassifierAvailability(False)
+    def can_classify(self, repo: SourceRepository) -> bool:
+        return False
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        raise NotImplementedError()
+
 
 def resolve(path: Union[str, Path], cache: Optional[PackageCache] = None) -> SourceRepository:
     repo = SourceRepository(path)
     try:
         if cache is not None:
             with cache:
-                for classifier in CLASSIFIERS_BY_NAME.values():  # type: ignore
+                for classifier in classifiers():
                     if classifier.is_available() and classifier.can_classify(repo):
                         classifier.classify(repo, cache=cache)
         else:
-            for classifier in CLASSIFIERS_BY_NAME.values():  # type: ignore
+            for classifier in classifiers():
                 if classifier.is_available() and classifier.can_classify(repo):
                     classifier.classify(repo)
     except KeyboardInterrupt:

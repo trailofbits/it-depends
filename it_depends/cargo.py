@@ -62,7 +62,7 @@ def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool
             yield SourcePackage(
                 name=package["name"],
                 version=Version.coerce(package["version"]),
-                source=CargoClassifier.default_instance(),
+                source=CargoClassifier(),
                 dependencies=[
                     Dependency(
                         package=dep["name"],
@@ -76,7 +76,7 @@ def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool
             yield Package(
                 name=package["name"],
                 version=Version.coerce(package["version"]),
-                source=CargoClassifier.default_instance(),
+                source=CargoClassifier(),
                 dependencies=[
                     Dependency(
                         package=dep["name"],
