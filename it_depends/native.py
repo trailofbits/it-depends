@@ -156,7 +156,8 @@ class NativeResolver(DependencyResolver):
                                             required_version = SimpleSpec("*")
                                         package.dependencies[library.name] = Dependency(
                                             package=library.name,
-                                            semantic_version=required_version
+                                            semantic_version=required_version,
+                                            source=NativeClassifier.default_instance()
                                         )
                                         # re-add the package so we can cache the new dependency
                                         existing.add(package)

@@ -65,7 +65,9 @@ class UbuntuResolver(DependencyResolver):
                       source=UbuntuClassifier.default_instance(),
                       dependencies=(
                           Dependency(package=pkg,
-                                     semantic_version=SimpleSpec(ver))
+                                     semantic_version=SimpleSpec(ver),
+                                     source=UbuntuClassifier.default_instance()
+                                     )
                           for pkg, ver in deps
                                    )
                     )

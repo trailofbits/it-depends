@@ -38,7 +38,7 @@ class NPMResolver(DependencyResolver):
         version = Version.coerce(version)
         return SourcePackage(package["name"], version, source_path=path.parent,
                              source=NPMClassifier.default_instance(), dependencies=(
-            Dependency(package=dep_name, semantic_version=NPMClassifier.parse_spec(dep_version))
+            Dependency(package=dep_name, semantic_version=NPMClassifier.parse_spec(dep_version), source=NPMClassifier.default_instance())
             for dep_name, dep_version in dependencies.items()
         ))
 
@@ -115,7 +115,7 @@ class NPMResolver(DependencyResolver):
                 if version in dependency.semantic_version:
                     yield Package(name=dependency.package, version=version, source=NPMClassifier.default_instance(),
                                   dependencies=(
-                        Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version))
+                        Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version), source=NPMClassifier.default_instance())
                         for dep, dep_version in deps.items()
                     ))
 
