@@ -6,17 +6,17 @@ from it_depends.dependencies import Dependency, Package, SimpleSpec, Version, De
 class UnknownClassifier(DependencyClassifier):
     name = "unknown"
     description = "unknown classifier"
-    def can_classify(self, repo) -> bool:
+    def classify(self, repo, cache):
         return False
 
     def classify(self, repo, cache):
         pass
-
+        
 class TestDB(TestCase):
     def test_db(self):
         with DBPackageCache() as cache:
-            pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnknownClassifier(),
-                          dependencies=(Dependency("dep", SimpleSpec(">3.0")),))
+            pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnknownClassifier().default_instance(),
+                          dependencies=(Dependency(package="dep", semantic_version=SimpleSpec(">3.0"), source=UnknownClassifier().default_instance()),))
             cache.add(pkg)
             self.assertIn(pkg, cache)
             self.assertEqual(len(cache), 1)
@@ -24,5 +24,5 @@ class TestDB(TestCase):
             cache.add(pkg)
             self.assertEqual(len(cache), 1)
             # try adding the package again, but with fewer dependencies:
-            smaller_pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnknownClassifier())
+            smaller_pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnknownClassifier().default_instance())
             self.assertRaises(ValueError, cache.add, smaller_pkg)

@@ -32,7 +32,7 @@ class PipResolver(DependencyResolver):
     @staticmethod
     def get_dependencies(dist: JohnnyDist) -> Iterable[Dependency]:
         return (
-            Dependency(package=child.name, semantic_version=PipResolver._get_specifier(child))
+            Dependency(package=child.name, semantic_version=PipResolver._get_specifier(child), source=PipClassifier.default_instance())
             for child in dist.children
         )
 

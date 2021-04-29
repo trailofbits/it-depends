@@ -395,7 +395,7 @@ class CMakeClassifier(DependencyClassifier):
             version=Version.coerce(package_version),
             source=self,
             dependencies=(
-                Dependency(package=name, semantic_version=SimpleSpec(version is None and "*" or version))
+                Dependency(package=name, semantic_version=SimpleSpec(version is None and "*" or version), source=self)
                 for name, version in depsd.items()
             ),
             source_path=path
