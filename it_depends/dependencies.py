@@ -54,7 +54,7 @@ class Package:
             source_name = source
         else:
             source_name = source.name
-        self.source_name: Optional[str] = source_name
+        self.source_name: str = source_name
 
     @property
     def source(self):
