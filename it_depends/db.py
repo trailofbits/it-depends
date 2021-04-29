@@ -100,7 +100,7 @@ class DBPackage(Base, Package):  # type: ignore
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     version_str = Column("version", String, nullable=False)
-    source_name = Column("source", String, nullable=True)
+    source_name = Column("source", String, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("name", "version", "source", name="package_unique_constraint"),
@@ -115,7 +115,7 @@ class DBPackage(Base, Package):  # type: ignore
         self.source_name = package.source_name
 
     def source(self) -> DependencyClassifier:
-        return CLASSIFIERS_BY_NAME[self.source_name]
+        return CLASSIFIERS_BY_NAME[self.source_name]  # type: ignore
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":
