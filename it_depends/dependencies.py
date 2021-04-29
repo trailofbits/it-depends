@@ -15,25 +15,30 @@ from graphviz import Digraph
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
 from tqdm import tqdm
-
+from contextlib import nullcontext
 
 class Dependency:
-    def __init__(self, package: str, semantic_version: SemanticVersion = SimpleSpec("*")):
+    def __init__(self, package: str, source: "DependencyClassifier", semantic_version: SemanticVersion = SimpleSpec("*")):
         self.package: str = package
         self.semantic_version: SemanticVersion = semantic_version
+        self.source_name: str = source.name
+
+    @property
+    def source(self):
+        return CLASSIFIERS_BY_NAME[self.source_name]
 
     def __eq__(self, other):
-        return isinstance(other, Dependency) and self.package == other.package and \
-               self.semantic_version == other.semantic_version
-
-    def __ne__(self, other):
-        return not (self == other)
+        if isinstance(other, Dependency):
+            return self.source_name == other.source_name and \
+                   self.package == other.package and \
+                   self.semantic_version == other.semantic_version
+        return False
 
     def __hash__(self):
-        return hash((self.package, self.semantic_version))
+        return hash((self.source_name, self.package, self.semantic_version))
 
     def __str__(self):
-        return f"{self.package}@{self.semantic_version!s}"
+        return f"{self.source_name}:{self.package}@{self.semantic_version!s}"
 
 
 class Package:
@@ -54,7 +59,8 @@ class Package:
         self.source: DependencyClassifier = source
 
     def to_dependency(self) -> Dependency:
-        return Dependency(package=self.name, semantic_version=SemanticVersion.parse(str(self.version)))
+        assert self.source is not None
+        return Dependency(package=self.name, semantic_version=SemanticVersion.parse(str(self.version)), source=self.source)
 
     def to_obj(self) -> Dict[str, Union[str, Dict[str, str]]]:
         ret = {
@@ -73,9 +79,6 @@ class Package:
 
     def __eq__(self, other):
         return isinstance(other, Package) and self.name == other.name and self.version == other.version
-
-    def __ne__(self, other):
-        return not (self == other)
 
     def __hash__(self):
         return hash((self.name, self.version))
@@ -615,15 +618,14 @@ class UnusedClassifier(DependencyClassifier):
 def resolve(path: Union[str, Path], cache: Optional[PackageCache] = None) -> SourceRepository:
     repo = SourceRepository(path)
     try:
-        if cache is not None:
-            with cache:
-                for classifier in classifiers():
-                    if classifier.is_available() and classifier.can_classify(repo):
-                        classifier.classify(repo, cache=cache)
+        if cache is None:
+            cm = nullcontext()
         else:
+            cm = cache
+        with cm:
             for classifier in classifiers():
                 if classifier.is_available() and classifier.can_classify(repo):
-                    classifier.classify(repo)
+                    classifier.classify(repo, cache=cache)
     except KeyboardInterrupt:
         if sys.stderr.isatty() and sys.stdin.isatty():
             try:

@@ -132,8 +132,9 @@ class DBPackage(Base, Package):  # type: ignore
         return package
 
     def to_package(self) -> Package:
+        assert self.source is not None
         return Package(name=self.name, version=self.version, dependencies=(
-            Dependency(package=dep.package, semantic_version=dep.semantic_version) for dep in self.raw_dependencies
+            Dependency(package=dep.package, semantic_version=dep.semantic_version, source=self.source) for dep in self.raw_dependencies
         ), source=self.source)
 
     @property
