@@ -41,15 +41,24 @@ class Package:
             self,
             name: str,
             version: Version,
+            source: Union[str, "DependencyClassifier"],
             dependencies: Iterable[Dependency] = (),
-            source: Optional["DependencyClassifier"] = None
     ):
         self.name: str = name
         self.version: Version = version
         self.dependencies: Dict[str, Dependency] = {
             dep.package: dep for dep in dependencies
         }
-        self.source: Optional[DependencyClassifier] = source
+        #type forgiveness
+        if isinstance(source, str):
+            source_name = source
+        else:
+            source_name = source.name
+        self.source_name: Optional[str] = source_name
+
+    @property
+    def source(self):
+        return CLASSIFIERS_BY_NAME[self.source_name]
 
     def to_dependency(self) -> Dependency:
         return Dependency(package=self.name, semantic_version=SemanticVersion.parse(str(self.version)))
@@ -62,25 +71,25 @@ class Package:
                 package: str(dep.semantic_version) for package, dep in self.dependencies.items()
             }
         }
-        if self.source is not None:
-            ret["source"] = self.source.name
+        if self.source_name is not None:
+            ret["source"] = self.source_name
         return ret  # type: ignore
 
     def dumps(self) -> str:
         return json.dumps(self.to_obj())
 
     def __eq__(self, other):
-        return isinstance(other, Package) and self.name == other.name and self.version == other.version
+        return isinstance(other, Package) and self.name == other.name and self.source_name == other.source_name and self.version == other.version
 
     def __ne__(self, other):
         return not (self == other)
 
     def __hash__(self):
-        return hash((self.name, self.version))
+        return hash((self.source_name, self.name, self.version))
 
     def __str__(self):
-        if self.source is not None:
-            return f"{self.source.name}:{self.name}@{self.version}"
+        if self.source_name is not None:
+            return f"{self.source_name}:{self.name}@{self.version}"
         else:
             return f"{self.name}@{self.version}"
 
@@ -223,12 +232,12 @@ class PackageCache(ABC):
         return dot
 
     @abstractmethod
-    def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
+    def add(self, package: Package):
         raise NotImplementedError()
 
-    def extend(self, packages: Iterable[Package], source: Optional["DependencyClassifier"] = None):
+    def extend(self, packages: Iterable[Package]):
         for package in packages:
-            self.add(package, source=source)
+            self.add(package)
 
 
 class InMemoryPackageCache(PackageCache):
@@ -283,16 +292,11 @@ class InMemoryPackageCache(PackageCache):
         else:
             return any(str(to_match) in source_dict for source_dict in self._cache.values())
 
-    def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
+    def add(self, package: Package):
         if package in self:
             if max(len(p.dependencies) for p in self.match(package)) > len(package.dependencies):
                 raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
-        if package.source is None and source is not None:
-            package.source = source
-        if package.source is None:
-            source_name = None
-        else:
-            source_name = package.source.name
+        source_name = package.source_name
         self._cache.setdefault(source_name, {}).setdefault(package.name, {})[package.version] = package
 
 
@@ -329,13 +333,22 @@ class _ResolutionCache:
 
 
 class DependencyResolver:
-    def __init__(self, source: Optional["DependencyClassifier"] = None, cache: Optional[PackageCache] = None):
+
+    def __init__(self, source: Union[str, "DependencyClassifier"], cache: Optional[PackageCache] = None):
         if cache is None:
             self._cache: PackageCache = InMemoryPackageCache()
         else:
             self._cache = cache
-        self.source: Optional[DependencyClassifier] = source
+        # type forgiveness
+        if isinstance(source, str):
+            self.source_name = source
+        else:
+            self.source_name = source.name
         self._entries: int = 0
+
+    @property
+    def source(self):
+        return CLASSIFIERS_BY_NAME[self.source_name]
 
     def open(self):
         self._cache.__enter__()
@@ -372,27 +385,21 @@ class DependencyResolver:
         has not yet been resolved.
 
         """
-        if self.source is None:
-            source_name: Optional[str] = None
-        else:
-            source_name = self.source.name
+        source_name = self.source_name
         if self._cache.was_resolved(dependency, source=source_name):
             return self._cache.match(dependency)
         else:
             return None
 
     def set_resolved_in_cache(self, dependency_or_package: Union[Dependency, Package]):
-        if self.source is None:
-            source_name: Optional[str] = None
-        else:
-            source_name = self.source.name
+        source_name = self.source_name
         if isinstance(dependency_or_package, Package):
             self._cache.set_resolved(dependency_or_package.to_dependency(), source_name)
         else:
             self._cache.set_resolved(dependency_or_package, source_name)
 
     def cache(self, package: Package):
-        self._cache.add(package, self.source)
+        self._cache.add(package)
 
     def resolve(
             self, dependency: Dependency, record_results: bool = True, check_cache: bool = True,
@@ -402,10 +409,7 @@ class DependencyResolver:
 
         If the dependency is resolved, it is added to the cache
         """
-        if self.source is None:
-            source_name: Optional[str] = None
-        else:
-            source_name = self.source.name
+        source_name = self.source_name
         if record_results and not check_cache:
             raise ValueError("`check_cache` may only be False if `record_results` is also False")
         elif check_cache and self._cache.was_resolved(dependency, source=source_name):
@@ -436,10 +440,7 @@ class DependencyResolver:
                 max_workers = cpu_count()
             except NotImplementedError:
                 max_workers = 5
-        if self.source is None:
-            source_name: Optional[str] = None
-        else:
-            source_name = self.source.name
+        source_name = self.source_name
         with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=0) as t:
             resolution_cache = _ResolutionCache(self, results=packages)
             with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -469,8 +470,8 @@ class SourcePackage(Package):
             name: str,
             version: Version,
             source_path: Path,
+            source: Union[str, "DependencyClassifier"],
             dependencies: Iterable[Dependency] = (),
-            source: Optional["DependencyClassifier"] = None
     ):
         super().__init__(name=name, version=version, dependencies=dependencies, source=source)
         self.source_path: Path = source_path
@@ -498,10 +499,10 @@ class SourceRepository(InMemoryPackageCache):
     def source_packages(self) -> Set[SourcePackage]:
         return self._packages
 
-    def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
+    def add(self, package: Package):
         if isinstance(package, SourcePackage):
             self._packages.add(package)
-        super().add(package=package, source=source)
+        super().add(package=package)
 
 
 CLASSIFIERS_BY_NAME: OrderedDictType[str, "DependencyClassifier"] = OrderedDict()  # type: ignore

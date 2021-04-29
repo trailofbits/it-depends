@@ -52,7 +52,7 @@ class DBDependency(Base, Dependency):  # type: ignore
             classifier = DependencyClassifier
         else:
             try:
-                classifier = CLASSIFIERS_BY_NAME[self.from_package.source.name]
+                classifier = CLASSIFIERS_BY_NAME[self.from_package.source_name]
             except KeyError:
                 classifier = DependencyClassifier
         return classifier.parse_spec(self.semantic_version_string)
@@ -112,23 +112,10 @@ class DBPackage(Base, Package):  # type: ignore
         # We intentionally skip calling super().__init__()
         self.name = package.name
         self.version = package.version
-        self.source = package.source
+        self.source_name = package.source_name
 
-    @property  # type: ignore
-    def source(self) -> Optional[DependencyClassifier]:  # type: ignore
-        if self.source_name is None:
-            return None
-        try:
-            return CLASSIFIERS_BY_NAME[self.source_name]  # type: ignore
-        except KeyError:
-            return None
-
-    @source.setter  # type: ignore
-    def source(self, new_source: Optional[DependencyClassifier]):  # type: ignore
-        if new_source is None:
-            self.source_name = None
-        else:
-            self.source_name = new_source.name
+    def source(self) -> DependencyClassifier:
+        return CLASSIFIERS_BY_NAME[self.source_name]
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":
@@ -145,7 +132,7 @@ class DBPackage(Base, Package):  # type: ignore
     def to_package(self) -> Package:
         return Package(name=self.name, version=self.version, dependencies=(
             Dependency(package=dep.package, semantic_version=dep.semantic_version) for dep in self.raw_dependencies
-        ), source=self.source)
+        ), source=self.source_name)
 
     @property
     def version(self) -> Version:
@@ -197,8 +184,8 @@ class SourceFilteredPackageCache(PackageCache):
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
         return self.parent.match(to_match, source=self.source)
 
-    def add(self, package: Package, source: Optional[DependencyClassifier] = None):
-        return self.parent.add(package, source)
+    def add(self, package: Package):
+        return self.parent.add(package)
 
 
 class DBPackageCache(PackageCache):
@@ -233,10 +220,10 @@ class DBPackageCache(PackageCache):
     def session(self):
         return self._session
 
-    def add(self, package: Package, source: Optional[DependencyClassifier] = None):
-        self.extend((package,), source=source)
+    def add(self, package: Package):
+        self.extend((package,))
 
-    def extend(self, packages: Iterable[Package], source: Optional[DependencyClassifier] = None):
+    def extend(self, packages: Iterable[Package]):
         for package in packages:
             for existing in self.match(package):
                 if len(existing.dependencies) > len(package.dependencies):
@@ -250,8 +237,6 @@ class DBPackageCache(PackageCache):
                 found_existing = False
             if found_existing:
                 continue
-            if package.source is None and source is not None:
-                package.source = source
             if isinstance(package, DBPackage):
                 self.session.add(package)
             else:
