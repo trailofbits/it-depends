@@ -66,7 +66,8 @@ def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool
                 dependencies=[
                     Dependency(
                         package=dep["name"],
-                        semantic_version=CargoClassifier.parse_spec(dep["req"])
+                        semantic_version=CargoClassifier.parse_spec(dep["req"]),
+                        source=CargoClassifier.default_instance()
                     )
                     for dep in package["dependencies"]
                 ],
@@ -80,7 +81,8 @@ def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool
                 dependencies=[
                     Dependency(
                         package=dep["name"],
-                        semantic_version=CargoClassifier.parse_spec(dep["req"])
+                        semantic_version=CargoClassifier.parse_spec(dep["req"]),
+                        source=CargoClassifier.default_instance()
                     )
                     for dep in package["dependencies"]
                 ]
