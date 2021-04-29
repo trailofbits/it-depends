@@ -3,7 +3,7 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional, Type, Union
 
 from semantic_version.base import Always, BaseSpec
 
@@ -58,8 +58,13 @@ def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool
         workspace_members = set()
 
     for package in metadata["packages"]:
-        _class = SourcePackage if package["name"] in workspace_members else Package
-        yield _class(
+        if package["name"] in workspace_members:
+            _class: Type[Union[SourcePackage, Package]] = SourcePackage
+            kwargs = {"source_path": cargo_package_path}
+        else:
+            _class = Package
+            kwargs = {}
+        yield _class(  # type: ignore
             name=package["name"],
             version=Version.coerce(package["version"]),
             source=CargoClassifier.default_instance(),
@@ -70,7 +75,7 @@ def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool
                 )
                 for dep in package["dependencies"]
             ],
-            source_path=cargo_package_path
+            **kwargs
         )
 
 

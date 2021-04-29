@@ -42,8 +42,7 @@ class Package:
             name: str,
             version: Version,
             dependencies: Iterable[Dependency] = (),
-            source: Optional["DependencyClassifier"] = None,
-            **kwargs
+            source: Optional["DependencyClassifier"] = None
     ):
         self.name: str = name
         self.version: Version = version
