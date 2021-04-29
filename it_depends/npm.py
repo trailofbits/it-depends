@@ -115,7 +115,7 @@ class NPMResolver(DependencyResolver):
                 if version in dependency.semantic_version:
                     yield Package(name=dependency.package, version=version, source=NPMClassifier(),
                                   dependencies=(
-                        Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version), source=NPMClassifier.default_instance())
+                        Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version), source=NPMClassifier())
                         for dep, dep_version in deps.items()
                     ))
 

@@ -157,7 +157,7 @@ class NativeResolver(DependencyResolver):
                                         package.dependencies[library.name] = Dependency(
                                             package=library.name,
                                             semantic_version=required_version,
-                                            source=NativeClassifier.default_instance()
+                                            source=NativeClassifier()
                                         )
                                         # re-add the package so we can cache the new dependency
                                         existing.add(package)

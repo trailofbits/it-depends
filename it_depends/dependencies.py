@@ -25,7 +25,7 @@ class Dependency:
 
     @property
     def source(self):
-        return CLASSIFIERS_BY_NAME[self.source_name]
+        return classifier_by_name(self.source_name)
 
     def __eq__(self, other):
         if isinstance(other, Dependency):
