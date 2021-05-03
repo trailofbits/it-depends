@@ -33,9 +33,9 @@ You simply point it to a repository. Here it is run on itself.
 ```console
 $ it-depends .
 ```
-[![demo]()](https://gist.githubusercontent.com/feliam/e906ce723333b2b55237a71c4028559e/raw/e60f46c35b215a73a37a1d1ce3bb43eaead76af4/it-depends-demo.svg?sanitize=1)
+![](https://gist.githubusercontent.com/feliam/e906ce723333b2b55237a71c4028559e/raw/e60f46c35b215a73a37a1d1ce3bb43eaead76af4/it-depends-demo.svg?sanitize=1)
 
 This is the resultant [json](https://gist.github.com/feliam/2bdec76f7aa50602869059bfa14df156) 
 with all the discovered dependencies.
 This is the resultant [dot](https://gist.github.com/feliam/275951f5788c23a477bc7cf758a32cc2)
-[![It-depends dep graph]()](https://user-images.githubusercontent.com/1017522/116887041-33903b80-ac00-11eb-9288-f3d286231e47.png)
+![It-depends dep graph](https://user-images.githubusercontent.com/1017522/116887041-33903b80-ac00-11eb-9288-f3d286231e47.png)
