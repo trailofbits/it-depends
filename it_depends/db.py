@@ -7,7 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, sessionmaker
 
-from .dependencies import CLASSIFIERS_BY_NAME, Dependency, DependencyClassifier, Package, SemanticVersion, PackageCache
+from .dependencies import classifier_by_name, Dependency, DependencyClassifier, Package, SemanticVersion, PackageCache
 
 DEFAULT_DB_PATH = Path.home() / ".config" / "it-depends" / "dependencies.sqlite"
 
@@ -49,12 +49,9 @@ class DBDependency(Base, Dependency):  # type: ignore
     @hybrid_property
     def semantic_version(self) -> SemanticVersion:
         if self.from_package.source is None:
-            classifier = DependencyClassifier
+            classifier = DependencyClassifier()
         else:
-            try:
-                classifier = CLASSIFIERS_BY_NAME[self.from_package.source.name]
-            except KeyError:
-                classifier = DependencyClassifier
+            classifier = self.from_package.source
         return classifier.parse_spec(self.semantic_version_string)
 
     @semantic_version.setter  # type: ignore
@@ -112,23 +109,15 @@ class DBPackage(Base, Package):  # type: ignore
         # We intentionally skip calling super().__init__()
         self.name = package.name
         self.version = package.version
-        self.source = package.source
+        self.source_name = package.source.name
 
-    @property  # type: ignore
-    def source(self) -> Optional[DependencyClassifier]:  # type: ignore
-        if self.source_name is None:
-            return None
-        try:
-            return CLASSIFIERS_BY_NAME[self.source_name]  # type: ignore
-        except KeyError:
-            return None
+    @property # type: ignore
+    def source(self) -> DependencyClassifier: # type: ignore
+        return classifier_by_name(self.source_name)
 
-    @source.setter  # type: ignore
-    def source(self, new_source: Optional[DependencyClassifier]):  # type: ignore
-        if new_source is None:
-            self.source_name = None
-        else:
-            self.source_name = new_source.name
+    @source.setter
+    def source(self, new_source: DependencyClassifier):
+        self.source_name = new_source.name
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":

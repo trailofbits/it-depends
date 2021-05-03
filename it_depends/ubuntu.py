@@ -62,11 +62,11 @@ class UbuntuResolver(DependencyResolver):
         version = Version.coerce(matched.group("version"))
 
         yield Package(name=dependency.package, version=version,
-                      source=UbuntuClassifier.default_instance(),
+                      source=UbuntuClassifier(),
                       dependencies=(
                           Dependency(package=pkg,
                                      semantic_version=SimpleSpec(ver),
-                                     source=UbuntuClassifier.default_instance()
+                                     source=UbuntuClassifier()
                                      )
                           for pkg, ver in deps
                                    )
@@ -97,3 +97,4 @@ class UbuntuClassifier(DependencyClassifier):
         resolver = UbuntuResolver(self, cache)
         repo.resolvers.append(resolver)
         resolver.resolve_unsatisfied(repo)
+
