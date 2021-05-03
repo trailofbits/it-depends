@@ -18,14 +18,19 @@ from tqdm import tqdm
 from contextlib import nullcontext
 
 class Dependency:
-    def __init__(self, package: str, source: "DependencyClassifier", semantic_version: SemanticVersion = SimpleSpec("*")):
+    def __init__(self, package: str, source: Union[str, "DependencyClassifier"], semantic_version: SemanticVersion = SimpleSpec("*")):
         self.package: str = package
         self.semantic_version: SemanticVersion = semantic_version
-        self.source_name: str = source.name
+        #type forgiveness
+        if isinstance(source, str):
+            source_name = source
+        else:
+            source_name = source.name
+        self.source_name: str = source_name
 
     @property
     def source(self):
-        return CLASSIFIERS_BY_NAME[self.source_name]
+        return classifier_by_name(self.source_name)
 
     def __eq__(self, other):
         if isinstance(other, Dependency):
@@ -63,11 +68,10 @@ class Package:
 
     @property
     def source(self):
-        return CLASSIFIERS_BY_NAME[self.source_name]
+        return classifier_by_name(self.source_name)
 
     def to_dependency(self) -> Dependency:
-        assert self.source is not None
-        return Dependency(package=self.name, semantic_version=SemanticVersion.parse(str(self.version)), source=self.source)
+        return Dependency(package=self.name, semantic_version=SemanticVersion.parse(str(self.version)), source=self.source_name)
 
     def to_obj(self) -> Dict[str, Union[str, Dict[str, str]]]:
         ret = {
@@ -351,7 +355,7 @@ class DependencyResolver:
 
     @property
     def source(self):
-        return CLASSIFIERS_BY_NAME[self.source_name]
+        return classifier_by_name(self.source_name)
 
     def open(self):
         self._cache.__enter__()
@@ -370,7 +374,7 @@ class DependencyResolver:
         if self._entries == 0:
             self.close()
 
-    def resolve_missing(self, dependency: Dependency, from_package: Optional[Package] = None) -> Iterator[Package]:
+    def resolve_missing(self, dependency: Dependency, from_package: Package) -> Iterator[Package]:
         """
         Forces a resolution of a missing dependency
 
@@ -405,8 +409,8 @@ class DependencyResolver:
         self._cache.add(package)
 
     def resolve(
-            self, dependency: Dependency, record_results: bool = True, check_cache: bool = True,
-            from_package: Optional[Package] = None
+            self, dependency: Dependency, from_package: Package, record_results: bool = True, check_cache: bool = True,
+
     ) -> Iterator[Package]:
         """Yields all packages that satisfy the given dependency, resolving the dependency if necessary
 
@@ -508,8 +512,6 @@ class SourceRepository(InMemoryPackageCache):
         super().add(package=package)
 
 
-CLASSIFIERS_BY_NAME: OrderedDictType[str, "DependencyClassifier"] = OrderedDict()  # type: ignore
-
 
 class ClassifierAvailability:
     def __init__(self, is_available: bool, reason: str = ""):
@@ -534,25 +536,41 @@ class DockerSetup:
 C = TypeVar("C")
 
 
+import functools
+@functools.lru_cache()
+def classifiers():
+    """ Sorted collection of all the default instances of DependencyClassifiers
+    The result of this function is cached so the sorting is done only once.
+    Though if a new subclass of DependencyClassifier is created the cache is
+    recreated. Note that previous DependencyClassifier instances will not change.
+    """
+    return tuple(sorted(cls() for cls in DependencyClassifier.__subclasses__()))
+
+@functools.lru_cache()
+def classifier_by_name(name:str):
+    """ Finds a classifier instance by name. The result is cached."""
+    for instance in classifiers():
+        if instance.name == name:
+            return instance
+    raise KeyError(name)
+
 class DependencyClassifier(ABC):
     name: str
     description: str
+
+    _instance = None
+    def __new__(class_, *args, **kwargs):
+        """ A singleton (Only one default instance exists) """
+        if not isinstance(class_._instance, class_):
+            class_._instance = super().__new__(class_, *args, **kwargs)
+        return class_._instance
 
     def __init_subclass__(cls, **kwargs):
         if not hasattr(cls, "name") or cls.name is None:
             raise TypeError(f"{cls.__name__} must define a `name` class member")
         elif not hasattr(cls, "description") or cls.description is None:
             raise TypeError(f"{cls.__name__} must define a `description` class member")
-        global CLASSIFIERS_BY_NAME
-        copy = CLASSIFIERS_BY_NAME.copy()
-        copy[cls.name] = cls()
-        CLASSIFIERS_BY_NAME.clear()
-        for c in sorted(copy.values()):
-            CLASSIFIERS_BY_NAME[c.name] = c
-
-    @classmethod
-    def default_instance(cls: Type[C]) -> C:
-        return CLASSIFIERS_BY_NAME[cls.name]  # type: ignore
+        classifiers.cache_clear()
 
     @classmethod
     def parse_spec(cls, spec: str) -> SemanticVersion:
@@ -588,6 +606,17 @@ class DependencyClassifier(ABC):
         """Resolves any new `SourcePackage`s in this repo, as well as their dependencies"""
         raise NotImplementedError()
 
+class UnusedClassifier(DependencyClassifier):
+    name: str = "unknown"
+    description: str = "Used for testing"
+
+    def is_available(self) -> ClassifierAvailability:
+        return ClassifierAvailability(False)
+    def can_classify(self, repo: SourceRepository) -> bool:
+        return False
+    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        raise NotImplementedError()
+
 
 def resolve(path: Union[str, Path], cache: Optional[PackageCache] = None) -> SourceRepository:
     repo = SourceRepository(path)
@@ -596,9 +625,8 @@ def resolve(path: Union[str, Path], cache: Optional[PackageCache] = None) -> Sou
             cm = nullcontext()
         else:
             cm = cache
-
         with cm:
-            for classifier in CLASSIFIERS_BY_NAME.values():  # type: ignore
+            for classifier in classifiers():
                 if classifier.is_available() and classifier.can_classify(repo):
                     classifier.classify(repo, cache=cache)
     except KeyboardInterrupt:

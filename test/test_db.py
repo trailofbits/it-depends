@@ -16,8 +16,8 @@ class UnknownClassifier(DependencyClassifier):
 class TestDB(TestCase):
     def test_db(self):
         with DBPackageCache() as cache:
-            pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnknownClassifier().default_instance(),
-                          dependencies=(Dependency(package="dep", semantic_version=SimpleSpec(">3.0"), source=UnknownClassifier().default_instance()),))
+            pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnknownClassifier(),
+                          dependencies=(Dependency(package="dep", semantic_version=SimpleSpec(">3.0"), source=UnknownClassifier()),))
             cache.add(pkg)
             self.assertIn(pkg, cache)
             self.assertEqual(len(cache), 1)
@@ -25,5 +25,5 @@ class TestDB(TestCase):
             cache.add(pkg)
             self.assertEqual(len(cache), 1)
             # try adding the package again, but with fewer dependencies:
-            smaller_pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnknownClassifier().default_instance())
+            smaller_pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnknownClassifier())
             self.assertRaises(ValueError, cache.add, smaller_pkg)

@@ -16,10 +16,8 @@ from .dependencies import (
 class UbuntuResolver(DependencyResolver):
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
-    def resolve_missing(self, dependency: Dependency, from_package: Optional[Package] = None) -> Iterator[Package]:
-        if from_package is None or from_package.source is None:
-            return
-        source = from_package.source.name
+    def resolve_missing(self, dependency: Dependency, from_package: Package) -> Iterator[Package]:
+        source = from_package.source_name
         if not (source == "native" or source == "ubuntu" or source == "cmake" or source == "autotools"):
             return
 
@@ -62,11 +60,11 @@ class UbuntuResolver(DependencyResolver):
         version = Version.coerce(matched.group("version"))
 
         yield Package(name=dependency.package, version=version,
-                      source=UbuntuClassifier.default_instance(),
+                      source=UbuntuClassifier(),
                       dependencies=(
                           Dependency(package=pkg,
                                      semantic_version=SimpleSpec(ver),
-                                     source=UbuntuClassifier.default_instance()
+                                     source=UbuntuClassifier()
                                      )
                           for pkg, ver in deps
                                    )
@@ -97,3 +95,4 @@ class UbuntuClassifier(DependencyClassifier):
         resolver = UbuntuResolver(self, cache)
         repo.resolvers.append(resolver)
         resolver.resolve_unsatisfied(repo)
+

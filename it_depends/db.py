@@ -7,7 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, sessionmaker
 
-from .dependencies import CLASSIFIERS_BY_NAME, Dependency, DependencyClassifier, Package, SemanticVersion, PackageCache
+from .dependencies import classifier_by_name, Dependency, DependencyClassifier, Package, SemanticVersion, PackageCache
 
 DEFAULT_DB_PATH = Path.home() / ".config" / "it-depends" / "dependencies.sqlite"
 
@@ -49,12 +49,9 @@ class DBDependency(Base, Dependency):  # type: ignore
     @hybrid_property
     def semantic_version(self) -> SemanticVersion:
         if self.from_package.source is None:
-            classifier = DependencyClassifier
+            classifier = DependencyClassifier()
         else:
-            try:
-                classifier = CLASSIFIERS_BY_NAME[self.from_package.source_name]
-            except KeyError:
-                classifier = DependencyClassifier
+            classifier = self.from_package.source
         return classifier.parse_spec(self.semantic_version_string)
 
     @semantic_version.setter  # type: ignore
@@ -114,9 +111,10 @@ class DBPackage(Base, Package):  # type: ignore
         self.version = package.version
         self.source_name = package.source_name
 
+
     @property
     def source(self) -> DependencyClassifier:
-        return CLASSIFIERS_BY_NAME[self.source_name]  # type: ignore
+        return classifier_by_name(self.source_name)
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":
