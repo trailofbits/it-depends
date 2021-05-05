@@ -611,7 +611,7 @@ class UnusedClassifier(DependencyClassifier):
     description: str = "Used for testing"
 
     def is_available(self) -> ClassifierAvailability:
-        return ClassifierAvailability(False)
+        return ClassifierAvailability(False, "Unused classifier")
     def can_classify(self, repo: SourceRepository) -> bool:
         return False
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
