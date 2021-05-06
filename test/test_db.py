@@ -6,11 +6,12 @@ from it_depends.dependencies import Dependency, Package, SimpleSpec, Version, De
 class UnknownClassifier(DependencyClassifier):
     name = "unknown"
     description = "unknown classifier"
+    def classify(self, repo, cache):
+        pass
+
     def can_classify(self, repo) -> bool:
         return False
 
-    def classify(self, repo, cache):
-        pass
         
 class TestDB(TestCase):
     def test_db(self):
