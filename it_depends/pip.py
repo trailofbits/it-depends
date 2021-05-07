@@ -80,7 +80,7 @@ class PipResolver(DependencyResolver):
                         )
                     )
             ):
-                cached = self.resolve_from_cache(Dependency(dist.name, version))
+                cached = self.resolve_from_cache(Dependency(package=dist.name, semantic_version=version, source=PipClassifier()))
                 if cached is not None:
                     packages.extend(cached)
                 else:

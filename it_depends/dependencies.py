@@ -228,12 +228,12 @@ class PackageCache(ABC):
         return dot
 
     @abstractmethod
-    def add(self, package: Package, source: Optional["DependencyClassifier"] = None):
+    def add(self, package: Package):
         raise NotImplementedError()
 
-    def extend(self, packages: Iterable[Package], source: Optional["DependencyClassifier"] = None):
+    def extend(self, packages: Iterable[Package]):
         for package in packages:
-            self.add(package, source=source)
+            self.add(package)
 
 
 class InMemoryPackageCache(PackageCache):
@@ -608,7 +608,7 @@ class UnusedClassifier(DependencyClassifier):
     description: str = "Used for testing"
 
     def is_available(self) -> ClassifierAvailability:
-        return ClassifierAvailability(False)
+        return ClassifierAvailability(False, "UnusedClassifier should not to be used")
     def can_classify(self, repo: SourceRepository) -> bool:
         return False
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
