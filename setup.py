@@ -1,8 +1,17 @@
+import os
 from setuptools import setup, find_packages
+
+SETUP_DIR = os.path.dirname(os.path.realpath(__file__))
+README_PATH = os.path.join(SETUP_DIR, "README.md")
+
+with open(README_PATH, "r") as readme:
+    README = readme.read()
 
 setup(
     name="it-depends",
     description="A software dependency analyzer",
+    long_description=README,
+    long_description_content_type="text/markdown",
     license="LGPL-3.0-or-later",
     url="https://github.com/trailofbits/it-depends",
     author="Trail of Bits",
