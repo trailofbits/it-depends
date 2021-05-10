@@ -3,6 +3,7 @@ from unittest import TestCase
 from it_depends.db import DBPackageCache
 from it_depends.dependencies import Dependency, Package, SimpleSpec, Version, UnusedClassifier
 
+
 class TestDB(TestCase):
     def test_db(self):
         with DBPackageCache() as cache:

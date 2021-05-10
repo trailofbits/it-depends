@@ -97,7 +97,7 @@ class DBPackage(Base, Package):  # type: ignore
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     version_str = Column("version", String, nullable=False)
-    source_name = Column("source", String, nullable=True)
+    source_name = Column("source", String, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("name", "version", "source", name="package_unique_constraint"),
@@ -109,15 +109,12 @@ class DBPackage(Base, Package):  # type: ignore
         # We intentionally skip calling super().__init__()
         self.name = package.name
         self.version = package.version
-        self.source_name = package.source.name
+        self.source_name = package.source_name
 
-    @property # type: ignore
-    def source(self) -> DependencyClassifier: # type: ignore
+
+    @property
+    def source(self) -> DependencyClassifier:
         return classifier_by_name(self.source_name)
-
-    @source.setter
-    def source(self, new_source: DependencyClassifier):
-        self.source_name = new_source.name
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":
@@ -187,8 +184,8 @@ class SourceFilteredPackageCache(PackageCache):
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
         return self.parent.match(to_match, source=self.source)
 
-    def add(self, package: Package, source: Optional[DependencyClassifier] = None):
-        return self.parent.add(package, source)
+    def add(self, package: Package):
+        return self.parent.add(package)
 
 
 class DBPackageCache(PackageCache):
@@ -223,10 +220,10 @@ class DBPackageCache(PackageCache):
     def session(self):
         return self._session
 
-    def add(self, package: Package, source: Optional[DependencyClassifier] = None):
-        self.extend((package,), source=source)
+    def add(self, package: Package):
+        self.extend((package,))
 
-    def extend(self, packages: Iterable[Package], source: Optional[DependencyClassifier] = None):
+    def extend(self, packages: Iterable[Package]):
         for package in packages:
             for existing in self.match(package):
                 if len(existing.dependencies) > len(package.dependencies):
@@ -240,8 +237,6 @@ class DBPackageCache(PackageCache):
                 found_existing = False
             if found_existing:
                 continue
-            if package.source is None and source is not None:
-                package.source = source
             if isinstance(package, DBPackage):
                 self.session.add(package)
             else:
