@@ -397,7 +397,7 @@ class DependencyResolver:
             self._cache.set_resolved(dependency_or_package, source_name)
 
     def cache(self, package: Package):
-        self._cache.add(package, self.source)
+        self._cache.add(package)
 
     def resolve(
             self, dependency: Dependency, record_results: bool = True, check_cache: bool = True,

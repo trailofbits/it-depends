@@ -36,4 +36,4 @@ jobs:
         flake8 it_depends test --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     - name: Test with pytest
       run: |
-        pytest test
+        pytest test --ignore test/repos
