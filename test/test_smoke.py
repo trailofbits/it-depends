@@ -1,29 +1,37 @@
 from unittest import TestCase
 from pathlib import Path
+import os
 import json
 import urllib
 import zipfile
 from it_depends.dependencies import resolve
 IT_DEPENDS_DIR: Path = Path(__file__).absolute().parent.parent
+TESTS_DIR: Path = Path(__file__).absolute().parent
+REPOS_FOLDER = TESTS_DIR / "repos"
+
 
 class TestSmoke(TestCase):
     maxDiff = None
+    def setUp(self) -> None:
+        if not os.path.exists(REPOS_FOLDER):
+            os.makedirs(REPOS_FOLDER )
 
     def test_pip(self):
-        PATH = IT_DEPENDS_DIR
+        SNAPSHOT_NAME = "cvedb"
         COMMIT= "7441dc0e238e31829891f85fd840d9e65cb629d8"
         URL = f"https://github.com/trailofbits/cvedb/archive/{COMMIT}.zip"
-        SNAPSHOT_NAME = "cvedb"
-        SNAPSHOT_FOLDER = PATH / "test" / SNAPSHOT_NAME
+
+        SNAPSHOT_FOLDER = REPOS_FOLDER / (SNAPSHOT_NAME + "-" + COMMIT )
         SNAPSHOT_ZIP = SNAPSHOT_FOLDER.with_suffix(".zip")
+
         if not (SNAPSHOT_FOLDER).exists():
             urllib.request.urlretrieve(
                 URL,
                 SNAPSHOT_ZIP)
             with zipfile.ZipFile(SNAPSHOT_ZIP, 'r') as zip_ref:
-                zip_ref.extractall(SNAPSHOT_FOLDER)
-        print (SNAPSHOT_FOLDER)
-        package_list = resolve(SNAPSHOT_FOLDER / f"{SNAPSHOT_NAME}-{COMMIT}")
+                zip_ref.extractall(REPOS_FOLDER)
+
+        package_list = resolve(SNAPSHOT_FOLDER)
         result_json = """{
     "cvedb": {
         "0.0.4": {

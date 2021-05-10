@@ -7,7 +7,7 @@ class TestDB(TestCase):
     def test_db(self):
         with DBPackageCache() as cache:
             pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnusedClassifier(),
-                          dependencies=(Dependency(package="dep", semantic_version=SimpleSpec(">3.0"), source=UnknownClassifier()),))
+                          dependencies=(Dependency(package="dep", semantic_version=SimpleSpec(">3.0"), source=UnusedClassifier()),))
             cache.add(pkg)
             self.assertIn(pkg, cache)
             self.assertEqual(len(cache), 1)
