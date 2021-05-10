@@ -114,7 +114,7 @@ class CMakeClassifier(DependencyClassifier):
             found_package = search_package(package)
 
             contents = subprocess.run(["apt-file", "list", found_package],
-                                      stdout=subprocess.PIPE).stdout.decode("utf8")
+                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode("utf8")
             if file_to_package_cache is not None:
                 for line in contents.split("\n"):
                     if ": " not in line:
@@ -266,12 +266,12 @@ class CMakeClassifier(DependencyClassifier):
     def _get_dependencies(self, path: Path):
         # assert self.is_available()
         # assert self.can_classify(path)
+        logger.info(f"Getting dependencies for cmake repo {path}")
         apath = os.path.abspath(path)
-        logger.info(f"Getting dependencies for cmake repo {apath}")
         orig_dir = getcwd()
         try:
             with tempfile.TemporaryDirectory() as tmpdirname:
-                logger.info(f'Created temporary directory {tmpdirname}')
+                logger.debug(f'Created temporary directory {tmpdirname}')
                 # This is a hack to modify the original cmake language temporarily
                 # TODO: Think a better way that does not modify the original repo
                 # Maybe use newer cmake feature:
@@ -292,7 +292,7 @@ class CMakeClassifier(DependencyClassifier):
                     cmake_lists.close()
                     subprocess.run(
                         ["cmake", "-Wno-dev", "-trace", "--trace-expand", f"--trace-redirect={output}", apath],
-                        stdout=subprocess.PIPE).stdout.decode("utf8")
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode("utf8")
                     with open(output, "rt") as outfd:
                         trace = outfd.read()
                 finally:
@@ -363,11 +363,9 @@ class CMakeClassifier(DependencyClassifier):
                                 package_iter = self._check_include_files(*body,
                                                                          file_to_package_cache=file_to_package_cache)
                             else:
-                                logger.info(f"Not handled {token.name} {body}")
+                                logger.warning(f"Not handled {token.name} {body}")
                             new_packages = tuple(package_iter)
                             deps.extend(new_packages)
-                            if command not in ("set", "project"):
-                                logger.info(f"    GOT: {new_packages}")
                     except Exception as e:
                         logger.debug(e)
         except Exception as e:

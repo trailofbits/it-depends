@@ -50,7 +50,7 @@ def get_apt_packages() -> Tuple[str, ...]:
     global all_packages
     if all_packages is None:
         logger.info("Rebuilding global apt package list.")
-        raw_packages = subprocess.check_output(["apt", "list"]).decode("utf8")
+        raw_packages = subprocess.check_output(["apt", "list"], stderr=subprocess.DEVNULL).decode("utf8")
         all_packages = tuple(x.split("/")[0] for x in raw_packages.splitlines() if x)
 
         logger.info(f"Global apt package count {len(all_packages)}")
@@ -122,7 +122,7 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
 def _file_to_package_apt_file(filename: str, arch: str = "amd64") -> str:
     if arch not in ("amd64", "i386"):
         raise ValueError("Only amd64 and i386 supported")
-    logger.info(f'Running [{" ".join(["apt-file", "-x", "search", filename])}]')
+    logger.debug(f'Running [{" ".join(["apt-file", "-x", "search", filename])}]')
     contents = subprocess.run(["apt-file", "-x", "search", filename],
                               stdout=subprocess.PIPE).stdout.decode("utf8")
     db: Dict[str, str] = {}
