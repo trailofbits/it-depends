@@ -32,13 +32,15 @@ class TestSmoke(TestCase):
             with zipfile.ZipFile(SNAPSHOT_ZIP, 'r') as zip_ref:
                 zip_ref.extractall(REPOS_FOLDER)
 
-        with DBPackageCache() as cache:
-            package_list = resolve(SNAPSHOT_FOLDER, cache=cache)
+        package_list = resolve(SNAPSHOT_FOLDER)
         result_json = """{
     "cvedb": {
         "0.0.4": {
             "dependencies": {
                 "cvss": "~=2.2",
+                "libdl": "~=2",
+                "libnss_files": "~=2",
+                "libtinfo": "~=6",
                 "python-dateutil": "~=2.8.1",
                 "tqdm": "~=4.48.0"
             },
