@@ -5,7 +5,7 @@ import json
 import urllib
 import zipfile
 from it_depends.dependencies import resolve
-from it_depends.db import DBPackageCache
+
 IT_DEPENDS_DIR: Path = Path(__file__).absolute().parent.parent
 TESTS_DIR: Path = Path(__file__).absolute().parent
 REPOS_FOLDER = TESTS_DIR / "repos"
@@ -13,9 +13,10 @@ REPOS_FOLDER = TESTS_DIR / "repos"
 
 class TestSmoke(TestCase):
     maxDiff = None
+
     def setUp(self) -> None:
         if not os.path.exists(REPOS_FOLDER):
-            os.makedirs(REPOS_FOLDER )
+            os.makedirs(REPOS_FOLDER)
 
     def _gh_smoke_test(self, user_name, repo_name, commit, result_json):
         URL = f"https://github.com/{user_name}/{repo_name}/archive/{commit}.zip"
@@ -23,17 +24,14 @@ class TestSmoke(TestCase):
         SNAPSHOT_ZIP = SNAPSHOT_FOLDER.with_suffix(".zip")
 
         if not (SNAPSHOT_FOLDER).exists():
-            urllib.request.urlretrieve(
-                URL,
-                SNAPSHOT_ZIP)
-            with zipfile.ZipFile(SNAPSHOT_ZIP, 'r') as zip_ref:
+            urllib.request.urlretrieve(URL, SNAPSHOT_ZIP)
+            with zipfile.ZipFile(SNAPSHOT_ZIP, "r") as zip_ref:
                 zip_ref.extractall(REPOS_FOLDER)
 
         package_list = resolve(SNAPSHOT_FOLDER)
-        result_it_depends = json.dumps(package_list.to_obj(), indent=4,
-                                       sort_keys=True)
+        result_it_depends = json.dumps(package_list.to_obj(), indent=4, sort_keys=True)
         if not result_json:
-            print (f"<{result_it_depends}>")
+            print(f"<{result_it_depends}>")
         self.assertEqual(result_it_depends, result_json)
 
     def test_pip(self):
@@ -112,9 +110,7 @@ class TestSmoke(TestCase):
         }
     }
 }"""
-        self._gh_smoke_test("trailofbits", "cvedb",
-                            "7441dc0e238e31829891f85fd840d9e65cb629d8",
-                            result_json)
+        self._gh_smoke_test("trailofbits", "cvedb", "7441dc0e238e31829891f85fd840d9e65cb629d8", result_json)
 
     def test_cargo(self):
         result_json = """{
@@ -1643,10 +1639,7 @@ class TestSmoke(TestCase):
         }
     }
 }"""
-        self._gh_smoke_test("trailofbits", "siderophile",
-                            "7bca0f5a73da98550c29032f6a2a170f472ea241",
-                            result_json)
-
+        self._gh_smoke_test("trailofbits", "siderophile", "7bca0f5a73da98550c29032f6a2a170f472ea241", result_json)
 
     def test_npm(self):
         result_json = """{
@@ -1680,10 +1673,7 @@ class TestSmoke(TestCase):
         }
     }
 }"""
-        self._gh_smoke_test("brix", "crypto-js",
-                            "971c31f0c931f913d22a76ed488d9216ac04e306",
-                            result_json)
-
+        self._gh_smoke_test("brix", "crypto-js", "971c31f0c931f913d22a76ed488d9216ac04e306", result_json)
 
     def test_autotools(self):
         result_json = """{
@@ -4270,13 +4260,8 @@ class TestSmoke(TestCase):
                 }
             }
         }"""
-        self._gh_smoke_test("bitcoin", "bitcoin",
-                            "4a267057617a8aa6dc9793c4d711725df5338025",
-                            result_json)
-
+        self._gh_smoke_test("bitcoin", "bitcoin", "4a267057617a8aa6dc9793c4d711725df5338025", result_json)
 
     def __test_cmake(self):
         result_json = """"""
-        self._gh_smoke_test("lifting-bits", "rellic",
-                            "9cf73b288a3d0c51d5de7e1060cba8656538596f",
-                            result_json)
+        self._gh_smoke_test("lifting-bits", "rellic", "9cf73b288a3d0c51d5de7e1060cba8656538596f", result_json)
