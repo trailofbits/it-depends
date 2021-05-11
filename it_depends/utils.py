@@ -147,8 +147,10 @@ def _file_to_package_apt_file(filename: str, arch: str = "amd64") -> str:
 @functools.lru_cache(maxsize=128)
 def file_to_package(filename: str, arch: str = "amd64") -> str:
     filename = f"/{filename}$"
-    return _file_to_package_apt_file(filename, arch=arch)
-    # return _file_to_package_contents(filename, arch=arch)
+    try:
+        return _file_to_package_apt_file(filename, arch=arch)
+    except:
+        return _file_to_package_contents(filename, arch=arch)
 
 
 def cached_file_to_package(pattern: str, file_to_package_cache: Optional[List[Tuple[str, str]]] = None) -> str:
