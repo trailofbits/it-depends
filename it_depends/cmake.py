@@ -387,7 +387,9 @@ class CMakeClassifier(DependencyClassifier):
         if package_version is None:
             package_version = "0.0.0"
         if package_name is None:
-            raise ValueError(f"Unable to determine package name for {path}")
+            package_name = path.name
+            logger.warning(f"Unable to determine package name for {path}. Using {package_name}")
+
         yield SourcePackage(
             name=package_name,
             version=Version.coerce(package_version),

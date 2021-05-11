@@ -6,7 +6,6 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from semantic_version.base import Always, BaseSpec
 import logging
 import tempfile
 from typing import List, Optional, Tuple
@@ -53,6 +52,7 @@ class AutotoolsClassifier(DependencyClassifier):
         package_name = file_to_package(f"{re.escape(header_file)}", file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name,
                           semantic_version=SimpleSpec("*"),
+                          source=AutotoolsClassifier()
                           )
 
     @staticmethod
@@ -65,7 +65,7 @@ class AutotoolsClassifier(DependencyClassifier):
         lib_file, function_name = function.split(".")
         logger.info(f"AC_CHECK_LIB {lib_file}")
         package_name = file_to_package(f"lib{re.escape(lib_file)}(.a|.so)", file_to_package_cache=file_to_package_cache)
-        return Dependency(package=package_name, semantic_version=SimpleSpec("*"))
+        return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source=AutotoolsClassifier())
 
     @staticmethod
     def _pkg_check_modules(module_name, version=None, file_to_package_cache=None):
@@ -80,7 +80,7 @@ class AutotoolsClassifier(DependencyClassifier):
         module_file = re.escape(module_name + ".pc")
         logger.info(f"PKG_CHECK_MODULES {module_file}, {version}")
         package_name = file_to_package(module_file, file_to_package_cache=file_to_package_cache)
-        return Dependency(package=package_name, semantic_version=SimpleSpec(version))
+        return Dependency(package=package_name, semantic_version=SimpleSpec(version), source=AutotoolsClassifier())
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
@@ -159,7 +159,6 @@ class AutotoolsClassifier(DependencyClassifier):
                 else:
                     logger.error("Macro not supported", macro)
             except Exception as e:
-                import traceback; traceback.print_stack()
                 logger.error(str(e))
                 continue
 
