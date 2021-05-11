@@ -5,6 +5,7 @@ import json
 import urllib
 import zipfile
 from it_depends.dependencies import resolve
+from it_depends.db import DBPackageCache
 IT_DEPENDS_DIR: Path = Path(__file__).absolute().parent.parent
 TESTS_DIR: Path = Path(__file__).absolute().parent
 REPOS_FOLDER = TESTS_DIR / "repos"
@@ -31,7 +32,8 @@ class TestSmoke(TestCase):
             with zipfile.ZipFile(SNAPSHOT_ZIP, 'r') as zip_ref:
                 zip_ref.extractall(REPOS_FOLDER)
 
-        package_list = resolve(SNAPSHOT_FOLDER)
+        with DBPackageCache() as cache:
+            package_list = resolve(SNAPSHOT_FOLDER, cache=cache)
         result_json = """{
     "cvedb": {
         "0.0.4": {
