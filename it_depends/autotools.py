@@ -159,6 +159,7 @@ class AutotoolsClassifier(DependencyClassifier):
                 else:
                     logger.error("Macro not supported", macro)
             except Exception as e:
+                import traceback; traceback.print_stack()
                 logger.error(str(e))
                 continue
 

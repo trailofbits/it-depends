@@ -22,7 +22,7 @@ setup(
         "docker>=4.4.0",
         "graphviz>=0.14.1",
         "johnnydep~=1.7",
-        "parse_cmake",
+        "parse_cmake>=0.4.1",
         "semantic_version~=2.8.5",
         "sqlalchemy>=1.3",
         "tqdm>=4.48.0"

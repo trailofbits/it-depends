@@ -612,8 +612,10 @@ class UnusedClassifier(DependencyClassifier):
 
     def is_available(self) -> ClassifierAvailability:
         return ClassifierAvailability(False, "Unused classifier")
+    
     def can_classify(self, repo: SourceRepository) -> bool:
         return False
+    
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
         raise NotImplementedError()
 

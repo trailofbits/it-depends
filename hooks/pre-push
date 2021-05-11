@@ -11,5 +11,5 @@ EOF
   exit 1
 fi
 
-pytest test
+pytest test --ignore test/repos 
 exit $?
