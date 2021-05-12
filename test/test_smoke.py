@@ -1675,7 +1675,7 @@ class TestSmoke(TestCase):
 }"""
         self._gh_smoke_test("brix", "crypto-js", "971c31f0c931f913d22a76ed488d9216ac04e306", result_json)
 
-    def test_autotools(self):
+    def __test_autotools(self):
         result_json = """{
     "Bitcoin Core": {
         "21.99.0": {
