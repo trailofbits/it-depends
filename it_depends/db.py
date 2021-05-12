@@ -111,7 +111,6 @@ class DBPackage(Base, Package):  # type: ignore
         self.version = package.version
         self.source_name = package.source_name
 
-
     @property
     def source(self) -> DependencyClassifier:
         return classifier_by_name(self.source_name)

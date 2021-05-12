@@ -123,8 +123,8 @@ class AutotoolsClassifier(DependencyClassifier):
         chdir(path)
         try:
             with tempfile.NamedTemporaryFile() as tmp:
-                #builds a temporary copy of configure.ac containing aclocal env
-                subprocess.check_output(("aclocal",f"--output={tmp.name}"))
+                # builds a temporary copy of configure.ac containing aclocal env
+                subprocess.check_output(("aclocal", f"--output={tmp.name}"))
                 with open(tmp.name, "ab") as tmp2:
                     with open("./configure.ac", "rb") as conf:
                         tmp2.write(conf.read())
@@ -138,7 +138,7 @@ class AutotoolsClassifier(DependencyClassifier):
         finally:
             chdir(orig_dir)
 
-        file_to_package_cache: List[Tuple[str]]  = []
+        file_to_package_cache: List[Tuple[str]] = []
         deps = []
         for macro in trace.split('\n'):
             logger.debug(f"Handling: {macro}")
@@ -155,9 +155,11 @@ class AutotoolsClassifier(DependencyClassifier):
                     deps.append(self._ac_check_lib(function=arguments[0], file_to_package_cache=file_to_package_cache))
                 elif macro == "PKG_CHECK_MODULES":
                     module_name, *version = arguments[0].split(" ")
-                    deps.append(self._pkg_check_modules(module_name=module_name, version="".join(version), file_to_package_cache=file_to_package_cache))
+                    deps.append(self._pkg_check_modules(module_name=module_name,
+                                                        version="".join(version),
+                                                        file_to_package_cache=file_to_package_cache))
                 else:
-                    logger.error("Macro not supported", macro)
+                    logger.error("Macro not supported %r", macro)
             except Exception as e:
                 logger.error(str(e))
                 continue

@@ -372,10 +372,9 @@ class CMakeClassifier(DependencyClassifier):
             logger.debug(e)
             raise
 
-        # remove "-dev" and dupplicates
+        # remove "-dev"? and dupplicates
         depsd: Dict[str, Optional[str]] = {}
         for name, version in deps:
-            #name = name.replace("-dev", "")
             if name not in depsd or depsd[name] is None:
                 depsd[name] = version
             else:

@@ -4,18 +4,18 @@ import subprocess
 import logging
 import re
 from .dependencies import Version, SimpleSpec
-
-logger = logging.getLogger(__name__)
-
 from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, PackageCache,
     SourceRepository
 )
 
+logger = logging.getLogger(__name__)
+
 
 class UbuntuResolver(DependencyResolver):
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
+
     def resolve_missing(self, dependency: Dependency, from_package: Package) -> Iterator[Package]:
         source = from_package.source_name
         if not (source == "native" or source == "ubuntu" or source == "cmake" or source == "autotools"):
@@ -43,7 +43,7 @@ class UbuntuResolver(DependencyResolver):
                         raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
                     dep_package = matched.group('package')
                     dep_version = matched.group('version')
-                    dep_version = "*" # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                    dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
                     deps.append((dep_package, dep_version))
             if line.startswith("Version: "):
                 version = line[9:]
@@ -67,9 +67,7 @@ class UbuntuResolver(DependencyResolver):
                                      source=UbuntuClassifier()
                                      )
                           for pkg, ver in deps
-                                   )
-                    )
-
+                      ))
 
 
 class UbuntuClassifier(DependencyClassifier):
@@ -84,7 +82,7 @@ class UbuntuClassifier(DependencyClassifier):
         # TODO: Check for docker if necessary later
         if shutil.which("apt") is None:
             return ClassifierAvailability(False,
-                                      "`Ubuntu` classifier needs apt-cache tool")
+                                          "`Ubuntu` classifier needs apt-cache tool")
 
         return ClassifierAvailability(True)
 
@@ -95,4 +93,3 @@ class UbuntuClassifier(DependencyClassifier):
         resolver = UbuntuResolver(self, cache)
         repo.resolvers.append(resolver)
         resolver.resolve_unsatisfied(repo)
-

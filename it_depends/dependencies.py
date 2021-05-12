@@ -1,12 +1,13 @@
+import functools
 from abc import ABC, abstractmethod
-from collections import defaultdict, OrderedDict
+from collections import defaultdict
 import concurrent.futures
 from dataclasses import dataclass
 import json
 from multiprocessing import cpu_count
 from pathlib import Path
 from typing import (
-    Dict, FrozenSet, Iterable, Iterator, List, Optional, OrderedDict as OrderedDictType, Set, Tuple, Type, TypeVar,
+    Dict, FrozenSet, Iterable, Iterator, List, Optional, Set, Tuple, TypeVar,
     Union
 )
 import sys
@@ -17,11 +18,12 @@ from semantic_version.base import BaseSpec as SemanticVersion
 from tqdm import tqdm
 from contextlib import nullcontext
 
+
 class Dependency:
     def __init__(self, package: str, source: Union[str, "DependencyClassifier"], semantic_version: SemanticVersion = SimpleSpec("*")):
         self.package: str = package
         self.semantic_version: SemanticVersion = semantic_version
-        #type forgiveness
+        # type forgiveness
         if isinstance(source, str):
             source_name = source
         else:
@@ -59,7 +61,7 @@ class Package:
         self.dependencies: Dict[str, Dependency] = {
             dep.package: dep for dep in dependencies
         }
-        #type forgiveness
+        # type forgiveness
         if isinstance(source, str):
             source_name = source
         else:
@@ -79,7 +81,7 @@ class Package:
             "version": str(self.version),
             "dependencies": {
                 package: str(dep.semantic_version) for package, dep in self.dependencies.items()
-            }
+                }
         }
         if self.source_name is not None:
             ret["source"] = self.source_name
@@ -89,7 +91,10 @@ class Package:
         return json.dumps(self.to_obj())
 
     def __eq__(self, other):
-        return isinstance(other, Package) and self.name == other.name and self.source_name == other.source_name and self.version == other.version
+        return isinstance(other, Package) and\
+               self.name == other.name and\
+               self.source_name == other.source_name and\
+               self.version == other.version
 
     def __hash__(self):
         return hash((self.source_name, self.name, self.version))
@@ -450,7 +455,8 @@ class DependencyResolver:
         source_name = self.source_name
         with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=0) as t:
             resolution_cache = _ResolutionCache(self, results=packages)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=max_workers) as executor:
                 futures = {
                     executor.submit(self._resolve_worker, dep, package)
                     for dep, package in resolution_cache.extend(packages, t)
@@ -472,6 +478,7 @@ class DependencyResolver:
 
 class SourcePackage(Package):
     """A package extracted from source code rather than a package repository"""
+
     def __init__(
             self,
             name: str,
@@ -512,7 +519,6 @@ class SourceRepository(InMemoryPackageCache):
         super().add(package=package)
 
 
-
 class ClassifierAvailability:
     def __init__(self, is_available: bool, reason: str = ""):
         if not is_available and not reason:
@@ -536,7 +542,6 @@ class DockerSetup:
 C = TypeVar("C")
 
 
-import functools
 @functools.lru_cache()
 def classifiers():
     """ Sorted collection of all the default instances of DependencyClassifiers
@@ -546,19 +551,21 @@ def classifiers():
     """
     return tuple(sorted(cls() for cls in DependencyClassifier.__subclasses__()))
 
+
 @functools.lru_cache()
-def classifier_by_name(name:str):
+def classifier_by_name(name: str):
     """ Finds a classifier instance by name. The result is cached."""
     for instance in classifiers():
         if instance.name == name:
             return instance
     raise KeyError(name)
 
+
 class DependencyClassifier(ABC):
     name: str
     description: str
-
     _instance = None
+
     def __new__(class_, *args, **kwargs):
         """ A singleton (Only one default instance exists) """
         if not isinstance(class_._instance, class_):
@@ -606,16 +613,17 @@ class DependencyClassifier(ABC):
         """Resolves any new `SourcePackage`s in this repo, as well as their dependencies"""
         raise NotImplementedError()
 
+
 class UnusedClassifier(DependencyClassifier):
     name: str = "unknown"
     description: str = "Used for testing"
 
     def is_available(self) -> ClassifierAvailability:
         return ClassifierAvailability(False, "Unused classifier")
-    
+
     def can_classify(self, repo: SourceRepository) -> bool:
         return False
-    
+
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
         raise NotImplementedError()
 
