@@ -159,14 +159,11 @@ class SourceFilteredPackageCache(PackageCache):
         yield from [p.to_package()
                     for p in self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).all()]
 
-    def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
-        if source is not None and source != self.source:
-            return False
-        else:
-            return self.parent.was_resolved(dependency, source=self.source)
+    def was_resolved(self, dependency: Dependency) -> bool:
+        return self.parent.was_resolved(dependency)
 
-    def set_resolved(self, dependency: Dependency, source: Optional[str]):
-        self.parent.set_resolved(dependency, source=source)
+    def set_resolved(self, dependency: Dependency):
+        self.parent.set_resolved(dependency)
 
     def from_source(self, source: Optional[str]) -> "PackageCache":
         return SourceFilteredPackageCache(source, self.parent)
@@ -282,19 +279,17 @@ class DBPackageCache(PackageCache):
             # we intentionally build a list before yielding so that we don't keep the session query lingering
             yield from [package.to_package() for package in self._make_query(to_match, source=source).all()]
 
-    def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
-        if source is not None:
-            filters: Tuple[Any, ...] = (Resolution.source.like(source),)
-        else:
-            filters = ()
+    def was_resolved(self, dependency: Dependency) -> bool:
+        source=dependency.source_name
+        filters: Tuple[Any, ...] = (Resolution.source.like(source),)
         return self.session.query(Resolution).filter(
             Resolution.package.like(dependency.package),
             Resolution.version == str(dependency.semantic_version),
             *filters
         ).limit(1).count() > 0
 
-    def set_resolved(self, dependency: Dependency, source: Optional[str]):
+    def set_resolved(self, dependency: Dependency):
         self.session.add(
-            Resolution(package=dependency.package, version=str(dependency.semantic_version), source=source)
+            Resolution(package=dependency.package, version=str(dependency.semantic_version), source=dependency.source_name)
         )
         self.session.commit()

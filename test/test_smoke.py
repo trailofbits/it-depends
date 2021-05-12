@@ -1717,6 +1717,2506 @@ class TestSmoke(TestCase):
             "source": "ubuntu"
         }
     },
+    "binutils-common": {
+        "2.34.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "binutils-x86-64-linux-gnu": {
+        "2.34.0": {
+            "dependencies": {
+                "binutils-common": "*",
+                "libbinutils": "*",
+                "libc6": "*",
+                "libctf-nobfd0": "*",
+                "libctf0": "*",
+                "libgcc-s1": "*",
+                "libstdc++6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "comerr-dev": {
+        "2.1.0": {
+            "dependencies": {
+                "libc6-dev": "*",
+                "libcom-err2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "coreutils": {
+        "8.30.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "debconf": {
+        "1.5.73": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "dpkg": {
+        "1.19.7-ubuntu3": {
+            "dependencies": {
+                "tar": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "fontconfig": {
+        "2.13.1": {
+            "dependencies": {
+                "fontconfig-config": "*",
+                "libc6": "*",
+                "libfontconfig1": "*",
+                "libfreetype6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "fontconfig-config": {
+        "2.13.1": {
+            "dependencies": {
+                "fonts-dejavu-core": "*",
+                "ucf": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "fonts-dejavu-core": {
+        "2.37.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "gcc-10-base": {
+        "10.2.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "gcc-snapshot": {
+        "20200418.0.0": {
+            "dependencies": {
+                "binutils": "*",
+                "lib32quadmath0": "*",
+                "lib32stdc++6": "*",
+                "lib32z1": "*",
+                "libc6": "*",
+                "libc6-dev": "*",
+                "libc6-dev-i386": "*",
+                "libc6-dev-x32": "*",
+                "libc6-i386": "*",
+                "libc6-x32": "*",
+                "libgc1c2": "*",
+                "libgmp10": "*",
+                "libisl22": "*",
+                "libmpc3": "*",
+                "libmpfr6": "*",
+                "libquadmath0": "*",
+                "libstdc++6": "*",
+                "libx32quadmath0": "*",
+                "libx32stdc++6": "*",
+                "libx32z1": "*",
+                "libzstd1": "*",
+                "lld-10": "*",
+                "llvm-10": "*",
+                "python3": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "krb5-multidev": {
+        "1.17.0": {
+            "dependencies": {
+                "comerr-dev": "*",
+                "libgssapi-krb5-2": "*",
+                "libgssrpc4": "*",
+                "libk5crypto3": "*",
+                "libkadm5clnt-mit11": "*",
+                "libkadm5srv-mit11": "*",
+                "libkrb5-3": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "lib32gcc-s1": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6-i386": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "lib32quadmath0": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6-i386": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "lib32stdc++6": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "lib32gcc-s1": "*",
+                "libc6-i386": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "lib32z1": {
+        "1.2.11+dfsg": {
+            "dependencies": {
+                "libc6-i386": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libavahi-client3": {
+        "0.7.0": {
+            "dependencies": {
+                "libavahi-common3": "*",
+                "libc6": "*",
+                "libdbus-1-3": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libavahi-common-data": {
+        "0.7.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libavahi-common3": {
+        "0.7.0": {
+            "dependencies": {
+                "libavahi-common-data": "*",
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libbinutils": {
+        "2.34.0": {
+            "dependencies": {
+                "binutils-common": "*",
+                "libc6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libblkid1": {
+        "2.34.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libbsd0": {
+        "0.10.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libbz2-1.0": {
+        "1.0.8": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libc-dev-bin": {
+        "2.31.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libc6": {
+        "2.31.0": {
+            "dependencies": {
+                "libcrypt1": "*",
+                "libgcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libc6-dev": {
+        "2.31.0": {
+            "dependencies": {
+                "libc-dev-bin": "*",
+                "libc6": "*",
+                "libcrypt-dev": "*",
+                "linux-libc-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libc6-dev-i386": {
+        "2.31.0": {
+            "dependencies": {
+                "libc6-dev": "*",
+                "libc6-i386": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libc6-dev-x32": {
+        "2.31.0": {
+            "dependencies": {
+                "libc6-dev": "*",
+                "libc6-dev-i386": "*",
+                "libc6-x32": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libc6-i386": {
+        "2.31.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libc6-x32": {
+        "2.31.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libcom-err2": {
+        "1.45.5": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libcrypt-dev": {
+        "4.4.10": {
+            "dependencies": {
+                "libcrypt1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libcrypt1": {
+        "4.4.10": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libctf-nobfd0": {
+        "2.34.0": {
+            "dependencies": {
+                "libc6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libctf0": {
+        "2.34.0": {
+            "dependencies": {
+                "libbinutils": "*",
+                "libc6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libcups2": {
+        "2.3.1": {
+            "dependencies": {
+                "libavahi-client3": "*",
+                "libavahi-common3": "*",
+                "libc6": "*",
+                "libgnutls30": "*",
+                "libgssapi-krb5-2": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libdb5.3": {
+        "5.3.28+dfsg1": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libdbus-1-3": {
+        "1.12.16": {
+            "dependencies": {
+                "libc6": "*",
+                "libsystemd0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libdouble-conversion3": {
+        "3.1.5": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc1": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libdrm-amdgpu1": {
+        "2.4.102": {
+            "dependencies": {
+                "libc6": "*",
+                "libdrm2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libdrm-common": {
+        "2.4.102": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libdrm-intel1": {
+        "2.4.102": {
+            "dependencies": {
+                "libc6": "*",
+                "libdrm2": "*",
+                "libpciaccess0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libdrm-nouveau2": {
+        "2.4.102": {
+            "dependencies": {
+                "libc6": "*",
+                "libdrm2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libdrm-radeon1": {
+        "2.4.102": {
+            "dependencies": {
+                "libc6": "*",
+                "libdrm2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libdrm2": {
+        "2.4.102": {
+            "dependencies": {
+                "libc6": "*",
+                "libdrm-common": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libedit2": {
+        "3.1.0": {
+            "dependencies": {
+                "libbsd0": "*",
+                "libc6": "*",
+                "libtinfo6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libegl-dev": {
+        "1.3.2": {
+            "dependencies": {
+                "libegl1": "*",
+                "libgl-dev": "*",
+                "libx11-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libegl-mesa0": {
+        "20.2.6": {
+            "dependencies": {
+                "libc6": "*",
+                "libdrm2": "*",
+                "libexpat1": "*",
+                "libgbm1": "*",
+                "libglapi-mesa": "*",
+                "libwayland-client0": "*",
+                "libwayland-server0": "*",
+                "libx11-xcb1": "*",
+                "libxcb-dri2-0": "*",
+                "libxcb-dri3-0": "*",
+                "libxcb-present0": "*",
+                "libxcb-sync1": "*",
+                "libxcb-xfixes0": "*",
+                "libxcb1": "*",
+                "libxshmfence1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libegl1": {
+        "1.3.2": {
+            "dependencies": {
+                "libc6": "*",
+                "libegl-mesa0": "*",
+                "libglvnd0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libelf1": {
+        "0.176.0": {
+            "dependencies": {
+                "libc6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libevdev2": {
+        "1.9.0+dfsg": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libevent-2.1-7": {
+        "2.1.11": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libevent-core-2.1-7": {
+        "2.1.11": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libevent-dev": {
+        "2.1.11": {
+            "dependencies": {
+                "libevent-2.1-7": "*",
+                "libevent-core-2.1-7": "*",
+                "libevent-extra-2.1-7": "*",
+                "libevent-openssl-2.1-7": "*",
+                "libevent-pthreads-2.1-7": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libevent-extra-2.1-7": {
+        "2.1.11": {
+            "dependencies": {
+                "libc6": "*",
+                "libevent-core-2.1-7": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libevent-openssl-2.1-7": {
+        "2.1.11": {
+            "dependencies": {
+                "libc6": "*",
+                "libevent-core-2.1-7": "*",
+                "libssl1.1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libevent-pthreads-2.1-7": {
+        "2.1.11": {
+            "dependencies": {
+                "libc6": "*",
+                "libevent-core-2.1-7": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libexpat1": {
+        "2.2.9": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libffi7": {
+        "3.3.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libfontconfig1": {
+        "2.13.1": {
+            "dependencies": {
+                "fontconfig-config": "*",
+                "libc6": "*",
+                "libexpat1": "*",
+                "libfreetype6": "*",
+                "libuuid1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libfreetype6": {
+        "2.10.1": {
+            "dependencies": {
+                "libc6": "*",
+                "libpng16-16": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgbm1": {
+        "20.2.6": {
+            "dependencies": {
+                "libc6": "*",
+                "libdrm2": "*",
+                "libexpat1": "*",
+                "libwayland-server0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgc1c2": {
+        "7.6.4": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgcc-s1": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgcc1": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6": "*",
+                "libgcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgdbm-compat4": {
+        "1.18.1": {
+            "dependencies": {
+                "libc6": "*",
+                "libgdbm6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgdbm6": {
+        "1.18.1": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgl-dev": {
+        "1.3.2": {
+            "dependencies": {
+                "libgl1": "*",
+                "libglx-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgl1": {
+        "1.3.2": {
+            "dependencies": {
+                "libc6": "*",
+                "libglvnd0": "*",
+                "libglx0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgl1-mesa-dev": {
+        "20.2.6": {
+            "dependencies": {
+                "libgl-dev": "*",
+                "libglvnd-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgl1-mesa-dri": {
+        "20.2.6": {
+            "dependencies": {
+                "libc6": "*",
+                "libdrm-amdgpu1": "*",
+                "libdrm-intel1": "*",
+                "libdrm-nouveau2": "*",
+                "libdrm-radeon1": "*",
+                "libdrm2": "*",
+                "libelf1": "*",
+                "libexpat1": "*",
+                "libgcc-s1": "*",
+                "libglapi-mesa": "*",
+                "libllvm11": "*",
+                "libsensors5": "*",
+                "libstdc++6": "*",
+                "libvulkan1": "*",
+                "libzstd1": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libglapi-mesa": {
+        "20.2.6": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgles-dev": {
+        "1.3.2": {
+            "dependencies": {
+                "libegl-dev": "*",
+                "libgl-dev": "*",
+                "libgles1": "*",
+                "libgles2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgles1": {
+        "1.3.2": {
+            "dependencies": {
+                "libc6": "*",
+                "libglvnd0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgles2": {
+        "1.3.2": {
+            "dependencies": {
+                "libc6": "*",
+                "libglvnd0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libglib2.0-0": {
+        "2.64.6": {
+            "dependencies": {
+                "libc6": "*",
+                "libffi7": "*",
+                "libmount1": "*",
+                "libpcre3": "*",
+                "libselinux1": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libglu1-mesa": {
+        "9.0.1": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libgl1": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libglu1-mesa-dev": {
+        "9.0.1": {
+            "dependencies": {
+                "libgl1-mesa-dev": "*",
+                "libglu1-mesa": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libglvnd-dev": {
+        "1.3.2": {
+            "dependencies": {
+                "libegl-dev": "*",
+                "libgl-dev": "*",
+                "libgles-dev": "*",
+                "libglvnd0": "*",
+                "libglx-dev": "*",
+                "libopengl-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libglvnd0": {
+        "1.3.2": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libglx-dev": {
+        "1.3.2": {
+            "dependencies": {
+                "libglx0": "*",
+                "libx11-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libglx-mesa0": {
+        "20.2.6": {
+            "dependencies": {
+                "libc6": "*",
+                "libdrm2": "*",
+                "libexpat1": "*",
+                "libgl1-mesa-dri": "*",
+                "libglapi-mesa": "*",
+                "libx11-6": "*",
+                "libx11-xcb1": "*",
+                "libxcb-dri2-0": "*",
+                "libxcb-dri3-0": "*",
+                "libxcb-glx0": "*",
+                "libxcb-present0": "*",
+                "libxcb-sync1": "*",
+                "libxcb-xfixes0": "*",
+                "libxcb1": "*",
+                "libxdamage1": "*",
+                "libxext6": "*",
+                "libxfixes3": "*",
+                "libxshmfence1": "*",
+                "libxxf86vm1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libglx0": {
+        "1.3.2": {
+            "dependencies": {
+                "libc6": "*",
+                "libglvnd0": "*",
+                "libglx-mesa0": "*",
+                "libx11-6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgmp10": {
+        "6.2.0+dfsg": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgnutls30": {
+        "3.6.13": {
+            "dependencies": {
+                "libc6": "*",
+                "libgmp10": "*",
+                "libhogweed5": "*",
+                "libidn2-0": "*",
+                "libnettle7": "*",
+                "libp11-kit0": "*",
+                "libtasn1-6": "*",
+                "libunistring2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgraphite2-3": {
+        "1.3.13": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgssapi-krb5-2": {
+        "1.17.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libcom-err2": "*",
+                "libk5crypto3": "*",
+                "libkrb5-3": "*",
+                "libkrb5support0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgssrpc4": {
+        "1.17.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libgssapi-krb5-2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgudev-1.0-0": {
+        "233.0.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libglib2.0-0": "*",
+                "libudev1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libharfbuzz0b": {
+        "2.6.4": {
+            "dependencies": {
+                "libc6": "*",
+                "libfreetype6": "*",
+                "libglib2.0-0": "*",
+                "libgraphite2-3": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libhogweed5": {
+        "3.5.1+really3.5.1": {
+            "dependencies": {
+                "libc6": "*",
+                "libgmp10": "*",
+                "libnettle7": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libice6": {
+        "1.0.10": {
+            "dependencies": {
+                "libbsd0": "*",
+                "libc6": "*",
+                "x11-common": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libicu66": {
+        "66.1.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libstdc++6": "*",
+                "tzdata": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libidn2-0": {
+        "2.2.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libunistring2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libinput-bin": {
+        "1.15.5": {
+            "dependencies": {
+                "libc6": "*",
+                "libevdev2": "*",
+                "libudev1": "*",
+                "libwacom2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libinput10": {
+        "1.15.5": {
+            "dependencies": {
+                "libc6": "*",
+                "libevdev2": "*",
+                "libinput-bin": "*",
+                "libmtdev1": "*",
+                "libudev1": "*",
+                "libwacom2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libisl22": {
+        "0.22.1": {
+            "dependencies": {
+                "libc6": "*",
+                "libgmp10": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libjpeg-turbo8": {
+        "2.0.3": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libjpeg8": {
+        "8.0.0-c": {
+            "dependencies": {
+                "libjpeg-turbo8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libk5crypto3": {
+        "1.17.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libkrb5support0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libkadm5clnt-mit11": {
+        "1.17.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libcom-err2": "*",
+                "libgssapi-krb5-2": "*",
+                "libgssrpc4": "*",
+                "libk5crypto3": "*",
+                "libkrb5-3": "*",
+                "libkrb5support0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libkadm5srv-mit11": {
+        "1.17.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libcom-err2": "*",
+                "libgssapi-krb5-2": "*",
+                "libgssrpc4": "*",
+                "libk5crypto3": "*",
+                "libkdb5-9": "*",
+                "libkrb5-3": "*",
+                "libkrb5support0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libkdb5-9": {
+        "1.17.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libcom-err2": "*",
+                "libgssrpc4": "*",
+                "libk5crypto3": "*",
+                "libkrb5-3": "*",
+                "libkrb5support0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libkeyutils1": {
+        "1.6.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libkrb5-3": {
+        "1.17.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libcom-err2": "*",
+                "libk5crypto3": "*",
+                "libkeyutils1": "*",
+                "libkrb5support0": "*",
+                "libssl1.1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libkrb5-dev": {
+        "1.17.0": {
+            "dependencies": {
+                "krb5-multidev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libkrb5support0": {
+        "1.17.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libllvm10": {
+        "10.0.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libedit2": "*",
+                "libffi7": "*",
+                "libgcc-s1": "*",
+                "libstdc++6": "*",
+                "libtinfo6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libllvm11": {
+        "11.0.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libedit2": "*",
+                "libffi7": "*",
+                "libgcc-s1": "*",
+                "libstdc++6": "*",
+                "libtinfo6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "liblzma5": {
+        "5.2.4": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libminiupnpc-dev": {
+        "2.1.20190824": {
+            "dependencies": {
+                "libminiupnpc17": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libminiupnpc17": {
+        "2.1.20190824": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libmount1": {
+        "2.34.0": {
+            "dependencies": {
+                "libblkid1": "*",
+                "libc6": "*",
+                "libselinux1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libmpc3": {
+        "1.1.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libgmp10": "*",
+                "libmpfr6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libmpdec2": {
+        "2.4.2": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libmpfr6": {
+        "4.0.2": {
+            "dependencies": {
+                "libc6": "*",
+                "libgmp10": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libmtdev1": {
+        "1.1.5": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libnatpmp-dev": {
+        "20150609.0.0": {
+            "dependencies": {
+                "libnatpmp1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libnatpmp1": {
+        "20150609.0.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libncursesw6": {
+        "6.2.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libtinfo6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libnettle7": {
+        "3.5.1+really3.5.1": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libnorm-dev": {
+        "1.5.8+dfsg2": {
+            "dependencies": {
+                "libnorm1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libnorm1": {
+        "1.5.8+dfsg2": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libnvpair1linux": {
+        "0.8.3": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libopengl-dev": {
+        "1.3.2": {
+            "dependencies": {
+                "libopengl0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libopengl0": {
+        "1.3.2": {
+            "dependencies": {
+                "libc6": "*",
+                "libglvnd0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libp11-kit0": {
+        "0.23.20": {
+            "dependencies": {
+                "libc6": "*",
+                "libffi7": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpciaccess0": {
+        "0.16.0": {
+            "dependencies": {
+                "libc6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpcre2-16-0": {
+        "10.34.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpcre2-8-0": {
+        "10.34.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpcre3": {
+        "8.39.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libperl5.30": {
+        "5.30.0": {
+            "dependencies": {
+                "libbz2-1.0": "*",
+                "libc6": "*",
+                "libcrypt1": "*",
+                "libdb5.3": "*",
+                "libgdbm-compat4": "*",
+                "libgdbm6": "*",
+                "perl-modules-5.30": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpfm4": {
+        "4.10.1+git20": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpgm-5.2-0": {
+        "5.2.122-dfsg": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpgm-dev": {
+        "5.2.122-dfsg": {
+            "dependencies": {
+                "libpgm-5.2-0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpipeline1": {
+        "1.5.2": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpng16-16": {
+        "1.6.37": {
+            "dependencies": {
+                "libc6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpthread-stubs0-dev": {
+        "0.4.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libpython3-stdlib": {
+        "3.8.2": {
+            "dependencies": {
+                "libpython3.8-stdlib": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpython3.8-minimal": {
+        "3.8.5": {
+            "dependencies": {
+                "libc6": "*",
+                "libssl1.1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libpython3.8-stdlib": {
+        "3.8.5": {
+            "dependencies": {
+                "libbz2-1.0": "*",
+                "libc6": "*",
+                "libcrypt1": "*",
+                "libdb5.3": "*",
+                "libffi7": "*",
+                "liblzma5": "*",
+                "libmpdec2": "*",
+                "libncursesw6": "*",
+                "libpython3.8-minimal": "*",
+                "libreadline8": "*",
+                "libsqlite3-0": "*",
+                "libtinfo6": "*",
+                "libuuid1": "*",
+                "mime-support": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqrencode-dev": {
+        "4.0.2": {
+            "dependencies": {
+                "libqrencode4": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqrencode4": {
+        "4.0.2": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5concurrent5": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libqt5core5a": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5core5a": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libdouble-conversion3": "*",
+                "libgcc-s1": "*",
+                "libglib2.0-0": "*",
+                "libicu66": "*",
+                "libpcre2-16-0": "*",
+                "libstdc++6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5dbus5": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libdbus-1-3": "*",
+                "libqt5core5a": "*",
+                "libstdc++6": "*",
+                "qtbase-abi-5-12-8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5gui5": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "fontconfig": "*",
+                "libc6": "*",
+                "libdrm2": "*",
+                "libegl1": "*",
+                "libfontconfig1": "*",
+                "libfreetype6": "*",
+                "libgbm1": "*",
+                "libgcc-s1": "*",
+                "libgl1": "*",
+                "libglib2.0-0": "*",
+                "libharfbuzz0b": "*",
+                "libice6": "*",
+                "libinput10": "*",
+                "libjpeg8": "*",
+                "libmtdev1": "*",
+                "libpng16-16": "*",
+                "libqt5core5a": "*",
+                "libqt5dbus5": "*",
+                "libqt5network5": "*",
+                "libsm6": "*",
+                "libstdc++6": "*",
+                "libudev1": "*",
+                "libx11-6": "*",
+                "libx11-xcb1": "*",
+                "libxcb-glx0": "*",
+                "libxcb-icccm4": "*",
+                "libxcb-image0": "*",
+                "libxcb-keysyms1": "*",
+                "libxcb-randr0": "*",
+                "libxcb-render-util0": "*",
+                "libxcb-render0": "*",
+                "libxcb-shape0": "*",
+                "libxcb-shm0": "*",
+                "libxcb-sync1": "*",
+                "libxcb-xfixes0": "*",
+                "libxcb-xinerama0": "*",
+                "libxcb-xinput0": "*",
+                "libxcb-xkb1": "*",
+                "libxcb1": "*",
+                "libxkbcommon-x11-0": "*",
+                "libxkbcommon0": "*",
+                "libxrender1": "*",
+                "qtbase-abi-5-12-8": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5network5": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libqt5core5a": "*",
+                "libqt5dbus5": "*",
+                "libssl1.1": "*",
+                "libstdc++6": "*",
+                "qtbase-abi-5-12-8": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5printsupport5": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libcups2": "*",
+                "libqt5core5a": "*",
+                "libqt5gui5": "*",
+                "libqt5widgets5": "*",
+                "libstdc++6": "*",
+                "qtbase-abi-5-12-8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5sql5": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libqt5core5a": "*",
+                "libstdc++6": "*",
+                "qtbase-abi-5-12-8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5test5": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libqt5core5a": "*",
+                "libstdc++6": "*",
+                "qtbase-abi-5-12-8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5widgets5": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libqt5core5a": "*",
+                "libqt5gui5": "*",
+                "libstdc++6": "*",
+                "qtbase-abi-5-12-8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libqt5xml5": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libqt5core5a": "*",
+                "libstdc++6": "*",
+                "qtbase-abi-5-12-8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libquadmath0": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libreadline8": {
+        "8.0.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libtinfo6": "*",
+                "readline-common": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libselinux1": {
+        "3.0.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libpcre2-8-0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libsensors-config": {
+        "3.6.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libsensors5": {
+        "3.6.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libsensors-config": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libsm6": {
+        "1.2.3": {
+            "dependencies": {
+                "libc6": "*",
+                "libice6": "*",
+                "libuuid1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libsodium-dev": {
+        "1.0.18": {
+            "dependencies": {
+                "libsodium23": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libsodium23": {
+        "1.0.18": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libsqlite3-0": {
+        "3.31.1": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libsqlite3-dev": {
+        "3.31.1": {
+            "dependencies": {
+                "libc6-dev": "*",
+                "libsqlite3-0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libssl1.1": {
+        "1.1.1-f": {
+            "dependencies": {
+                "debconf": "*",
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libstdc++6": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6": "*",
+                "libgcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libsystemd0": {
+        "245.4.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libtasn1-6": {
+        "4.16.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libtinfo6": {
+        "6.2.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libudev1": {
+        "245.4.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libunistring2": {
+        "0.9.10": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libunivalue-dev": {
+        "1.0.4": {
+            "dependencies": {
+                "libunivalue0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libunivalue0": {
+        "1.0.4": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libuuid1": {
+        "2.34.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libuutil1linux": {
+        "0.8.3": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libvulkan-dev": {
+        "1.2.131+2": {
+            "dependencies": {
+                "libvulkan1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libvulkan1": {
+        "1.2.131+2": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libwacom-common": {
+        "1.3.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libwacom2": {
+        "1.3.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libglib2.0-0": "*",
+                "libgudev-1.0-0": "*",
+                "libwacom-common": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libwayland-client0": {
+        "1.18.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libffi7": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libwayland-server0": {
+        "1.18.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libffi7": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libx11-6": {
+        "1.6.9": {
+            "dependencies": {
+                "libc6": "*",
+                "libx11-data": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libx11-data": {
+        "1.6.9": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libx11-dev": {
+        "1.6.9": {
+            "dependencies": {
+                "libx11-6": "*",
+                "libxau-dev": "*",
+                "libxcb1-dev": "*",
+                "libxdmcp-dev": "*",
+                "x11proto-dev": "*",
+                "xtrans-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libx11-xcb1": {
+        "1.6.9": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libx32gcc-s1": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6-x32": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libx32quadmath0": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6-x32": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libx32stdc++6": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6-x32": "*",
+                "libx32gcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libx32z1": {
+        "1.2.11+dfsg": {
+            "dependencies": {
+                "libc6-x32": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxau-dev": {
+        "1.0.9": {
+            "dependencies": {
+                "libxau6": "*",
+                "x11proto-core-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxau6": {
+        "1.0.9": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-dri2-0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-dri3-0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-glx0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-icccm4": {
+        "0.4.1": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-image0": {
+        "0.4.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb-shm0": "*",
+                "libxcb-util1": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-keysyms1": {
+        "0.4.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-present0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-randr0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-render-util0": {
+        "0.3.9": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb-render0": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-render0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-shape0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-shm0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-sync1": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-util1": {
+        "0.4.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-xfixes0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-xinerama0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-xinput0": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb-xkb1": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb1": {
+        "1.14.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxau6": "*",
+                "libxdmcp6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxcb1-dev": {
+        "1.14.0": {
+            "dependencies": {
+                "libpthread-stubs0-dev": "*",
+                "libxau-dev": "*",
+                "libxcb1": "*",
+                "libxdmcp-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxdamage1": {
+        "1.1.5": {
+            "dependencies": {
+                "libc6": "*",
+                "libx11-6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxdmcp-dev": {
+        "1.1.3": {
+            "dependencies": {
+                "libxdmcp6": "*",
+                "x11proto-core-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxdmcp6": {
+        "1.1.3": {
+            "dependencies": {
+                "libbsd0": "*",
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxext-dev": {
+        "1.3.4": {
+            "dependencies": {
+                "libx11-dev": "*",
+                "libxext6": "*",
+                "x11proto-core-dev": "*",
+                "x11proto-xext-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxext6": {
+        "1.3.4": {
+            "dependencies": {
+                "libc6": "*",
+                "libx11-6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxfixes3": {
+        "5.0.3": {
+            "dependencies": {
+                "libc6": "*",
+                "libx11-6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxkbcommon-x11-0": {
+        "0.10.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libxcb-xkb1": "*",
+                "libxcb1": "*",
+                "libxkbcommon0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxkbcommon0": {
+        "0.10.0": {
+            "dependencies": {
+                "libc6": "*",
+                "xkb-data": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxrender1": {
+        "0.9.10": {
+            "dependencies": {
+                "libc6": "*",
+                "libx11-6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxshmfence1": {
+        "1.3.0": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libxxf86vm1": {
+        "1.1.4": {
+            "dependencies": {
+                "libc6": "*",
+                "libx11-6": "*",
+                "libxext6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libzfs2linux": {
+        "0.8.3": {
+            "dependencies": {
+                "libblkid1": "*",
+                "libc6": "*",
+                "libnvpair1linux": "*",
+                "libssl1.1": "*",
+                "libudev1": "*",
+                "libuuid1": "*",
+                "libuutil1linux": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libzfslinux-dev": {
+        "0.8.3": {
+            "dependencies": {
+                "libnvpair1linux": "*",
+                "libuutil1linux": "*",
+                "libzfs2linux": "*",
+                "libzpool2linux": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libzmq3-dev": {
+        "4.3.2": {
+            "dependencies": {
+                "libkrb5-dev": "*",
+                "libnorm-dev": "*",
+                "libpgm-dev": "*",
+                "libsodium-dev": "*",
+                "libzmq5": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libzmq5": {
+        "4.3.2": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libgssapi-krb5-2": "*",
+                "libnorm1": "*",
+                "libpgm-5.2-0": "*",
+                "libsodium23": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libzpool2linux": {
+        "0.8.3": {
+            "dependencies": {
+                "libblkid1": "*",
+                "libc6": "*",
+                "libnvpair1linux": "*",
+                "libudev1": "*",
+                "libuuid1": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libzstd1": {
+        "1.4.4+dfsg": {
+            "dependencies": {
+                "libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "linux-libc-dev": {
+        "5.4.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "lld-10": {
+        "10.0.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libllvm10": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "llvm-10": {
+        "10.0.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libllvm10": "*",
+                "libpfm4": "*",
+                "libstdc++6": "*",
+                "libtinfo6": "*",
+                "llvm-10-runtime": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "llvm-10-runtime": {
+        "10.0.0": {
+            "dependencies": {
+                "binfmt-support": "*",
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libllvm10": "*",
+                "libstdc++6": "*",
+                "libtinfo6": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "lsb-base": {
+        "11.1.0-ubuntu2": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "mime-support": {
+        "3.64.0-ubuntu1": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "mingw-w64-common": {
+        "7.0.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "mingw-w64-i686-dev": {
+        "7.0.0": {
+            "dependencies": {
+                "mingw-w64-common": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "perl-base": {
+        "5.30.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "perl-modules-5.30": {
+        "5.30.0": {
+            "dependencies": {
+                "perl-base": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "perl:any": {
+        "5.30.0": {
+            "dependencies": {
+                "libperl5.30": "*",
+                "perl-base": "*",
+                "perl-modules-5.30": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "python3": {
+        "3.8.2": {
+            "dependencies": {
+                "libpython3-stdlib": "*",
+                "python3.8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "python3.8": {
+        "3.8.5": {
+            "dependencies": {
+                "libpython3.8-stdlib": "*",
+                "mime-support": "*",
+                "python3.8-minimal": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "python3.8-minimal": {
+        "3.8.5": {
+            "dependencies": {
+                "libexpat1": "*",
+                "libpython3.8-minimal": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "qt5-qmake": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "qt5-qmake-bin": "*",
+                "qtchooser": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "qt5-qmake-bin": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "qtbase5-dev": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libegl-dev": "*",
+                "libgl-dev": "*",
+                "libglu1-mesa-dev": "*",
+                "libqt5concurrent5": "*",
+                "libqt5core5a": "*",
+                "libqt5dbus5": "*",
+                "libqt5gui5": "*",
+                "libqt5network5": "*",
+                "libqt5printsupport5": "*",
+                "libqt5sql5": "*",
+                "libqt5test5": "*",
+                "libqt5widgets5": "*",
+                "libqt5xml5": "*",
+                "libvulkan-dev": "*",
+                "libxext-dev": "*",
+                "qt5-qmake": "*",
+                "qtbase5-dev-tools": "*",
+                "qtchooser": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "qtbase5-dev-tools": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libqt5core5a": "*",
+                "libqt5dbus5": "*",
+                "libstdc++6": "*",
+                "perl:any": "*",
+                "qtbase-abi-5-12-8": "*",
+                "qtchooser": "*",
+                "zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "qtchooser": {
+        "66.0.0": {
+            "dependencies": {
+                "libc6": "*",
+                "libgcc-s1": "*",
+                "libstdc++6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "readline-common": {
+        "8.0.0": {
+            "dependencies": {
+                "dpkg": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "sensible-utils": {
+        "0.0.12+nmu1": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "tar": {
+        "1.30.0+dfsg": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "tzdata": {
+        "2021.0.0-a": {
+            "dependencies": {
+                "debconf": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ucf": {
+        "3.38.0+nmu1": {
+            "dependencies": {
+                "coreutils": "*",
+                "debconf": "*",
+                "sensible-utils": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "x11-common": {
+        "7.7.0+19ubuntu14": {
+            "dependencies": {
+                "lsb-base": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "x11proto-core-dev": {
+        "2019.2.0": {
+            "dependencies": {
+                "x11proto-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
     "x11proto-dev": {
         "2019.2.0": {
             "dependencies": {

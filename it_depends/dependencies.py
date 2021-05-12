@@ -145,10 +145,10 @@ class PackageCache(ABC):
             return False
 
     @abstractmethod
-    def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
+    def was_resolved(self, dependency: Dependency) -> bool:
         raise NotImplementedError()
 
-    def set_resolved(self, dependency: Dependency, source: Optional[str]):
+    def set_resolved(self, dependency: Dependency):
         raise NotImplementedError()
 
     @abstractmethod
@@ -267,13 +267,11 @@ class InMemoryPackageCache(PackageCache):
     def __iter__(self) -> Iterator[Package]:
         return (p for d in self._cache.values() for v in d.values() for p in v.values())
 
-    def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
-        if source is None:
-            return any(dependency in resolved for resolved in self._resolved.values())
-        return dependency in self._resolved[source]
+    def was_resolved(self, dependency: Dependency) -> bool:
+        return dependency in self._resolved[dependency.source_name]
 
-    def set_resolved(self, dependency: Dependency, source: Optional[str]):
-        self._resolved[source].add(dependency)
+    def set_resolved(self, dependency: Dependency):
+        self._resolved[dependency.source_name].add(dependency)
 
     def from_source(self, source: Optional[str]) -> "PackageCache":
         return InMemoryPackageCache({source: self._cache.setdefault(source, {})})
@@ -397,18 +395,16 @@ class DependencyResolver:
         has not yet been resolved.
 
         """
-        source_name = self.source_name
-        if self._cache.was_resolved(dependency, source=source_name):
+        if self._cache.was_resolved(dependency):
             return self._cache.match(dependency)
         else:
             return None
 
     def set_resolved_in_cache(self, dependency_or_package: Union[Dependency, Package]):
-        source_name = self.source_name
         if isinstance(dependency_or_package, Package):
-            self._cache.set_resolved(dependency_or_package.to_dependency(), source_name)
+            self._cache.set_resolved(dependency_or_package.to_dependency())
         else:
-            self._cache.set_resolved(dependency_or_package, source_name)
+            self._cache.set_resolved(dependency_or_package)
 
     def cache(self, package: Package):
         self._cache.add(package)
@@ -424,7 +420,7 @@ class DependencyResolver:
         source_name = self.source_name
         if record_results and not check_cache:
             raise ValueError("`check_cache` may only be False if `record_results` is also False")
-        elif check_cache and self._cache.was_resolved(dependency, source=source_name):
+        elif check_cache and self._cache.was_resolved(dependency):
             yield from self._cache.match(dependency)
             return
         # we never tried to resolve this dependency before, so do a manual resolution
@@ -433,7 +429,7 @@ class DependencyResolver:
                 self.cache(package)
             yield package
         if record_results:
-            self._cache.set_resolved(dependency, source=source_name)
+            self._cache.set_resolved(dependency)
 
     def _resolve_worker(self, dependency: Dependency, from_package: Package) -> Tuple[Dependency, List[Package]]:
         return dependency, list(self.resolve(
@@ -466,9 +462,9 @@ class DependencyResolver:
                     for finished in done:
                         t.update(1)
                         dep, new_packages = finished.result()
-                        self._cache.set_resolved(dep, source=source_name)
+                        self._cache.set_resolved(dep)
                         self._cache.extend(new_packages)
-                        packages.set_resolved(dep, source=source_name)
+                        packages.set_resolved(dep)
                         packages.extend(new_packages)
                         futures |= {
                             executor.submit(self._resolve_worker, new_dep, package)
