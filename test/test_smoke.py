@@ -30,7 +30,7 @@ class TestSmoke(TestCase):
 
         package_list = resolve(SNAPSHOT_FOLDER)
         result_it_depends = json.dumps(package_list.to_obj(), indent=4, sort_keys=True)
-        if not result_json:
+        if not result_json or result_it_depends != result_json:
             print(f"<{result_it_depends}>")
         self.assertEqual(result_it_depends, result_json)
 
