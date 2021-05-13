@@ -3,7 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import subprocess
 import sys
-from typing import Iterable, Iterator, List, Optional
+from typing import Iterable, Iterator, List, Optional, Union
 
 from johnnydep import JohnnyDist
 from johnnydep.logs import configure_logging
@@ -23,18 +23,49 @@ class PipResolver(DependencyResolver):
         super().__init__(*args, **kwargs, source=PipClassifier())
 
     @staticmethod
-    def _get_specifier(dist: JohnnyDist) -> SimpleSpec:
+    def _get_specifier(dist_or_str: Union[JohnnyDist, str]) -> SimpleSpec:
+        if isinstance(dist_or_str, JohnnyDist):
+            dist_or_str = dist_or_str.specifier
         try:
-            return SimpleSpec(dist.specifier)
+            return SimpleSpec(dist_or_str)
         except ValueError:
             return SimpleSpec("*")
 
     @staticmethod
-    def get_dependencies(dist: JohnnyDist) -> Iterable[Dependency]:
-        return (
-            Dependency(package=child.name, semantic_version=PipResolver._get_specifier(child), source=PipClassifier())
-            for child in dist.children
-        )
+    def parse_requirements_txt_line(line: str) -> Optional[Dependency]:
+        line = line.strip()
+        if not line:
+            return None
+        delimiter_pos = -1
+        for possible_delimiter in ("=", "<", ">", "~", "!"):
+            delimiter_pos = line.find(possible_delimiter)
+            if delimiter_pos >= 0:
+                break
+        if delimiter_pos < 0:
+            # the requirement does not have a version specifier
+            name = line
+            version = SimpleSpec("*")
+        else:
+            name = line[:delimiter_pos]
+            version = PipResolver._get_specifier(line[delimiter_pos:])
+        return Dependency(package=name, semantic_version=version, source=PipClassifier())
+
+    @staticmethod
+    def get_dependencies(dist_or_requirements_txt_path: Union[JohnnyDist, Path, str]) -> Iterable[Dependency]:
+        if isinstance(dist_or_requirements_txt_path, JohnnyDist):
+            return (
+                Dependency(
+                    package=child.name, semantic_version=PipResolver._get_specifier(child), source=PipClassifier()
+                )
+                for child in dist_or_requirements_txt_path.children
+            )
+        elif isinstance(dist_or_requirements_txt_path, str):
+            dist_or_requirements_txt_path = Path(dist_or_requirements_txt_path)
+        with open(dist_or_requirements_txt_path / "requirements.txt", "r") as f:
+            return filter(lambda d: d is not None, (
+                PipResolver.parse_requirements_txt_line(line)  # type: ignore
+                for line in f.readlines()
+            ))
 
     @staticmethod
     def get_version(version_str: str, none_default: Optional[Version] = None) -> Optional[Version]:
@@ -110,31 +141,47 @@ class PipResolver(DependencyResolver):
 
 
 class PipSourcePackage(SourcePackage):
-    def __init__(self, dist: JohnnyDist, source_path: Path):
+    @staticmethod
+    def from_dist(dist: JohnnyDist, source_path: Path) -> "PipSourcePackage":
         version_str = dist.specifier
         if version_str.startswith("=="):
             version_str = version_str[2:]
-        super().__init__(name=dist.name, version=PipResolver.get_version(version_str),
-                         dependencies=PipResolver.get_dependencies(dist), source_path=source_path,
-                         source=PipClassifier())
+        return PipSourcePackage(name=dist.name, version=PipResolver.get_version(version_str),
+                                dependencies=PipResolver.get_dependencies(dist), source_path=source_path,
+                                source=PipClassifier())
 
     @staticmethod
     def from_repo(repo: SourceRepository) -> "PipSourcePackage":
-        with TemporaryDirectory() as tmp_dir:
-            subprocess.check_call([
-                sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", tmp_dir, str(repo.path)
-            ], stdout=sys.stderr)
-            wheel = None
-            for whl in Path(tmp_dir).glob("*.whl"):
-                if wheel is not None:
-                    raise ValueError(f"`pip wheel --no-deps {repo.path!s}` produced mutliple wheel files!")
-                wheel = whl
-            if wheel is None:
-                raise ValueError(f"`pip wheel --no-deps {repo.path!s}` did not produce a wheel file!")
-            dist = JohnnyDist(str(wheel))
-            # force JohnnyDist to read the dependencies before deleting the wheel:
-            _ = dist.children
-            return PipSourcePackage(dist, repo.path)
+        if (repo.path / "setup.py").exists():
+            with TemporaryDirectory() as tmp_dir:
+                subprocess.check_call([
+                    sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", tmp_dir, str(repo.path)
+                ], stdout=sys.stderr)
+                wheel = None
+                for whl in Path(tmp_dir).glob("*.whl"):
+                    if wheel is not None:
+                        raise ValueError(f"`pip wheel --no-deps {repo.path!s}` produced mutliple wheel files!")
+                    wheel = whl
+                if wheel is None:
+                    raise ValueError(f"`pip wheel --no-deps {repo.path!s}` did not produce a wheel file!")
+                dist = JohnnyDist(str(wheel))
+                # force JohnnyDist to read the dependencies before deleting the wheel:
+                _ = dist.children
+                return PipSourcePackage.from_dist(dist, repo.path)
+        elif (repo.path / "requirements.txt").exists():
+            # We just have a requirements.txt and no setup.py
+            # Use the directory name as the package name
+            name = repo.path.absolute().name
+            if (repo.path / "VERSION").exists():
+                with open(repo.path / "VERSION", "r") as f:
+                    version = PipResolver.get_version(f.read().strip())
+            else:
+                version = PipResolver.get_version("0.0.0")
+                log.info(f"Could not detect {repo.path} version. Using: {version}")
+            return PipSourcePackage(name=name, version=version, dependencies=PipResolver.get_dependencies(repo.path),
+                                    source_path=repo.path, source=PipClassifier())
+        else:
+            raise ValueError(f"{repo.path} neither has a setup.py nor a requirements.txt")
 
 
 class PipClassifier(DependencyClassifier):

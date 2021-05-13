@@ -135,7 +135,10 @@ class DBPackage(Base, Package):  # type: ignore
 
     @property
     def version(self) -> Version:
-        return Version.coerce(self.version_str)
+        source = self.source
+        if source is None:
+            source = DependencyClassifier  # type: ignore
+        return source.parse_version(self.version_str)  # type: ignore
 
     @version.setter
     def version(self, new_version: Union[Version, str]):

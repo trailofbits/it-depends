@@ -20,7 +20,8 @@ from contextlib import nullcontext
 
 
 class Dependency:
-    def __init__(self, package: str, source: Union[str, "DependencyClassifier"], semantic_version: SemanticVersion = SimpleSpec("*")):
+    def __init__(self, package: str, source: Union[str, "DependencyClassifier"],
+                 semantic_version: SemanticVersion = SimpleSpec("*")):
         self.package: str = package
         self.semantic_version: SemanticVersion = semantic_version
         # type forgiveness
@@ -148,6 +149,7 @@ class PackageCache(ABC):
     def was_resolved(self, dependency: Dependency) -> bool:
         raise NotImplementedError()
 
+    @abstractmethod
     def set_resolved(self, dependency: Dependency):
         raise NotImplementedError()
 
@@ -233,14 +235,16 @@ class PackageCache(ABC):
             package = sources.pop()
             pid = add_package(package)
             for dependency in package.dependencies.values():
+                already_expanded = dependency in dependency_ids
                 did = add_dependency(dependency)
                 dot.edge(pid, did)
-                for satisfied_dep in self.match(dependency):
-                    already_expanded = satisfied_dep in package_ids
-                    spid = add_package(satisfied_dep)
-                    dot.edge(did, spid)
-                    if not already_expanded:
-                        sources.append(satisfied_dep)
+                if not already_expanded:
+                    for satisfied_dep in self.match(dependency):
+                        already_expanded = satisfied_dep in package_ids
+                        spid = add_package(satisfied_dep)
+                        dot.edge(did, spid)
+                        if not already_expanded:
+                            sources.append(satisfied_dep)
         return dot
 
     @abstractmethod
@@ -578,6 +582,10 @@ class DependencyClassifier(ABC):
     @classmethod
     def parse_spec(cls, spec: str) -> SemanticVersion:
         return SimpleSpec.parse(spec)
+
+    @classmethod
+    def parse_version(cls, version_string: str) -> Version:
+        return Version.coerce(version_string)
 
     def docker_setup(self) -> Optional[DockerSetup]:
         return None
