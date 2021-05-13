@@ -49,25 +49,25 @@ EOF
   exit 1
 fi
 
-echo Linting Python code...
-flake8 it_depends test --count --select=E9,F63,F7,F82 --show-source --statistics 1>/dev/null 2>/dev/null
+echo Linting Python code... 
+flake8 it_depends test --exclude test/repos --count --select=E9,F63,F7,F82 --show-source --statistics 1>/dev/null 2>/dev/null
 RESULT=$?
 if [ $RESULT -ne 0 ]; then
   cat <<\EOF
 Failed Python lint:
 
-    flake8 it_depends test --count --select=E9,F63,F7,F82 --show-source --statistics
+    flake8 it_depends test --exclude test/repos --count --select=E9,F63,F7,F82 --show-source --statistics
 EOF
   exit 1
 fi
 
-flake8 it_depends test --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics 1>/dev/null 2>/dev/null
+flake8 it_depends test --exclude test/repos --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics 1>/dev/null 2>/dev/null
 RESULT=$?
 if [ $RESULT -ne 0 ]; then
   cat <<\EOF
 Failed Python lint:
 
-    flake8 it_depends test --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    flake8 it_depends test --exclude test/repos --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 EOF
   exit 1
 fi
@@ -84,7 +84,7 @@ EOF
 fi
 
 echo Type-checking Python code...
-mypy --ignore-missing-imports it_depends test
+mypy  --exclude  "test/repos/.*" --ignore-missing-imports it_depends test
 RESULT=$?
 if [ $RESULT -ne 0 ]; then
   exit $RESULT

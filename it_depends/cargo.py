@@ -3,7 +3,7 @@ from os import chdir, getcwd
 from pathlib import Path
 import shutil
 import subprocess
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional, Type, Union
 
 from semantic_version.base import Always, BaseSpec
 
@@ -59,32 +59,25 @@ def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool
 
     for package in metadata["packages"]:
         if package["name"] in workspace_members:
-            yield SourcePackage(
-                name=package["name"],
-                version=Version.coerce(package["version"]),
-                source=CargoClassifier.default_instance(),
-                dependencies=[
-                    Dependency(
-                        package=dep["name"],
-                        semantic_version=CargoClassifier.parse_spec(dep["req"])
-                    )
-                    for dep in package["dependencies"]
-                ],
-                source_path=cargo_package_path
-            )
+            _class: Type[Union[SourcePackage, Package]] = SourcePackage
+            kwargs = {"source_path": cargo_package_path}
         else:
-            yield Package(
-                name=package["name"],
-                version=Version.coerce(package["version"]),
-                source=CargoClassifier.default_instance(),
-                dependencies=[
-                    Dependency(
-                        package=dep["name"],
-                        semantic_version=CargoClassifier.parse_spec(dep["req"])
-                    )
-                    for dep in package["dependencies"]
-                ]
-            )
+            _class = Package
+            kwargs = {}
+        yield _class(  # type: ignore
+            name=package["name"],
+            version=Version.coerce(package["version"]),
+            source=CargoClassifier(),
+            dependencies=[
+                Dependency(
+                    package=dep["name"],
+                    semantic_version=CargoClassifier.parse_spec(dep["req"]),
+                    source=CargoClassifier(),
+                )
+                for dep in package["dependencies"]
+            ],
+            **kwargs
+        )
 
 
 class CargoClassifier(DependencyClassifier):

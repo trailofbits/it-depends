@@ -20,7 +20,7 @@ log = getLogger(__file__)
 
 class PipResolver(DependencyResolver):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, source=PipClassifier.default_instance())
+        super().__init__(*args, **kwargs, source=PipClassifier())
 
     @staticmethod
     def _get_specifier(dist: JohnnyDist) -> SimpleSpec:
@@ -32,7 +32,7 @@ class PipResolver(DependencyResolver):
     @staticmethod
     def get_dependencies(dist: JohnnyDist) -> Iterable[Dependency]:
         return (
-            Dependency(package=child.name, semantic_version=PipResolver._get_specifier(child))
+            Dependency(package=child.name, semantic_version=PipResolver._get_specifier(child), source=PipClassifier())
             for child in dist.children
         )
 
@@ -80,7 +80,9 @@ class PipResolver(DependencyResolver):
                         )
                     )
             ):
-                cached = self.resolve_from_cache(Dependency(dist.name, version))
+                cached = self.resolve_from_cache(Dependency(package=dist.name,
+                                                            semantic_version=version,
+                                                            source=PipClassifier()))
                 if cached is not None:
                     packages.extend(cached)
                 else:
@@ -88,7 +90,7 @@ class PipResolver(DependencyResolver):
                         name=dist.name,
                         version=version,
                         dependencies=self.get_dependencies(dist),
-                        source=PipClassifier.default_instance()
+                        source=PipClassifier()
                     )
                     packages.append(package)
                 if not recurse:
@@ -96,7 +98,7 @@ class PipResolver(DependencyResolver):
                 queue.extend((child, self._get_specifier(child)) for child in dist.children)
         return packages
 
-    def resolve_missing(self, dependency: Dependency, from_package: Optional[Package] = None) -> Iterator[Package]:
+    def resolve_missing(self, dependency: Dependency, from_package: Package) -> Iterator[Package]:
         try:
             return iter(self.resolve_dist(
                 JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version,
@@ -114,7 +116,7 @@ class PipSourcePackage(SourcePackage):
             version_str = version_str[2:]
         super().__init__(name=dist.name, version=PipResolver.get_version(version_str),
                          dependencies=PipResolver.get_dependencies(dist), source_path=source_path,
-                         source=PipClassifier.default_instance())
+                         source=PipClassifier())
 
     @staticmethod
     def from_repo(repo: SourceRepository) -> "PipSourcePackage":

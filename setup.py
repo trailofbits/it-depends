@@ -1,8 +1,17 @@
+import os
 from setuptools import setup, find_packages
+
+SETUP_DIR = os.path.dirname(os.path.realpath(__file__))
+README_PATH = os.path.join(SETUP_DIR, "README.md")
+
+with open(README_PATH, "r") as readme:
+    README = readme.read()
 
 setup(
     name="it-depends",
     description="A software dependency analyzer",
+    long_description=README,
+    long_description_content_type="text/markdown",
     license="LGPL-3.0-or-later",
     url="https://github.com/trailofbits/it-depends",
     author="Trail of Bits",
@@ -13,7 +22,7 @@ setup(
         "docker>=4.4.0",
         "graphviz>=0.14.1",
         "johnnydep~=1.7",
-        "parse_cmake",
+        "parse_cmake>=0.4.1",
         "semantic_version~=2.8.5",
         "sqlalchemy>=1.3",
         "tqdm>=4.48.0"

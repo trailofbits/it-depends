@@ -7,7 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, sessionmaker
 
-from .dependencies import CLASSIFIERS_BY_NAME, Dependency, DependencyClassifier, Package, SemanticVersion, PackageCache
+from .dependencies import classifier_by_name, Dependency, DependencyClassifier, Package, SemanticVersion, PackageCache
 
 DEFAULT_DB_PATH = Path.home() / ".config" / "it-depends" / "dependencies.sqlite"
 
@@ -49,12 +49,9 @@ class DBDependency(Base, Dependency):  # type: ignore
     @hybrid_property
     def semantic_version(self) -> SemanticVersion:
         if self.from_package.source is None:
-            classifier = DependencyClassifier
+            classifier = DependencyClassifier()
         else:
-            try:
-                classifier = CLASSIFIERS_BY_NAME[self.from_package.source.name]
-            except KeyError:
-                classifier = DependencyClassifier
+            classifier = self.from_package.source
         return classifier.parse_spec(self.semantic_version_string)
 
     @semantic_version.setter  # type: ignore
@@ -100,7 +97,7 @@ class DBPackage(Base, Package):  # type: ignore
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     version_str = Column("version", String, nullable=False)
-    source_name = Column("source", String, nullable=True)
+    source_name = Column("source", String, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("name", "version", "source", name="package_unique_constraint"),
@@ -112,23 +109,11 @@ class DBPackage(Base, Package):  # type: ignore
         # We intentionally skip calling super().__init__()
         self.name = package.name
         self.version = package.version
-        self.source = package.source
+        self.source_name = package.source_name
 
-    @property  # type: ignore
-    def source(self) -> Optional[DependencyClassifier]:  # type: ignore
-        if self.source_name is None:
-            return None
-        try:
-            return CLASSIFIERS_BY_NAME[self.source_name]  # type: ignore
-        except KeyError:
-            return None
-
-    @source.setter  # type: ignore
-    def source(self, new_source: Optional[DependencyClassifier]):  # type: ignore
-        if new_source is None:
-            self.source_name = None
-        else:
-            self.source_name = new_source.name
+    @property
+    def source(self) -> DependencyClassifier:
+        return classifier_by_name(self.source_name)
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":
@@ -143,8 +128,9 @@ class DBPackage(Base, Package):  # type: ignore
         return package
 
     def to_package(self) -> Package:
+        assert self.source is not None
         return Package(name=self.name, version=self.version, dependencies=(
-            Dependency(package=dep.package, semantic_version=dep.semantic_version) for dep in self.raw_dependencies
+            Dependency(package=dep.package, semantic_version=dep.semantic_version, source=self.source) for dep in self.raw_dependencies
         ), source=self.source)
 
     @property
@@ -176,14 +162,11 @@ class SourceFilteredPackageCache(PackageCache):
         yield from [p.to_package()
                     for p in self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).all()]
 
-    def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
-        if source is not None and source != self.source:
-            return False
-        else:
-            return self.parent.was_resolved(dependency, source=self.source)
+    def was_resolved(self, dependency: Dependency) -> bool:
+        return self.parent.was_resolved(dependency)
 
-    def set_resolved(self, dependency: Dependency, source: Optional[str]):
-        self.parent.set_resolved(dependency, source=source)
+    def set_resolved(self, dependency: Dependency):
+        self.parent.set_resolved(dependency)
 
     def from_source(self, source: Optional[str]) -> "PackageCache":
         return SourceFilteredPackageCache(source, self.parent)
@@ -200,8 +183,8 @@ class SourceFilteredPackageCache(PackageCache):
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
         return self.parent.match(to_match, source=self.source)
 
-    def add(self, package: Package, source: Optional[DependencyClassifier] = None):
-        return self.parent.add(package, source)
+    def add(self, package: Package):
+        return self.parent.add(package)
 
 
 class DBPackageCache(PackageCache):
@@ -236,10 +219,10 @@ class DBPackageCache(PackageCache):
     def session(self):
         return self._session
 
-    def add(self, package: Package, source: Optional[DependencyClassifier] = None):
-        self.extend((package,), source=source)
+    def add(self, package: Package):
+        self.extend((package,))
 
-    def extend(self, packages: Iterable[Package], source: Optional[DependencyClassifier] = None):
+    def extend(self, packages: Iterable[Package]):
         for package in packages:
             for existing in self.match(package):
                 if len(existing.dependencies) > len(package.dependencies):
@@ -253,8 +236,6 @@ class DBPackageCache(PackageCache):
                 found_existing = False
             if found_existing:
                 continue
-            if package.source is None and source is not None:
-                package.source = source
             if isinstance(package, DBPackage):
                 self.session.add(package)
             else:
@@ -301,19 +282,17 @@ class DBPackageCache(PackageCache):
             # we intentionally build a list before yielding so that we don't keep the session query lingering
             yield from [package.to_package() for package in self._make_query(to_match, source=source).all()]
 
-    def was_resolved(self, dependency: Dependency, source: Optional[str] = None) -> bool:
-        if source is not None:
-            filters: Tuple[Any, ...] = (Resolution.source.like(source),)
-        else:
-            filters = ()
+    def was_resolved(self, dependency: Dependency) -> bool:
+        source=dependency.source_name
+        filters: Tuple[Any, ...] = (Resolution.source.like(source),)
         return self.session.query(Resolution).filter(
             Resolution.package.like(dependency.package),
             Resolution.version == str(dependency.semantic_version),
             *filters
         ).limit(1).count() > 0
 
-    def set_resolved(self, dependency: Dependency, source: Optional[str]):
+    def set_resolved(self, dependency: Dependency):
         self.session.add(
-            Resolution(package=dependency.package, version=str(dependency.semantic_version), source=source)
+            Resolution(package=dependency.package, version=str(dependency.semantic_version), source=dependency.source_name)
         )
         self.session.commit()

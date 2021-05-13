@@ -12,7 +12,7 @@ from tqdm import tqdm
 from . import version as it_depends_version
 from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 from .dependencies import (
-    CLASSIFIERS_BY_NAME, ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup,
+    classifiers, ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup,
     Package, PackageCache, SimpleSpec, SourceRepository, Version
 )
 
@@ -54,7 +54,7 @@ class NativeLibrary:
 
 class NativeResolver(DependencyResolver):
     def __init__(self, cache: Optional[PackageCache] = None):
-        super().__init__(source=NativeClassifier.default_instance(), cache=cache)
+        super().__init__(source=NativeClassifier(), cache=cache)
 
     @staticmethod
     def get_libraries(
@@ -156,7 +156,8 @@ class NativeResolver(DependencyResolver):
                                             required_version = SimpleSpec("*")
                                         package.dependencies[library.name] = Dependency(
                                             package=library.name,
-                                            semantic_version=required_version
+                                            semantic_version=required_version,
+                                            source=NativeClassifier()
                                         )
                                         # re-add the package so we can cache the new dependency
                                         existing.add(package)
@@ -178,7 +179,7 @@ class NativeClassifier(DependencyClassifier):
         return ClassifierAvailability(True)
 
     def can_classify(self, repo: SourceRepository) -> bool:
-        for classifier in CLASSIFIERS_BY_NAME.values():  # type: ignore
+        for classifier in sorted(classifiers()):  # type: ignore
             if classifier.docker_setup() is not None and classifier.can_classify(repo):
                 return True
         return False
