@@ -177,6 +177,7 @@ class PipSourcePackage(SourcePackage):
                     version = PipResolver.get_version(f.read().strip())
             else:
                 version = PipResolver.get_version("0.0.0")
+                log.info(f"Could not detect {repo.path} version. Using: {version}")
             return PipSourcePackage(name=name, version=version, dependencies=PipResolver.get_dependencies(repo.path),
                                     source_path=repo.path, source=PipClassifier())
         else:
