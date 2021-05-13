@@ -20,7 +20,8 @@ from contextlib import nullcontext
 
 
 class Dependency:
-    def __init__(self, package: str, source: Union[str, "DependencyClassifier"], semantic_version: SemanticVersion = SimpleSpec("*")):
+    def __init__(self, package: str, source: Union[str, "DependencyClassifier"],
+                 semantic_version: SemanticVersion = SimpleSpec("*")):
         self.package: str = package
         self.semantic_version: SemanticVersion = semantic_version
         # type forgiveness

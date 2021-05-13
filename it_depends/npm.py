@@ -81,9 +81,9 @@ class NPMResolver(DependencyResolver):
                     versions.append(line)
             for pkg_version, dep_dict in zip(versions, deps):
                 version = Version.coerce(pkg_version[len(dependency.package)+1:])
-                yield Package(name=dependency.package, version=version, source=NPMClassifier(),
+                yield Package(name=dependency.package, version=version, source=self.source,
                               dependencies=(
-                    Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version))
+                    Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version), source=self.source)
                     for dep, dep_version in dep_dict.items()
                 ))
         else:

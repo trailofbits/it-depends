@@ -278,7 +278,7 @@ class GoModule:
 
 class GoResolver(DependencyResolver):
     def __init__(self, cache: Optional[PackageCache] = None):
-        super().__init__(source=GoClassifier.default_instance(), cache=cache)
+        super().__init__(source=GoClassifier(), cache=cache)
 
     def resolve_missing(self, dependency: Dependency, from_package: Optional[Package] = None) -> Iterator[Package]:
         assert isinstance(dependency.semantic_version, GoSpec)
@@ -289,7 +289,7 @@ class GoResolver(DependencyResolver):
             version=GoVersion(version_string),  # type: ignore
             source=self.source,
             dependencies=[
-                Dependency(package=package, semantic_version=GoSpec(version))
+                Dependency(package=package, semantic_version=GoSpec(version), source=self.source)
                 for package, version in module.dependencies
             ]
         )
@@ -328,7 +328,7 @@ class GoClassifier(DependencyClassifier):
             source_path=repo.path,
             source=self,
             dependencies=[
-                Dependency(package=package, semantic_version=GoSpec(version))
+                Dependency(package=package, semantic_version=GoSpec(version), source=self)
                 for package, version in module.dependencies
             ]
         ))
