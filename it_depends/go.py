@@ -191,6 +191,8 @@ class GoModule:
         allowed by the selected security mode.
         """
         slash = import_path.find("/")
+        if slash == -1:
+            raise vcs.VCSResolutionError("import path does not contain a slash")
         host, path = import_path[:slash], import_path[slash:]
         if "." not in host:
             raise vcs.VCSResolutionError("import path does not begin with hostname")
