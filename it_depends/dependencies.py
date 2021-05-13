@@ -149,6 +149,7 @@ class PackageCache(ABC):
     def was_resolved(self, dependency: Dependency) -> bool:
         raise NotImplementedError()
 
+    @abstractmethod
     def set_resolved(self, dependency: Dependency):
         raise NotImplementedError()
 
