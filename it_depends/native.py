@@ -185,6 +185,4 @@ class NativeClassifier(DependencyClassifier):
         return False
 
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        resolver = NativeResolver(cache=cache)
-        repo.resolvers.append(resolver)
-        resolver.expand(repo)
+        NativeResolver(cache=cache).expand(repo)

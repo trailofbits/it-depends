@@ -90,6 +90,4 @@ class UbuntuClassifier(DependencyClassifier):
         return True
 
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        resolver = UbuntuResolver(self, cache)
-        repo.resolvers.append(resolver)
-        resolver.resolve_unsatisfied(repo)
+        UbuntuResolver(self, cache).resolve_unsatisfied(repo)

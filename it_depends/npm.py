@@ -149,10 +149,8 @@ class NPMClassifier(DependencyClassifier):
         return (repo.path / "package.json").exists()
 
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        resolver = NPMResolver(cache=cache, source=self)
-        repo.resolvers.append(resolver)
         repo.add(NPMResolver.from_package_json(repo.path / "package.json"))
-        with resolver:
+        with NPMResolver(cache=cache, source=self) as resolver:
             resolver.resolve_unsatisfied(repo)
 
     def docker_setup(self) -> DockerSetup:

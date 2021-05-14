@@ -313,8 +313,6 @@ class GoClassifier(DependencyClassifier):
         return (repo.path / "go.mod").exists()
 
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        resolver = GoResolver(cache=cache)
-        repo.resolvers.append(resolver)
         with open(repo.path / "go.mod") as f:
             module = GoModule.parse_mod(f.read())
         git_hash = git_commit(str(repo.path))
@@ -334,4 +332,4 @@ class GoClassifier(DependencyClassifier):
                 for package, version in module.dependencies
             ]
         ))
-        resolver.resolve_unsatisfied(repo)
+        GoResolver(cache=cache).resolve_unsatisfied(repo)

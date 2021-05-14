@@ -192,10 +192,8 @@ class PipClassifier(DependencyClassifier):
         return (repo.path / "setup.py").exists() or (repo.path / "requirements.txt").exists()
 
     def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        resolver = PipResolver(cache=cache)
-        repo.resolvers.append(resolver)
         repo.add(PipSourcePackage.from_repo(repo))
-        resolver.resolve_unsatisfied(repo, max_workers=1)  # Johnny Dep doesn't like concurrency
+        PipResolver(cache=cache).resolve_unsatisfied(repo, max_workers=1)  # Johnny Dep doesn't like concurrency
 
     def docker_setup(self) -> Optional[DockerSetup]:
         return DockerSetup(

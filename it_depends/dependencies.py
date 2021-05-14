@@ -78,15 +78,14 @@ class Package:
 
     def to_obj(self) -> Dict[str, Union[str, Dict[str, str]]]:
         ret = {
+            "source": self.source_name,
             "name": self.name,
             "version": str(self.version),
             "dependencies": {
                 package: str(dep.semantic_version) for package, dep in self.dependencies.items()
                 }
         }
-        if self.source_name is not None:
-            ret["source"] = self.source_name
-        return ret  # type: ignore
+        return ret
 
     def dumps(self) -> str:
         return json.dumps(self.to_obj())
@@ -101,13 +100,11 @@ class Package:
         return hash((self.source_name, self.name, self.version))
 
     def __str__(self):
-        if self.source_name is not None:
-            return f"{self.source_name}:{self.name}@{self.version}"
-        else:
-            return f"{self.name}@{self.version}"
+        return f"{self.source_name}:{self.name}@{self.version}"
 
 
 class PackageCache(ABC):
+    """ An abstract base class for a collection of packages """
     def __init__(self):
         self._entries: int = 0
 
@@ -347,7 +344,8 @@ class _ResolutionCache:
 
 
 class DependencyResolver:
-
+    """  Finds a set of Packages that agrees with a Dependency specification
+    """
     def __init__(self, source: Union[str, "DependencyClassifier"], cache: Optional[PackageCache] = None):
         if cache is None:
             self._cache: PackageCache = InMemoryPackageCache()
@@ -421,7 +419,6 @@ class DependencyResolver:
 
         If the dependency is resolved, it is added to the cache
         """
-        source_name = self.source_name
         if record_results and not check_cache:
             raise ValueError("`check_cache` may only be False if `record_results` is also False")
         elif check_cache and self._cache.was_resolved(dependency):
@@ -452,7 +449,7 @@ class DependencyResolver:
                 max_workers = cpu_count()
             except NotImplementedError:
                 max_workers = 5
-        source_name = self.source_name
+
         with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=0) as t:
             resolution_cache = _ResolutionCache(self, results=packages)
             with concurrent.futures.ThreadPoolExecutor(
@@ -499,7 +496,6 @@ class SourceRepository(InMemoryPackageCache):
             self,
             path: Union[Path, str],
             packages: Iterable[SourcePackage] = (),
-            resolvers: Iterable[DependencyResolver] = ()
     ):
         super().__init__()
         if not isinstance(path, Path):
@@ -507,7 +503,6 @@ class SourceRepository(InMemoryPackageCache):
         self.path: Path = path
         self._packages: Set[SourcePackage] = set(packages)
         self.extend(self._packages)
-        self.resolvers: List[DependencyResolver] = list(resolvers)
 
     @property
     def source_packages(self) -> Set[SourcePackage]:
