@@ -40,6 +40,9 @@ class TestSmoke(TestCase):
         "0.0.4": {
             "dependencies": {
                 "cvss": "~=2.2",
+                "libdl": "~=2",
+                "libnss_files": "~=2",
+                "libtinfo": "~=6",
                 "python-dateutil": "~=2.8.1",
                 "tqdm": "~=4.48.0"
             },
