@@ -13,14 +13,14 @@ from typing import List, Optional, Tuple
 from .utils import cached_file_to_package as file_to_package
 
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, PackageCache, SimpleSpec, SourcePackage, SourceRepository,
+    Dependency, DependencyResolver, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage, SourceRepository,
     Version
 )
 
 logger = logging.getLogger(__name__)
 
 
-class AutotoolsClassifier(DependencyClassifier):
+class AutotoolsClassifier(DependencyResolver):
     """ This attempts to parse configure.ac in an autotool based repo.
     It supports the following macros:
         AC_INIT, AC_CHECK_HEADER, AC_CHECK_LIB, PKG_CHECK_MODULES
@@ -32,13 +32,13 @@ class AutotoolsClassifier(DependencyClassifier):
     name = "autotools"
     description = "classifies the dependencies of native/autotools packages parsing configure.ac"
 
-    def is_available(self) -> ClassifierAvailability:
+    def is_available(self) -> ResolverAvailability:
         if shutil.which("autoconf") is None:
-            return ClassifierAvailability(False, "`autoconf` does not appear to be installed! "
-                                                 "Make sure it is installed and in the PATH.")
-        return ClassifierAvailability(True)
+            return ResolverAvailability(False, "`autoconf` does not appear to be installed! "
+                                               "Make sure it is installed and in the PATH.")
+        return ResolverAvailability(True)
 
-    def can_classify(self, repo: SourceRepository) -> bool:
+    def can_resolve(self, repo: SourceRepository) -> bool:
         return (repo.path / "configure.ac").exists()
 
     @staticmethod
@@ -117,10 +117,12 @@ class AutotoolsClassifier(DependencyClassifier):
             raise Exception(f"Could not find a binding for variable/s in {token}")
         return token
 
-    def _get_dependencies(self, path: str):
-        logger.info(f"Getting dependencies for autotool repo {os.path.abspath(path)}")
+    def resolve_from_source(
+            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+    ) -> Optional[SourcePackage]:
+        logger.info(f"Getting dependencies for autotool repo {repo.path.absolute()}")
         orig_dir = getcwd()
-        chdir(path)
+        chdir(repo.path)
         try:
             with tempfile.NamedTemporaryFile() as tmp:
                 # builds a temporary copy of configure.ac containing aclocal env
@@ -175,13 +177,10 @@ class AutotoolsClassifier(DependencyClassifier):
         package_name = self._replace_variables("$PACKAGE_NAME", configure)
         package_version = self._replace_variables("$PACKAGE_VERSION", configure)
 
-        yield SourcePackage(
+        return SourcePackage(
             name=package_name,
             version=Version.coerce(package_version),
             source=self,
             dependencies=deps,
-            source_path=Path(path)
+            source_repo=repo
         )
-
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        repo.extend(self._get_dependencies(str(repo.path)))

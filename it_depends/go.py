@@ -15,8 +15,7 @@ from semantic_version import Version
 from semantic_version.base import BaseSpec, Range, SimpleSpec
 
 from .dependencies import (
-    Dependency, DependencyClassifier, DependencyResolver, SourcePackage, SourceRepository, Package, PackageCache,
-    SemanticVersion
+    Dependency, DependencyResolver, SourcePackage, SourceRepository, Package, PackageCache, SemanticVersion
 )
 from . import vcs
 
@@ -279,8 +278,8 @@ class GoModule:
 
 
 class GoResolver(DependencyResolver):
-    def __init__(self, cache: Optional[PackageCache] = None):
-        super().__init__(source=GoClassifier(), cache=cache)
+    name = "go"
+    description = "classifies the dependencies of JavaScript packages using `npm`"
 
     def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         assert isinstance(dependency.semantic_version, GoSpec)
@@ -296,11 +295,6 @@ class GoResolver(DependencyResolver):
             ]
         )
 
-
-class GoClassifier(DependencyClassifier):
-    name = "go"
-    description = "classifies the dependencies of JavaScript packages using `npm`"
-
     @classmethod
     def parse_spec(cls, spec: str) -> SemanticVersion:
         return GoSpec(spec)
@@ -309,10 +303,10 @@ class GoClassifier(DependencyClassifier):
     def parse_version(cls, version_string: str) -> Version:
         return GoVersion(version_string)  # type: ignore
 
-    def can_classify(self, repo: SourceRepository) -> bool:
+    def can_resolve(self, repo: SourceRepository) -> bool:
         return (repo.path / "go.mod").exists()
 
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+    def resolve_from_source(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
         with open(repo.path / "go.mod") as f:
             module = GoModule.parse_mod(f.read())
         git_hash = git_commit(str(repo.path))
@@ -322,14 +316,13 @@ class GoClassifier(DependencyClassifier):
             version = f"{version}????"
         else:
             version = f"{version}{git_hash}"
-        repo.add(SourcePackage(
+        return SourcePackage(
             name=module.name,
             version=GoVersion(version),  # type: ignore
-            source_path=repo.path,
+            source_repo=repo,
             source=self,
             dependencies=[
                 Dependency(package=package, semantic_version=GoSpec(version), source=self)
                 for package, version in module.dependencies
             ]
-        ))
-        GoResolver(cache=cache).resolve_unsatisfied(repo)
+        )

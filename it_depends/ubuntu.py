@@ -5,14 +5,16 @@ import logging
 import re
 from .dependencies import Version, SimpleSpec
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, PackageCache,
-    SourceRepository
+    Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SourcePackage, SourceRepository
 )
 
 logger = logging.getLogger(__name__)
 
 
 class UbuntuResolver(DependencyResolver):
+    name = "ubuntu"
+    description = "expands dependencies based upon Ubuntu package dependencies"
+
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
 
@@ -60,34 +62,30 @@ class UbuntuResolver(DependencyResolver):
         version = Version.coerce(matched.group("version"))
 
         yield Package(name=dependency.package, version=version,
-                      source=UbuntuClassifier(),
+                      source=UbuntuResolver(),
                       dependencies=(
                           Dependency(package=pkg,
                                      semantic_version=SimpleSpec(ver),
-                                     source=UbuntuClassifier()
+                                     source=UbuntuResolver()
                                      )
                           for pkg, ver in deps
                       ))
-
-
-class UbuntuClassifier(DependencyClassifier):
-    name = "ubuntu"
-    description = "expands dependencies based upon Ubuntu package dependencies"
 
     def __lt__(self, other):
         """Make sure that the Ubuntu Classifier runs last"""
         return False
 
-    def is_available(self) -> ClassifierAvailability:
+    def is_available(self) -> ResolverAvailability:
         # TODO: Check for docker if necessary later
         if shutil.which("apt") is None:
-            return ClassifierAvailability(False,
-                                          "`Ubuntu` classifier needs apt-cache tool")
+            return ResolverAvailability(False, "`Ubuntu` classifier needs apt-cache tool")
 
-        return ClassifierAvailability(True)
+        return ResolverAvailability(True)
 
-    def can_classify(self, repo: SourceRepository) -> bool:
+    def can_resolve(self, repo: SourceRepository) -> bool:
         return True
 
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        UbuntuResolver(self, cache).resolve_unsatisfied(repo)
+    def resolve_from_source(
+            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+    ) -> Optional[SourcePackage]:
+        return None

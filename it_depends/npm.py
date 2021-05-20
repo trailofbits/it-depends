@@ -8,17 +8,32 @@ from typing import Dict, Iterator, Optional, Union
 from semantic_version import NpmSpec, SimpleSpec, Version
 
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, PackageCache,
-    SemanticVersion, SourcePackage, SourceRepository
+    Dependency, DependencyResolver, DockerSetup, Package, PackageCache, SemanticVersion, SourcePackage, SourceRepository
 )
 
 log = getLogger(__file__)
 
 
 class NPMResolver(DependencyResolver):
+    name = "npm"
+    description = "classifies the dependencies of JavaScript packages using `npm`"
+
+    def can_resolve(self, repo: SourceRepository) -> bool:
+        return (repo.path / "package.json").exists()
+
+    def resolve_from_source(
+            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+    ) -> Optional[SourcePackage]:
+        return NPMResolver.from_package_json(repo)
+
     @staticmethod
-    def from_package_json(package_json_path: Union[Path, str]) -> SourcePackage:
-        path: Path = Path(package_json_path)
+    def from_package_json(package_json_path: Union[Path, str, SourceRepository]) -> SourcePackage:
+        if isinstance(package_json_path, SourceRepository):
+            path = package_json_path.path
+            source_repository = package_json_path
+        else:
+            path = Path(package_json_path)
+            source_repository = SourceRepository(path.parent)
         if path.is_dir():
             path = path / "package.json"
         if not path.exists():
@@ -36,9 +51,9 @@ class NPMResolver(DependencyResolver):
         else:
             version = "0"
         version = Version.coerce(version)
-        return SourcePackage(package["name"], version, source_path=path.parent,
-                             source=NPMClassifier(), dependencies=(
-            Dependency(package=dep_name, semantic_version=NPMClassifier.parse_spec(dep_version), source=NPMClassifier())
+        return SourcePackage(package["name"], version, source_repo=source_repository,
+                             source=NPMResolver(), dependencies=(
+            Dependency(package=dep_name, semantic_version=NPMResolver.parse_spec(dep_version), source=NPMResolver())
             for dep_name, dep_version in dependencies.items()
         ))
 
@@ -81,9 +96,8 @@ class NPMResolver(DependencyResolver):
                     versions.append(line)
             for pkg_version, dep_dict in zip(versions, deps):
                 version = Version.coerce(pkg_version[len(dependency.package)+1:])
-                yield Package(name=dependency.package, version=version, source=self.source,
-                              dependencies=(
-                    Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version), source=self.source)
+                yield Package(name=dependency.package, version=version, source=self, dependencies=(
+                    Dependency(package=dep, semantic_version=NPMResolver.parse_spec(dep_version), source=self)
                     for dep, dep_version in dep_dict.items()
                 ))
         else:
@@ -113,22 +127,10 @@ class NPMResolver(DependencyResolver):
                 except ValueError:
                     continue
                 if version in dependency.semantic_version:
-                    yield Package(name=dependency.package, version=version, source=NPMClassifier(),
-                                  dependencies=(
-                        Dependency(package=dep, semantic_version=NPMClassifier.parse_spec(dep_version), source=NPMClassifier())
+                    yield Package(name=dependency.package, version=version, source=self, dependencies=(
+                        Dependency(package=dep, semantic_version=NPMResolver.parse_spec(dep_version), source=self)
                         for dep, dep_version in deps.items()
                     ))
-
-
-class NPMClassifier(DependencyClassifier):
-    name = "npm"
-    description = "classifies the dependencies of JavaScript packages using `npm`"
-
-    def is_available(self) -> ClassifierAvailability:
-        if shutil.which("npm") is None:
-            return ClassifierAvailability(False, "`npm` does not appear to be installed! "
-                                                 "Make sure it is installed and in the PATH.")
-        return ClassifierAvailability(True)
 
     @classmethod
     def parse_spec(cls, spec: str) -> SemanticVersion:
@@ -143,15 +145,7 @@ class NPMClassifier(DependencyClassifier):
         # Sometimes NPM specs have whitespace, which trips up the parser
         no_whitespace = "".join(c for c in spec if c != " ")
         if no_whitespace != spec:
-            return NPMClassifier.parse_spec(no_whitespace)
-
-    def can_classify(self, repo: SourceRepository) -> bool:
-        return (repo.path / "package.json").exists()
-
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        repo.add(NPMResolver.from_package_json(repo.path / "package.json"))
-        with NPMResolver(cache=cache, source=self) as resolver:
-            resolver.resolve_unsatisfied(repo)
+            return NPMResolver.parse_spec(no_whitespace)
 
     def docker_setup(self) -> DockerSetup:
         return DockerSetup(

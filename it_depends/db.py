@@ -7,7 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, sessionmaker
 
-from .dependencies import classifier_by_name, Dependency, DependencyClassifier, Package, SemanticVersion, PackageCache
+from .dependencies import resolver_by_name, Dependency, DependencyResolver, Package, SemanticVersion, PackageCache
 
 DEFAULT_DB_PATH = Path.home() / ".config" / "it-depends" / "dependencies.sqlite"
 
@@ -49,10 +49,10 @@ class DBDependency(Base, Dependency):  # type: ignore
     @hybrid_property
     def semantic_version(self) -> SemanticVersion:
         if self.from_package.source is None:
-            classifier = DependencyClassifier()
+            resolver = DependencyResolver
         else:
-            classifier = self.from_package.source
-        return classifier.parse_spec(self.semantic_version_string)
+            resolver = self.from_package.source
+        return resolver.parse_spec(self.semantic_version_string)
 
     @semantic_version.setter  # type: ignore
     def semantic_version(self, new_version: Union[SemanticVersion, str]):
@@ -112,8 +112,8 @@ class DBPackage(Base, Package):  # type: ignore
         self.source_name = package.source_name
 
     @property
-    def source(self) -> DependencyClassifier:
-        return classifier_by_name(self.source_name)
+    def source(self) -> DependencyResolver:
+        return resolver_by_name(self.source_name)
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":
@@ -137,7 +137,7 @@ class DBPackage(Base, Package):  # type: ignore
     def version(self) -> Version:
         source = self.source
         if source is None:
-            source = DependencyClassifier  # type: ignore
+            source = DependencyResolver  # type: ignore
         return source.parse_version(self.version_str)  # type: ignore
 
     @version.setter

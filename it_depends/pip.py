@@ -9,7 +9,7 @@ from johnnydep import JohnnyDist
 from johnnydep.logs import configure_logging
 
 from .dependencies import (
-    Dependency, DependencyClassifier, DependencyResolver, DockerSetup, Package, PackageCache, SemanticVersion,
+    Dependency, DependencyResolver, DockerSetup, Package, PackageCache, SemanticVersion,
     SimpleSpec, SourcePackage, SourceRepository, Version
 )
 
@@ -19,8 +19,28 @@ log = getLogger(__file__)
 
 
 class PipResolver(DependencyResolver):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, source=PipClassifier())
+    name = "pip"
+    description = "classifies the dependencies of Python packages using pip"
+
+    def can_resolve(self, repo: SourceRepository) -> bool:
+        return (repo.path / "setup.py").exists() or (repo.path / "requirements.txt").exists()
+
+    def resolve_from_source(
+            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+    ) -> Optional[SourcePackage]:
+        return PipSourcePackage.from_repo(repo)
+
+    def docker_setup(self) -> Optional[DockerSetup]:
+        return DockerSetup(
+            apt_get_packages=["python3", "python3-pip", "python3-dev", "gcc"],
+            install_package_script="""#!/usr/bin/env bash
+    pip3 install $1==$2
+    """,
+            load_package_script="""#!/usr/bin/env bash
+    python3 -c "import $1"
+    """,
+            baseline_script="#!/usr/bin/env python3 -c \"\"\n"
+        )
 
     @staticmethod
     def _get_specifier(dist_or_str: Union[JohnnyDist, str]) -> SimpleSpec:
@@ -36,7 +56,6 @@ class PipResolver(DependencyResolver):
         line = line.strip()
         if not line:
             return None
-        delimiter_pos = -1
         for possible_delimiter in ("=", "<", ">", "~", "!"):
             delimiter_pos = line.find(possible_delimiter)
             if delimiter_pos >= 0:
@@ -48,14 +67,14 @@ class PipResolver(DependencyResolver):
         else:
             name = line[:delimiter_pos]
             version = PipResolver._get_specifier(line[delimiter_pos:])
-        return Dependency(package=name, semantic_version=version, source=PipClassifier())
+        return Dependency(package=name, semantic_version=version, source=PipResolver())
 
     @staticmethod
     def get_dependencies(dist_or_requirements_txt_path: Union[JohnnyDist, Path, str]) -> Iterable[Dependency]:
         if isinstance(dist_or_requirements_txt_path, JohnnyDist):
             return (
                 Dependency(
-                    package=child.name, semantic_version=PipResolver._get_specifier(child), source=PipClassifier()
+                    package=child.name, semantic_version=PipResolver._get_specifier(child), source=PipResolver()
                 )
                 for child in dist_or_requirements_txt_path.children
             )
@@ -111,19 +130,13 @@ class PipResolver(DependencyResolver):
                         )
                     )
             ):
-                cached = self.resolve_from_cache(Dependency(package=dist.name,
-                                                            semantic_version=version,
-                                                            source=PipClassifier()))
-                if cached is not None:
-                    packages.extend(cached)
-                else:
-                    package = Package(
-                        name=dist.name,
-                        version=version,
-                        dependencies=self.get_dependencies(dist),
-                        source=PipClassifier()
-                    )
-                    packages.append(package)
+                package = Package(
+                    name=dist.name,
+                    version=version,
+                    dependencies=self.get_dependencies(dist),
+                    source=self
+                )
+                packages.append(package)
                 if not recurse:
                     break
                 queue.extend((child, self._get_specifier(child)) for child in dist.children)
@@ -146,9 +159,11 @@ class PipSourcePackage(SourcePackage):
         version_str = dist.specifier
         if version_str.startswith("=="):
             version_str = version_str[2:]
-        return PipSourcePackage(name=dist.name, version=PipResolver.get_version(version_str),
-                                dependencies=PipResolver.get_dependencies(dist), source_path=source_path,
-                                source=PipClassifier())
+        return PipSourcePackage(name=dist.name,
+                                version=PipResolver.get_version(version_str),
+                                dependencies=PipResolver.get_dependencies(dist),
+                                source_repo=SourceRepository(source_path),
+                                source=PipResolver())
 
     @staticmethod
     def from_repo(repo: SourceRepository) -> "PipSourcePackage":
@@ -179,30 +194,6 @@ class PipSourcePackage(SourcePackage):
                 version = PipResolver.get_version("0.0.0")
                 log.info(f"Could not detect {repo.path} version. Using: {version}")
             return PipSourcePackage(name=name, version=version, dependencies=PipResolver.get_dependencies(repo.path),
-                                    source_path=repo.path, source=PipClassifier())
+                                    source_repo=repo, source=PipResolver())
         else:
             raise ValueError(f"{repo.path} neither has a setup.py nor a requirements.txt")
-
-
-class PipClassifier(DependencyClassifier):
-    name = "pip"
-    description = "classifies the dependencies of Python packages using pip"
-
-    def can_classify(self, repo: SourceRepository) -> bool:
-        return (repo.path / "setup.py").exists() or (repo.path / "requirements.txt").exists()
-
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        repo.add(PipSourcePackage.from_repo(repo))
-        PipResolver(cache=cache).resolve_unsatisfied(repo, max_workers=1)  # Johnny Dep doesn't like concurrency
-
-    def docker_setup(self) -> Optional[DockerSetup]:
-        return DockerSetup(
-            apt_get_packages=["python3", "python3-pip", "python3-dev", "gcc"],
-            install_package_script="""#!/usr/bin/env bash
-pip3 install $1==$2
-""",
-            load_package_script="""#!/usr/bin/env bash
-python3 -c "import $1"
-""",
-            baseline_script="#!/usr/bin/env python3 -c \"\"\n"
-        )
