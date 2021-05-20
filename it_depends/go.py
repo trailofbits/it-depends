@@ -282,7 +282,7 @@ class GoResolver(DependencyResolver):
     def __init__(self, cache: Optional[PackageCache] = None):
         super().__init__(source=GoClassifier(), cache=cache)
 
-    def resolve_missing(self, dependency: Dependency, from_package: Optional[Package] = None) -> Iterator[Package]:
+    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         assert isinstance(dependency.semantic_version, GoSpec)
         version_string = str(dependency.semantic_version)
         module = GoModule.from_import(dependency.package, version_string)

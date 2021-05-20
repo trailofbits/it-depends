@@ -413,7 +413,7 @@ class DependencyResolver:
         if self._entries == 0:
             self.close()
 
-    def resolve_missing(self, dependency: Dependency, from_package: Package) -> Iterator[Package]:
+    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
         """
         Forces a resolution of a missing dependency
 
@@ -446,7 +446,7 @@ class DependencyResolver:
         self._cache.add(package)
 
     def resolve(
-            self, dependency: Dependency, from_package: Package, record_results: bool = True, check_cache: bool = True,
+            self, dependency: Dependency, record_results: bool = True, check_cache: bool = True,
 
     ) -> Iterator[Package]:
         """Yields all packages that satisfy the given dependency, resolving the dependency if necessary
@@ -459,17 +459,15 @@ class DependencyResolver:
             yield from self._cache.match(dependency)
             return
         # we never tried to resolve this dependency before, so do a manual resolution
-        for package in self.resolve_missing(dependency, from_package=from_package):
+        for package in self.resolve_missing(dependency):
             if record_results:
                 self.cache(package)
             yield package
         if record_results:
             self._cache.set_resolved(dependency)
 
-    def _resolve_worker(self, dependency: Dependency, from_package: Package) -> Tuple[Dependency, List[Package]]:
-        return dependency, list(self.resolve(
-            dependency, record_results=False, check_cache=False, from_package=from_package
-        ))
+    def _resolve_worker(self, dependency: Dependency) -> Tuple[Dependency, List[Package]]:
+        return dependency, list(self.resolve(dependency, record_results=False, check_cache=False))
 
     def resolve_unsatisfied(self, packages: PackageCache, max_workers: Optional[int] = None):
         """
@@ -489,7 +487,7 @@ class DependencyResolver:
             with concurrent.futures.ThreadPoolExecutor(
                     max_workers=max_workers) as executor:
                 futures = {
-                    executor.submit(self._resolve_worker, dep, package)
+                    executor.submit(self._resolve_worker, dep)
                     for dep, package in resolution_cache.extend(packages, t)
                 }
                 while futures:
@@ -502,7 +500,7 @@ class DependencyResolver:
                         packages.set_resolved(dep)
                         packages.extend(new_packages)
                         futures |= {
-                            executor.submit(self._resolve_worker, new_dep, package)
+                            executor.submit(self._resolve_worker, new_dep)
                             for new_dep, package in resolution_cache.extend(new_packages, t)
                         }
 

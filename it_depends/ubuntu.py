@@ -16,8 +16,8 @@ class UbuntuResolver(DependencyResolver):
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
 
-    def resolve_missing(self, dependency: Dependency, from_package: Package) -> Iterator[Package]:
-        source = from_package.source_name
+    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
+        source = dependency.source_name
         if not (source == "native" or source == "ubuntu" or source == "cmake" or source == "autotools"):
             return
 
