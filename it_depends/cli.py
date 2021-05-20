@@ -57,6 +57,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     with no_stdout() as real_stdout:
         with DBPackageCache(args.database) as cache:
             package_list = resolve(args.PATH, cache)
+
             if args.output_format == "dot":
                 real_stdout.write(cache.to_dot(package_list.source_packages).source)
             elif args.output_format == "json":

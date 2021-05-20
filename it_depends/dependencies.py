@@ -1,3 +1,4 @@
+import re
 import functools
 from abc import ABC, abstractmethod
 from collections import defaultdict
@@ -11,7 +12,6 @@ from typing import (
     Union
 )
 import sys
-
 from graphviz import Digraph
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
@@ -72,6 +72,16 @@ class Package:
     @property
     def source(self):
         return classifier_by_name(self.source_name)
+
+    @classmethod
+    def from_name(cls, fullname: str, dependencies: Iterable[Dependency] = ()):
+        """ A package selected by full name.
+         For example:
+                ubuntu:libc6@2.31
+        """
+        source, name_version = fullname.split(":")
+        name, version = name_version.split("@")
+        return cls(name=name, version=version, source=source, dependencies=dependencies)
 
     def to_dependency(self) -> Dependency:
         return Dependency(package=self.name, semantic_version=SemanticVersion.parse(str(self.version)), source=self.source_name)
@@ -151,7 +161,7 @@ class PackageCache(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def from_source(self, source: Optional[str]) -> "PackageCache":
+    def from_source(self, source_name: str) -> "PackageCache":
         raise NotImplementedError()
 
     @abstractmethod
@@ -254,13 +264,13 @@ class PackageCache(ABC):
 
 
 class InMemoryPackageCache(PackageCache):
-    def __init__(self, _cache: Optional[Dict[Optional[str], Dict[str, Dict[Version, Package]]]] = None):
+    def __init__(self, _cache: Optional[Dict[str, Dict[str, Dict[Version, Package]]]] = None):
         super().__init__()
         if _cache is None:
-            self._cache: Dict[Optional[str], Dict[str, Dict[Version, Package]]] = {}
+            self._cache: Dict[str, Dict[str, Dict[Version, Package]]] = {}
         else:
             self._cache = _cache
-        self._resolved: Dict[Optional[str], Set[Dependency]] = defaultdict(set)
+        self._resolved: Dict[str, Set[Dependency]] = defaultdict(set)
 
     def __len__(self):
         return sum(sum(map(len, source.values())) for source in self._cache.values())
@@ -274,8 +284,8 @@ class InMemoryPackageCache(PackageCache):
     def set_resolved(self, dependency: Dependency):
         self._resolved[dependency.source_name].add(dependency)
 
-    def from_source(self, source: Optional[str]) -> "PackageCache":
-        return InMemoryPackageCache({source: self._cache.setdefault(source, {})})
+    def from_source(self, source_name: str) -> "PackageCache":
+        return InMemoryPackageCache({source_name: self._cache.setdefault(source_name, {})})
 
     def package_names(self) -> FrozenSet[str]:
         ret: Set[str] = set()
@@ -343,24 +353,48 @@ class _ResolutionCache:
         return new_deps
 
 
+@functools.lru_cache()
+def resolvers():
+    """ Collection of all the default instances of DependencyResolvers
+    """
+    return tuple(cls() for cls in DependencyResolver.__subclasses__())
+
+
+@functools.lru_cache()
+def resolver_by_name(name: str):
+    """ Finds a resolver instance by name. The result is cached."""
+    for instance in resolvers():
+        if instance.name == name:
+            return instance
+    raise KeyError(name)
+
 class DependencyResolver:
     """  Finds a set of Packages that agrees with a Dependency specification
     """
-    def __init__(self, source: Union[str, "DependencyClassifier"], cache: Optional[PackageCache] = None):
+    name: str
+    description: str
+    _instance = None
+
+    def __new__(class_, *args, **kwargs):
+        """ A singleton (Only one default instance exists) """
+        if not isinstance(class_._instance, class_):
+            class_._instance = super().__new__(class_, *args, **kwargs)
+        return class_._instance
+
+    def __init_subclass__(cls, **kwargs):
+        if not hasattr(cls, "name") or cls.name is None:
+            raise TypeError(f"{cls.__name__} must define a `name` class member")
+        elif not hasattr(cls, "description") or cls.description is None:
+            raise TypeError(f"{cls.__name__} must define a `description` class member")
+        resolvers.cache_clear()
+
+
+    def __init__(self, cache: Optional[PackageCache] = None):
         if cache is None:
             self._cache: PackageCache = InMemoryPackageCache()
         else:
             self._cache = cache
-        # type forgiveness
-        if isinstance(source, str):
-            self.source_name = source
-        else:
-            self.source_name = source.name
         self._entries: int = 0
-
-    @property
-    def source(self):
-        return classifier_by_name(self.source_name)
 
     def open(self):
         self._cache.__enter__()
@@ -474,7 +508,9 @@ class DependencyResolver:
 
 
 class SourcePackage(Package):
-    """A package extracted from source code rather than a package repository"""
+    """A package extracted from source code rather than a package repository
+    It is a package that exists on disk, but not necessarily in a remote repository.
+    """
 
     def __init__(
             self,
@@ -491,7 +527,11 @@ class SourcePackage(Package):
         return f"{super().__str__()}:{self.source_path.absolute()!s}"
 
 
-class SourceRepository(InMemoryPackageCache):
+class PackageRepository(InMemoryPackageCache):
+    pass
+
+class SourceRepository(PackageRepository):
+    """represents a repo that we are analyzing from source"""
     def __init__(
             self,
             path: Union[Path, str],
@@ -503,6 +543,26 @@ class SourceRepository(InMemoryPackageCache):
         self.path: Path = path
         self._packages: Set[SourcePackage] = set(packages)
         self.extend(self._packages)
+
+    @property
+    def source_packages(self) -> Set[SourcePackage]:
+        return self._packages
+
+    def add(self, package: Package):
+        if isinstance(package, SourcePackage):
+            self._packages.add(package)
+        super().add(package=package)
+
+class SpecRepository(PackageRepository):
+    """A repository of packages that we are analyzing starting from a package specification"""
+    def __init__(
+            self,
+            package_spec: str,
+            packages: Iterable[SourcePackage] = (),
+    ):
+        super().__init__()
+        self.package_spec: str = package_spec
+        self.extend(packages)
 
     @property
     def source_packages(self) -> Set[SourcePackage]:
@@ -627,8 +687,15 @@ class UnusedClassifier(DependencyClassifier):
         raise NotImplementedError()
 
 
-def resolve(path: Union[str, Path], cache: Optional[PackageCache] = None) -> SourceRepository:
-    repo = SourceRepository(path)
+def resolve(path_or_spec: Union[str, Path], cache: Optional[PackageCache] = None) -> PackageRepository:
+    if re.match(r"[^:/]+:[^@/]+@.*", path_or_spec):
+        repo = SpecRepository(path_or_spec)
+
+        for resolver in DependencyResolver.__subclasses__():
+            breakpoint()
+            resolver(cache=cache)
+    else:
+        repo = SourceRepository(path_or_spec)
     try:
         if cache is None:
             cm = nullcontext()

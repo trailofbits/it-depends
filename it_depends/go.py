@@ -289,9 +289,9 @@ class GoResolver(DependencyResolver):
         yield Package(
             name=module.name,
             version=GoVersion(version_string),  # type: ignore
-            source=self.source,
+            source=dependency.source,
             dependencies=[
-                Dependency(package=package, semantic_version=GoSpec(version), source=self.source)
+                Dependency(package=package, semantic_version=GoSpec(version), source=dependency.source)
                 for package, version in module.dependencies
             ]
         )
