@@ -11,7 +11,7 @@ class UnusedResolver(DependencyResolver):
     def is_available(self) -> ResolverAvailability:
         return ResolverAvailability(False, "Unused resolver")
 
-    def can_resolve(self, repo) -> bool:
+    def can_resolve_from_source(self, repo) -> bool:
         return False
 
     def resolve_from_source(self, repo, cache = None):

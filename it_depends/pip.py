@@ -22,7 +22,7 @@ class PipResolver(DependencyResolver):
     name = "pip"
     description = "classifies the dependencies of Python packages using pip"
 
-    def can_resolve(self, repo: SourceRepository) -> bool:
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return (repo.path / "setup.py").exists() or (repo.path / "requirements.txt").exists()
 
     def resolve_from_source(
@@ -142,10 +142,11 @@ class PipResolver(DependencyResolver):
                 queue.extend((child, self._get_specifier(child)) for child in dist.children)
         return packages
 
-    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
+        print (dependency)
         try:
             return iter(self.resolve_dist(
-                JohnnyDist(f"{dependency.package}{dependency.semantic_version}"), version=dependency.semantic_version,
+                JohnnyDist(f"{dependency.package}"), version=dependency.semantic_version,
                 recurse=False
             ))
         except ValueError as e:
@@ -163,7 +164,7 @@ class PipSourcePackage(SourcePackage):
                                 version=PipResolver.get_version(version_str),
                                 dependencies=PipResolver.get_dependencies(dist),
                                 source_repo=SourceRepository(source_path),
-                                source=PipResolver())
+                                source="pip")
 
     @staticmethod
     def from_repo(repo: SourceRepository) -> "PipSourcePackage":
@@ -194,6 +195,6 @@ class PipSourcePackage(SourcePackage):
                 version = PipResolver.get_version("0.0.0")
                 log.info(f"Could not detect {repo.path} version. Using: {version}")
             return PipSourcePackage(name=name, version=version, dependencies=PipResolver.get_dependencies(repo.path),
-                                    source_repo=repo, source=PipResolver())
+                                    source_repo=repo, source="pip")
         else:
             raise ValueError(f"{repo.path} neither has a setup.py nor a requirements.txt")

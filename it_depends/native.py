@@ -100,9 +100,9 @@ class NativeResolver(DependencyResolver):
 
     def _native_dep(self, package: Package) -> Dependency:
         return Dependency(
-            package=f"{package.source_name}:{package.name}",
+            package=f"{package.name}",
             semantic_version=SemanticVersion.parse(str(package.version)),
-            source=self
+            source=package.source
         )
 
     def expand(self, existing: PackageCache, max_workers: Optional[int] = None, cache: Optional[PackageCache] = None):
@@ -110,8 +110,8 @@ class NativeResolver(DependencyResolver):
         for package in existing:
             # Loop over all of the packages that have already been classified by other classifiers
             if package.source is not None and package.source not in sources \
-                    and package.source.docker_setup() is not None:
-                sources.add(package.source)
+                    and package.resolver.docker_setup() is not None:
+                sources.add(package.resolver)
         if max_workers is None:
             max_workers = max(cpu_count() // 2, 1)
         for source in tqdm(sources, desc="resolving native libs", leave=False, unit=" sources"):
@@ -162,11 +162,11 @@ class NativeResolver(DependencyResolver):
                                             required_version = SimpleSpec(f"~={library.version}")
                                         except ValueError:
                                             required_version = SimpleSpec("*")
-                                        package.dependencies[library.name] = Dependency(
+                                        package.dependencies.add(Dependency(
                                             package=library.name,
                                             semantic_version=required_version,
                                             source=self
-                                        )
+                                        ))
                                         # re-add the package so we can cache the new dependency
                                         existing.add(package)
                             if cache is not None:
@@ -182,9 +182,9 @@ class NativeResolver(DependencyResolver):
                                                "Make sure it is installed and in the PATH.")
         return ResolverAvailability(True)
 
-    def can_resolve(self, repo: SourceRepository) -> bool:
-        for resolver in sorted(resolvers()):  # type: ignore
-            if resolver.docker_setup() is not None and resolver.can_resolve(repo):
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
+        for resolver in resolvers():  # type: ignore
+            if resolver.docker_setup() is not None and resolver.can_resolve_from_source(repo):
                 return True
         return False
 

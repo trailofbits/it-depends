@@ -22,7 +22,7 @@ from .dependencies import (
 logger = logging.getLogger(__name__)
 
 
-class CMakeClassifier(DependencyResolver):
+class CMakeResolver(DependencyResolver):
     """ This attempts to parse CMakelists.txt in an cmake based repo.
 
     CMakelists.txt is patched so no errors ar fatal and then we trace cmake
@@ -62,7 +62,7 @@ class CMakeClassifier(DependencyResolver):
 
         return ResolverAvailability(True)
 
-    def can_resolve(self, repo: SourceRepository) -> bool:
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return (repo.path / "CMakeLists.txt").exists()
 
     def _find_package(
@@ -394,9 +394,9 @@ class CMakeClassifier(DependencyResolver):
         return SourcePackage(
             name=package_name,
             version=Version.coerce(package_version),
-            source=self,
+            source=self.name,
             dependencies=(
-                Dependency(package=name, semantic_version=SimpleSpec(version is None and "*" or version), source=self)
+                Dependency(package=name, semantic_version=SimpleSpec(version is None and "*" or version), source="ubuntu")
                 for name, version in depsd.items()
             ),
             source_repo=repo

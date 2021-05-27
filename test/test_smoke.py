@@ -4,11 +4,65 @@ import os
 import json
 import urllib
 import zipfile
-from it_depends.dependencies import resolve
+from it_depends.dependencies import SimpleSpec, Package, Dependency, resolve, SourceRepository, resolvers, resolver_by_name
 
 IT_DEPENDS_DIR: Path = Path(__file__).absolute().parent.parent
 TESTS_DIR: Path = Path(__file__).absolute().parent
 REPOS_FOLDER = TESTS_DIR / "repos"
+
+class TestResolvers(TestCase):
+    maxDiff = None
+    def test_resolvers(self):
+        """We see all known resolver"""
+        resolver_names = {resolver.name for resolver in resolvers()}
+        self.assertSetEqual(resolver_names, {'cargo', 'ubuntu', 'native', 'autotools', 'go', 'cmake', 'npm', 'pip'})
+        self.assertSetEqual(resolvers(), {resolver_by_name(name) for name in resolver_names})
+
+    def test_objects(self):
+        # To/From string for nicer output and ergonomics
+        self.assertEqual(str(Dependency.from_string("pip:cvedb@*")), "pip:cvedb@*")
+        self.assertEqual(str(Package.from_string("pip:cvedb@0.0.1")), "pip:cvedb@0.0.1")
+
+        # Basic Dependency object handling
+        dep = Dependency.from_string("pip:cvedb@*")
+        self.assertEqual(dep.source, "pip")
+        self.assertEqual(dep.package, "cvedb")
+        self.assertTrue(dep.semantic_version == SimpleSpec("*"))
+        self.assertTrue(Dependency(source="pip", package="cvedb", semantic_version=SimpleSpec("*")) ==
+                                    dep)
+
+        # Dependency match
+        solution = Package(source="pip", name="cvedb", version="0.0.1")
+        self.assertTrue(dep.match(solution))
+        dep2 = Dependency.from_string("pip:cvedb@<0.2.1")
+        self.assertTrue(dep2.match(Package.from_string("pip:cvedb@0.2.0")))
+        self.assertFalse(dep2.match(Package.from_string("pip:cvedb@0.2.1")))
+
+
+    def _test_resolver(self, resolver, dep):
+        dep = Dependency.from_string(dep)
+        resolver = resolver_by_name(resolver)
+        self.assertIs(dep.resolver, resolver)
+
+        solutions = tuple(resolver.resolve(dep))
+        self.assertGreater(len(solutions), 0)
+        for package in solutions:
+            self.assertEqual(package.source, dep.source)
+            self.assertEqual(package.name, dep.package)
+            self.assertTrue(dep.semantic_version.match(package.version))
+            self.assertTrue(dep.match(package))
+
+    def test_pip(self):
+        self._test_resolver("pip", "pip:cvedb@*")
+
+    def test_ubuntu(self):
+        self._test_resolver("ubuntu", "ubuntu:libc6@*")
+
+    def test_cargo(self):
+        self._test_resolver("cargo", "cargo:rand_core@0.6.2")
+
+    def test_npm(self):
+        self._test_resolver("npm", "npm:crypto-js@4.0.0")
 
 
 class TestSmoke(TestCase):
@@ -28,7 +82,7 @@ class TestSmoke(TestCase):
             with zipfile.ZipFile(SNAPSHOT_ZIP, "r") as zip_ref:
                 zip_ref.extractall(REPOS_FOLDER)
 
-        package_list = resolve(SNAPSHOT_FOLDER)
+        package_list = resolve(SourceRepository(SNAPSHOT_FOLDER))
         result_it_depends = json.dumps(package_list.to_obj(), indent=4, sort_keys=True)
         if not result_json or result_it_depends != result_json:
             print(f"<{result_it_depends}>")
@@ -40,9 +94,6 @@ class TestSmoke(TestCase):
         "0.0.4": {
             "dependencies": {
                 "cvss": "~=2.2",
-                "libdl": "~=2",
-                "libnss_files": "~=2",
-                "libtinfo": "~=6",
                 "python-dateutil": "~=2.8.1",
                 "tqdm": "~=4.48.0"
             },
@@ -52,38 +103,13 @@ class TestSmoke(TestCase):
     },
     "cvss": {
         "2.2.0": {
-            "dependencies": {
-                "libdl": "~=2",
-                "libnss_files": "~=2",
-                "libtinfo": "~=6"
-            },
+            "dependencies": {},
             "source": "pip"
-        }
-    },
-    "libdl": {
-        "2.0.0": {
-            "dependencies": {},
-            "source": "native"
-        }
-    },
-    "libnss_files": {
-        "2.0.0": {
-            "dependencies": {},
-            "source": "native"
-        }
-    },
-    "libtinfo": {
-        "6.0.0": {
-            "dependencies": {},
-            "source": "native"
         }
     },
     "python-dateutil": {
         "2.8.1": {
             "dependencies": {
-                "libdl": "~=2",
-                "libnss_files": "~=2",
-                "libtinfo": "~=6",
                 "six": ">=1.5"
             },
             "source": "pip"
@@ -91,21 +117,13 @@ class TestSmoke(TestCase):
     },
     "six": {
         "1.5.0": {
-            "dependencies": {
-                "libdl": "~=2",
-                "libnss_files": "~=2",
-                "libtinfo": "~=6"
-            },
+            "dependencies": {},
             "source": "pip"
         }
     },
     "tqdm": {
         "4.48.0": {
-            "dependencies": {
-                "libdl": "~=2",
-                "libnss_files": "~=2",
-                "libtinfo": "~=6"
-            },
+            "dependencies": {},
             "source": "pip"
         }
     }

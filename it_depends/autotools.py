@@ -20,7 +20,7 @@ from .dependencies import (
 logger = logging.getLogger(__name__)
 
 
-class AutotoolsClassifier(DependencyResolver):
+class AutotoolsResolver(DependencyResolver):
     """ This attempts to parse configure.ac in an autotool based repo.
     It supports the following macros:
         AC_INIT, AC_CHECK_HEADER, AC_CHECK_LIB, PKG_CHECK_MODULES
@@ -38,7 +38,7 @@ class AutotoolsClassifier(DependencyResolver):
                                                "Make sure it is installed and in the PATH.")
         return ResolverAvailability(True)
 
-    def can_resolve(self, repo: SourceRepository) -> bool:
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return (repo.path / "configure.ac").exists()
 
     @staticmethod
@@ -52,7 +52,7 @@ class AutotoolsClassifier(DependencyResolver):
         package_name = file_to_package(f"{re.escape(header_file)}", file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name,
                           semantic_version=SimpleSpec("*"),
-                          source=AutotoolsClassifier()
+                          source="ubuntu"
                           )
 
     @staticmethod
@@ -65,7 +65,7 @@ class AutotoolsClassifier(DependencyResolver):
         lib_file, function_name = function.split(".")
         logger.info(f"AC_CHECK_LIB {lib_file}")
         package_name = file_to_package(f"lib{re.escape(lib_file)}(.a|.so)", file_to_package_cache=file_to_package_cache)
-        return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source=AutotoolsClassifier())
+        return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
     @staticmethod
     def _pkg_check_modules(module_name, version=None, file_to_package_cache=None):
@@ -80,7 +80,7 @@ class AutotoolsClassifier(DependencyResolver):
         module_file = re.escape(module_name + ".pc")
         logger.info(f"PKG_CHECK_MODULES {module_file}, {version}")
         package_name = file_to_package(module_file, file_to_package_cache=file_to_package_cache)
-        return Dependency(package=package_name, semantic_version=SimpleSpec(version), source=AutotoolsClassifier())
+        return Dependency(package=package_name, semantic_version=SimpleSpec(version), source="ubuntu")
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
@@ -121,24 +121,19 @@ class AutotoolsClassifier(DependencyResolver):
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
         logger.info(f"Getting dependencies for autotool repo {repo.path.absolute()}")
-        orig_dir = getcwd()
-        chdir(repo.path)
-        try:
-            with tempfile.NamedTemporaryFile() as tmp:
-                # builds a temporary copy of configure.ac containing aclocal env
-                subprocess.check_output(("aclocal", f"--output={tmp.name}"))
-                with open(tmp.name, "ab") as tmp2:
-                    with open("./configure.ac", "rb") as conf:
-                        tmp2.write(conf.read())
+        with tempfile.NamedTemporaryFile() as tmp:
+            # builds a temporary copy of configure.ac containing aclocal env
+            subprocess.check_output(("aclocal", f"--output={tmp.name}"), cwd=repo.path)
+            with open(tmp.name, "ab") as tmp2:
+                with open(repo.path/"configure.ac", "rb") as conf:
+                    tmp2.write(conf.read())
 
-                trace = subprocess.check_output(
-                    ["autoconf", "-t", 'AC_CHECK_HEADER:$n:$1',
-                                 "-t", 'AC_CHECK_LIB:$n:$1.$2',
-                                 "-t", 'PKG_CHECK_MODULES:$n:$2',
-                                 "-t", 'PKG_CHECK_MODULES_STATIC:$n', tmp.name]).decode("utf8")
-                configure = subprocess.check_output(["autoconf", tmp.name]).decode("utf8")
-        finally:
-            chdir(orig_dir)
+            trace = subprocess.check_output(
+                ("autoconf", "-t", 'AC_CHECK_HEADER:$n:$1',
+                             "-t", 'AC_CHECK_LIB:$n:$1.$2',
+                             "-t", 'PKG_CHECK_MODULES:$n:$2',
+                             "-t", 'PKG_CHECK_MODULES_STATIC:$n', tmp.name), cwd=repo.path).decode("utf8")
+            configure = subprocess.check_output(["autoconf", tmp.name], cwd=repo.path).decode("utf8")
 
         file_to_package_cache: List[Tuple[str]] = []
         deps = []
@@ -180,7 +175,7 @@ class AutotoolsClassifier(DependencyResolver):
         return SourcePackage(
             name=package_name,
             version=Version.coerce(package_version),
-            source=self,
+            source=self.name,
             dependencies=deps,
             source_repo=repo
         )

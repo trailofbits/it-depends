@@ -18,10 +18,9 @@ class UbuntuResolver(DependencyResolver):
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
 
-    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
-        source = dependency.source_name
-        if not (source == "native" or source == "ubuntu" or source == "cmake" or source == "autotools"):
-            return
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
+        if dependency.source != "ubuntu":
+            raise ValueError(f"{self} can not resolve dependencies from other sources ({dependency})")
 
         # Parses the dependencies of dependency.package out of the `apt show` command
         logger.info(f"Running apt-cache depends {dependency.package}")
@@ -45,7 +44,13 @@ class UbuntuResolver(DependencyResolver):
                         raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
                     dep_package = matched.group('package')
                     dep_version = matched.group('version')
-                    dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                    try:
+                        dep_version = dep_version.replace(" ", "")
+                        SimpleSpec(dep_version.replace(" ", ""))
+                    except Exception as e:
+                        print ("UBUNTU DEP VERSION SPEC FAIL", dep_version)
+                        dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+
                     deps.append((dep_package, dep_version))
             if line.startswith("Version: "):
                 version = line[9:]
@@ -82,7 +87,7 @@ class UbuntuResolver(DependencyResolver):
 
         return ResolverAvailability(True)
 
-    def can_resolve(self, repo: SourceRepository) -> bool:
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return True
 
     def resolve_from_source(

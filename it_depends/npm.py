@@ -18,7 +18,7 @@ class NPMResolver(DependencyResolver):
     name = "npm"
     description = "classifies the dependencies of JavaScript packages using `npm`"
 
-    def can_resolve(self, repo: SourceRepository) -> bool:
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return (repo.path / "package.json").exists()
 
     def resolve_from_source(
@@ -52,8 +52,8 @@ class NPMResolver(DependencyResolver):
             version = "0"
         version = Version.coerce(version)
         return SourcePackage(package["name"], version, source_repo=source_repository,
-                             source=NPMResolver(), dependencies=(
-            Dependency(package=dep_name, semantic_version=NPMResolver.parse_spec(dep_version), source=NPMResolver())
+                             source="npm", dependencies=(
+            Dependency(package=dep_name, semantic_version=NPMResolver.parse_spec(dep_version), source="npm")
             for dep_name, dep_version in dependencies.items()
         ))
 

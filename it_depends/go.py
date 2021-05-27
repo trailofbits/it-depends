@@ -87,7 +87,9 @@ class GoSpec(SimpleSpec):
     class Parser(SimpleSpec.Parser):
         @classmethod
         def parse(cls, expression):
-            return Range(operator=Range.OP_EQ, target=GoVersion(expression))
+            if not expression.startswith("="):
+                raise NotImplementedError(f"Only EQ version specification implemented for go ({expression})")
+            return Range(operator=Range.OP_EQ, target=GoVersion(expression[1:]))
 
     def __contains__(self, item):
         return item == self.clause.target
@@ -290,7 +292,7 @@ class GoResolver(DependencyResolver):
             version=GoVersion(version_string),  # type: ignore
             source=dependency.source,
             dependencies=[
-                Dependency(package=package, semantic_version=GoSpec(version), source=dependency.source)
+                Dependency(package=package, semantic_version=GoSpec(f"={version}"), source=dependency.source)
                 for package, version in module.dependencies
             ]
         )
@@ -303,7 +305,7 @@ class GoResolver(DependencyResolver):
     def parse_version(cls, version_string: str) -> Version:
         return GoVersion(version_string)  # type: ignore
 
-    def can_resolve(self, repo: SourceRepository) -> bool:
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return (repo.path / "go.mod").exists()
 
     def resolve_from_source(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
@@ -320,9 +322,9 @@ class GoResolver(DependencyResolver):
             name=module.name,
             version=GoVersion(version),  # type: ignore
             source_repo=repo,
-            source=self,
+            source=self.name,
             dependencies=[
-                Dependency(package=package, semantic_version=GoSpec(version), source=self)
+                Dependency(package=package, semantic_version=GoSpec(f"={version}"), source=self)
                 for package, version in module.dependencies
             ]
         )
