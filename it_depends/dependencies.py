@@ -83,9 +83,9 @@ class Package:
             "version": str(self.version),
             "dependencies": {
                 package: str(dep.semantic_version) for package, dep in self.dependencies.items()
-                }
+            }
         }
-        return ret
+        return ret  # type: ignore
 
     def dumps(self) -> str:
         return json.dumps(self.to_obj())
