@@ -127,13 +127,25 @@ class PackageCache(ABC):
 
     @abstractmethod
     def __len__(self):
+        """Returns the number of packages in this cache."""
         raise NotImplementedError()
 
     @abstractmethod
     def __iter__(self) -> Iterator[Package]:
+        """Iterates over the packages in this cache."""
         raise NotImplementedError()
 
     def __contains__(self, package_spec: Union[str, Package, Dependency]):
+        """
+        Tests whether a given package name, package, or dependency exists in this collection of packages.
+
+        If package_spec is a string, treat it as a package name.
+        If package_spec is a Dependency, return True if at least one Package exists in this cache that satisfies the
+        dependency.
+
+        This call will not perform any dependency resolution, it solely checks against the contents of this cache.
+
+        """
         if isinstance(package_spec, Dependency):
             return self.was_resolved(package_spec)
         try:
@@ -164,6 +176,15 @@ class PackageCache(ABC):
 
     @abstractmethod
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
+        """
+        Yields all packages in this collection of packages that match the given specifier.
+
+        If `to_match` is a string, it is interpreted as a package name.
+
+        This function does not perform any dependency resolution;
+        it only matches against existing packages in this cache.
+
+        """
         raise NotImplementedError()
 
     def to_obj(self):
