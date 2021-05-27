@@ -134,7 +134,7 @@ class Package:
                 f"{dep.source}:{dep.package}": str(dep.semantic_version) for dep in self.dependencies
             }
         }
-        return ret
+        return ret  # type: ignore
 
     def dumps(self) -> str:
         return json.dumps(self.to_obj())
@@ -165,17 +165,20 @@ class PackageCache(ABC):
 
     @abstractmethod
     def __len__(self):
+        """Returns the number of packages in this cache."""
         raise NotImplementedError()
 
     @abstractmethod
     def __iter__(self) -> Iterator[Package]:
+        """Iterates over the packages in this cache."""
         raise NotImplementedError()
 
-    def __contains__(self, package_spec: Union[Package, Dependency]):
-        if isinstance(package_spec, Package):
-            package_spec = package_spec.to_dependency()
-        if isinstance(package_spec, Dependency):
-            return self.was_resolved(package_spec)
+    def __contains__(self, pkg: Package):
+        """True if pkg exists in this in this collection of packages."""
+        for pkg_i in self:
+            if pkg_i == pkg:
+                return True
+        return False
 
     @abstractmethod
     def was_resolved(self, dependency: Dependency) -> bool:
@@ -198,7 +201,14 @@ class PackageCache(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def match(self, to_match: Union[Package, Dependency]) -> Iterator[Package]:
+    def match(self, to_match: Dependency) -> Iterator[Package]:
+        """
+        Yields all packages in this collection of packages that match the Dependncy.
+
+        This function does not perform any dependency resolution;
+        it only matches against existing packages in this cache.
+
+        """
         raise NotImplementedError()
 
     def to_obj(self):
@@ -301,7 +311,6 @@ class PackageCache(ABC):
                 if not self.was_resolved(dep) and dep not in unresolved:
                     unresolved.add(dep)
                     yield dep
-        raise StopIteration
 
 class InMemoryPackageCache(PackageCache):
     def __init__(self, _cache: Optional[Dict[str, Dict[str, Dict[Version, Package]]]] = None):

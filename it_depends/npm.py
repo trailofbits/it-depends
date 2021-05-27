@@ -40,8 +40,11 @@ class NPMResolver(DependencyResolver):
             raise ValueError(f"Expected a package.json file at {path!s}")
         with open(path, "r") as json_file:
             package = json.load(json_file)
-        if "name" not in package:
-            raise ValueError(f"Expected \"name\" key in {path!s}")
+        if "name" in package:
+            name = package["name"]
+        else:
+            # use the parent directory name
+            name = path.parent.name
         if "dependencies" in package:
             dependencies: Dict[str, str] = package["dependencies"]
         else:
@@ -51,7 +54,8 @@ class NPMResolver(DependencyResolver):
         else:
             version = "0"
         version = Version.coerce(version)
-        return SourcePackage(package["name"], version, source_repo=source_repository,
+
+        return SourcePackage(name, version, source_repo=source_repository,
                              source="npm", dependencies=(
             Dependency(package=dep_name, semantic_version=NPMResolver.parse_spec(dep_version), source="npm")
             for dep_name, dep_version in dependencies.items()
