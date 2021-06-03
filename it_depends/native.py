@@ -111,9 +111,8 @@ class NativeResolver(DependencyResolver):
                 docker_setup = source.docker_setup()
                 with make_dockerfile(docker_setup) as dockerfile:
                     t.update(1)
-                    container = DockerContainer(
-                        dockerfile, f"trailofbits/it-depends-{source.name!s}", tag=it_depends_version()
-                    )
+                    container = DockerContainer(f"trailofbits/it-depends-{source.name!s}", dockerfile,
+                                                tag=it_depends_version())
                     t.update(1)
                     container.rebuild()
                     t.update(1)

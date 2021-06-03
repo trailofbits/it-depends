@@ -4,10 +4,12 @@ import os
 from pathlib import Path
 import re
 import logging
+import shutil
 import subprocess
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 from urllib import request
 
+from .docker import DockerContainer, InMemoryDockerfile
 from .it_depends import APP_DIRS
 
 logger = logging.getLogger(__name__)
@@ -51,11 +53,70 @@ def _popularity(packagename):
 all_packages: Optional[Tuple[str, ...]] = None
 
 
+_container: Optional[DockerContainer] = None
+
+_UBUNTU_NAME_MATCH: re.Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
+_VERSION_ID_MATCH: re.Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
+
+
+def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
+    """
+    Tests whether the current system is running Ubuntu
+
+    If `check_version` is not None, the specific version of Ubuntu is also tested.
+    """
+    os_release_path = Path("/etc/os-release")
+    if not os_release_path.exists():
+        return False
+    is_ubuntu = False
+    version: Optional[str] = None
+    with open(os_release_path, "r") as f:
+        for line in f.readlines():
+            line = line.strip()
+            is_ubuntu = is_ubuntu or bool(_UBUNTU_NAME_MATCH.match(line))
+            if check_version is None:
+                if is_ubuntu:
+                    return True
+            elif version is None:
+                m = _VERSION_ID_MATCH.match(line)
+                if m:
+                    version = m.group(1)
+            else:
+                break
+    return is_ubuntu and (check_version is None or version == check_version)
+
+
+def run_command(*args: str) -> bytes:
+    """
+    Runs the given command in Ubuntu 20.04
+
+    If the host system is not runnign Ubuntu 20.04, the command is run in Docker.
+
+    """
+    if shutil.which(args[0]) is None or not is_running_ubuntu(check_version="20.04"):
+        # we do not have apt installed natively or are not running Ubuntu
+        global _container
+        if _container is None:
+            with InMemoryDockerfile("""FROM ubuntu:20.04
+
+RUN apt-get update && apt-get install -y apt-file && apt-file update
+""") as dockerfile:
+                _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
+                _container.rebuild()
+        p = _container.run(*args, interactive=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, rebuild=False)
+    else:
+        p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if p.returncode != 0:
+        raise subprocess.CalledProcessError(p.returncode, cmd=f"{' '.join(args)}")
+    return p.stdout
+
+
+
 def get_apt_packages() -> Tuple[str, ...]:
     global all_packages
     if all_packages is None:
         logger.info("Rebuilding global apt package list.")
-        raw_packages = subprocess.check_output(["apt", "list"], stderr=subprocess.DEVNULL).decode("utf8")
+        raw_packages = run_command("apt", "list").decode("utf-8")
         all_packages = tuple(x.split("/")[0] for x in raw_packages.splitlines() if x)
 
         logger.info(f"Global apt package count {len(all_packages)}")
@@ -126,8 +187,7 @@ def _file_to_package_apt_file(filename: str, arch: str = "amd64") -> str:
     if arch not in ("amd64", "i386"):
         raise ValueError("Only amd64 and i386 supported")
     logger.debug(f'Running [{" ".join(["apt-file", "-x", "search", filename])}]')
-    contents = subprocess.run(["apt-file", "-x", "search", filename],
-                              stdout=subprocess.PIPE).stdout.decode("utf8")
+    contents = run_command("apt-file", "-x", "search", filename).decode("utf-8")
     db: Dict[str, str] = {}
     selected = None
     for line in contents.split("\n"):
@@ -149,7 +209,7 @@ def _file_to_package_apt_file(filename: str, arch: str = "amd64") -> str:
 
 @functools.lru_cache(maxsize=128)
 def file_to_package(filename: str, arch: str = "amd64") -> str:
-    filename = f"/{filename}$"
+    filename = f"^{Path(filename).absolute()}$"
     return _file_to_package_apt_file(filename, arch=arch)
 
 
@@ -168,8 +228,7 @@ def cached_file_to_package(pattern: str, file_to_package_cache: Optional[List[Tu
     # a new package is chosen add all the files it provides to our cache
     # uses `apt-file` command line tool
     if file_to_package_cache is not None:
-        contents = subprocess.run(["apt-file", "list", package],
-                                  stdout=subprocess.PIPE).stdout.decode("utf8")
+        contents = run_command("apt-file", "list", package).decode("utf-8")
         for line in contents.split("\n"):
             if ":" not in line:
                 break
