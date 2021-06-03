@@ -6,7 +6,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
-from .utils import cached_file_to_package as file_to_package, search_package
+from .apt import cached_file_to_package as file_to_package, search_package
 import logging
 try:
     # Used to parse the cmake trace. If this is not installed the plugin will
