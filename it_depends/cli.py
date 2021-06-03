@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import json
 import sys
 from typing import Iterator, Optional, Sequence, TextIO
-
+from .utils import show_graph
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import classifiers, resolve
 
@@ -31,7 +31,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--database", "-db", type=str, nargs="?", default=DEFAULT_DB_PATH,
                         help="alternative path to load/store the database, or \":memory:\" to cache all results in "
                              f"memory rather than reading/writing to disk (default is {DEFAULT_DB_PATH!s})")
-    parser.add_argument("--output-format", "-f", choices=("json", "dot"), default="json",
+    parser.add_argument("--output-format", "-f", choices=("json", "dot", "html"), default="json",
                         help="how the output should be formatted (default is JSON)")
 
     args = parser.parse_args(argv[1:])
@@ -59,6 +59,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             package_list = resolve(args.PATH, cache)
             if args.output_format == "dot":
                 real_stdout.write(cache.to_dot(package_list.source_packages).source)
+            if args.output_format == "html":
+                show_graph(package_list.to_obj())
             elif args.output_format == "json":
                 # assume JSON
                 real_stdout.write(json.dumps(package_list.to_obj(), indent=4))
