@@ -8,8 +8,9 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, sessionmaker
 
 from .dependencies import classifier_by_name, Dependency, DependencyClassifier, Package, SemanticVersion, PackageCache
+from .it_depends import APP_DIRS
 
-DEFAULT_DB_PATH = Path.home() / ".config" / "it-depends" / "dependencies.sqlite"
+DEFAULT_DB_PATH = Path(APP_DIRS.user_cache_dir) / "dependencies.sqlite"
 
 Base = declarative_base()
 

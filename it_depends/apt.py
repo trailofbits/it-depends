@@ -1,13 +1,18 @@
 import functools
 import gzip
 import os
+from pathlib import Path
 import re
 import logging
 import subprocess
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from urllib import request
 
+from .it_depends import APP_DIRS
+
 logger = logging.getLogger(__name__)
+
+CACHE_DIR = Path(APP_DIRS.user_cache_dir)
 
 r''' Evan disapproves this
 popdb = {}
@@ -75,6 +80,7 @@ def search_package(package: str) -> str:
 
 
 contents_db: Dict[str, List[str]] = {}
+_loaded_dbs: Set[Path] = set()
 
 
 @functools.lru_cache(maxsize=128)
@@ -88,19 +94,17 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
         raise ValueError("Only amd64 and i386 supported")
     selected = None
 
-    # TODO find better location https://pypi.org/project/appdirs/?
-    dbfile = os.path.join(os.path.dirname(__file__), f"Contents-{arch}.gz")
-    if not os.path.exists(dbfile):
-        request.urlretrieve(
-            f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz",
-            dbfile)
-    if not contents_db:
+    dbfile = CACHE_DIR / f"Contents-{arch}.gz"
+    if not dbfile.exists():
+        request.urlretrieve(f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz", dbfile)
+    if not dbfile in _loaded_dbs:
         logger.info("Rebuilding contents db")
-        with gzip.open(dbfile, "rt") as contents:
+        with gzip.open(str(dbfile), "rt") as contents:
             for line in contents.readlines():
                 filename_i, *packages_i = re.split(r"\s+", line[:-1])
                 assert(len(packages_i) > 0)
                 contents_db.setdefault(filename_i, []).extend(packages_i)
+        _loaded_dbs.add(dbfile)
 
     regex = re.compile("(.*/)+"+filename+"$")
     matches = 0
@@ -111,8 +115,7 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
                 if selected is None or len(selected[0]) > len(filename_i):
                     selected = filename_i, package_i
     if selected:
-        logger.info(
-            f"Found {matches} matching packages for {filename}. Choosing {selected[1]}")
+        logger.info(f"Found {matches} matching packages for {filename}. Choosing {selected[1]}")
     else:
         raise ValueError(f"{filename} not found in Contents database")
     return selected[1]
