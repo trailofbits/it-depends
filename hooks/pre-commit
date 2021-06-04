@@ -57,7 +57,9 @@ if [ $RESULT -ne 0 ]; then
 Failed Python lint:
 
     flake8 it_depends test --exclude test/repos --count --select=E9,F63,F7,F82 --show-source --statistics
+
 EOF
+  flake8 it_depends test --exclude test/repos --count --select=E9,F63,F7,F82 --show-source --statistics
   exit 1
 fi
 
@@ -68,7 +70,9 @@ if [ $RESULT -ne 0 ]; then
 Failed Python lint:
 
     flake8 it_depends test --exclude test/repos --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
 EOF
+  flake8 it_depends test --exclude test/repos --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
   exit 1
 fi
 
