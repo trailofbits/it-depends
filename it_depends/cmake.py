@@ -19,6 +19,7 @@ from .dependencies import (
     ClassifierAvailability, Dependency, DependencyClassifier, PackageCache, SimpleSpec, SourcePackage, SourceRepository,
     Version
 )
+from .ubuntu import run_command
 
 logger = logging.getLogger(__name__)
 
@@ -113,8 +114,7 @@ class CMakeClassifier(DependencyClassifier):
         except ValueError:
             found_package = search_package(package)
 
-            contents = subprocess.run(["apt-file", "list", found_package],
-                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode("utf8")
+            contents = run_command("apt-file", "list", found_package).decode("utf8")
             if file_to_package_cache is not None:
                 for line in contents.split("\n"):
                     if ": " not in line:
