@@ -1,16 +1,13 @@
 import functools
 import gzip
-import os
 from pathlib import Path
 import re
 import logging
-import shutil
-import subprocess
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from urllib import request
 
-from .docker import DockerContainer, InMemoryDockerfile
 from .it_depends import APP_DIRS
+from .ubuntu import run_command
 
 logger = logging.getLogger(__name__)
 
@@ -51,65 +48,6 @@ def _popularity(packagename):
 '''
 
 all_packages: Optional[Tuple[str, ...]] = None
-
-
-_container: Optional[DockerContainer] = None
-
-_UBUNTU_NAME_MATCH: re.Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
-_VERSION_ID_MATCH: re.Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
-
-
-def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
-    """
-    Tests whether the current system is running Ubuntu
-
-    If `check_version` is not None, the specific version of Ubuntu is also tested.
-    """
-    os_release_path = Path("/etc/os-release")
-    if not os_release_path.exists():
-        return False
-    is_ubuntu = False
-    version: Optional[str] = None
-    with open(os_release_path, "r") as f:
-        for line in f.readlines():
-            line = line.strip()
-            is_ubuntu = is_ubuntu or bool(_UBUNTU_NAME_MATCH.match(line))
-            if check_version is None:
-                if is_ubuntu:
-                    return True
-            elif version is None:
-                m = _VERSION_ID_MATCH.match(line)
-                if m:
-                    version = m.group(1)
-            else:
-                break
-    return is_ubuntu and (check_version is None or version == check_version)
-
-
-def run_command(*args: str) -> bytes:
-    """
-    Runs the given command in Ubuntu 20.04
-
-    If the host system is not runnign Ubuntu 20.04, the command is run in Docker.
-
-    """
-    if shutil.which(args[0]) is None or not is_running_ubuntu(check_version="20.04"):
-        # we do not have apt installed natively or are not running Ubuntu
-        global _container
-        if _container is None:
-            with InMemoryDockerfile("""FROM ubuntu:20.04
-
-RUN apt-get update && apt-get install -y apt-file && apt-file update
-""") as dockerfile:
-                _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
-                _container.rebuild()
-        p = _container.run(*args, interactive=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, rebuild=False)
-    else:
-        p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    if p.returncode != 0:
-        raise subprocess.CalledProcessError(p.returncode, cmd=f"{' '.join(args)}")
-    return p.stdout
-
 
 
 def get_apt_packages() -> Tuple[str, ...]:
