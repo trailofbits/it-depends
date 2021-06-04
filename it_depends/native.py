@@ -165,22 +165,10 @@ class NativeResolver(DependencyResolver):
                             package, libraries = finished.result()
                             for library in libraries:
                                 if library not in baseline:
-                                    if library.version is not None and library.version:
-                                        try:
-                                            version = Version.coerce(library.version)
-                                            new_package = Package(
-                                                name=library.name,
-                                                version=version,
-                                                source=self.source
-                                            )
-                                            existing.add(new_package)
-                                        except ValueError:
-                                            pass
+                                    # ignore the library version, because native library requirements aren't
+                                    # typically versioned
                                     if library.name not in package.dependencies:
-                                        try:
-                                            required_version = SimpleSpec(f"~={library.version}")
-                                        except ValueError:
-                                            required_version = SimpleSpec("*")
+                                        required_version = SimpleSpec("*")
                                         package.dependencies[library.name] = Dependency(
                                             package=library.name,
                                             semantic_version=required_version,
