@@ -279,7 +279,9 @@ class CMakeClassifier(DependencyClassifier):
                 orig_cmakelists = os.path.join(apath, "CMakeLists.txt")
                 backup = os.path.join(tmpdirname, "backup")
                 shutil.copyfile(orig_cmakelists, backup)
-                output = os.path.join(tmpdirname, 'output')
+                output = os.path.join(tmpdirname, "output")
+                build_dir = os.path.join(tmpdirname, "build")
+                os.mkdir(build_dir)
                 try:
                     # Replaces the message function by a no-op
                     # Not that message(FATAL_ERROR ...) terminates cmake
@@ -290,9 +292,13 @@ class CMakeClassifier(DependencyClassifier):
                         cmake_lists.write(patched)
                         cmake_lists.flush()
                     cmake_lists.close()
-                    subprocess.run(
-                        ["cmake", "-Wno-dev", "-trace", "--trace-expand", f"--trace-redirect={output}", apath],
-                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode("utf8")
+                    p = subprocess.run(
+                        ["cmake", "-Wno-dev", "--trace", "--trace-expand", f"--trace-redirect={output}", apath],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=build_dir
+                    )
+                    if p.returncode != 0:
+                        logger.error(f"Error running cmake:\n{p.stdout.decode('utf-8')}\n{p.stderr.decode('utf-8')}")
+                        exit(1)
                     with open(output, "rt") as outfd:
                         trace = outfd.read()
                 finally:
