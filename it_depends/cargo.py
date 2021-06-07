@@ -124,7 +124,7 @@ class CargoResolver(DependencyResolver):
                 metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=tmpdir))
             except Exception as e:
                 print(tmpdir)
-                breakpoint()
+                #breakpoint()
                 print (metadata, e)
             for package in metadata["packages"]:
                 if not package["name"] == dependency.package:

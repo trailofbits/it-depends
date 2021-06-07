@@ -178,7 +178,7 @@ class SourceFilteredPackageCache(PackageCache):
                          .filter(DBPackage.source_name.like(self.source)).all())
 
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
-        return self.parent.match(to_match, source=self.source)
+        return self.parent.match(to_match)
 
     def add(self, package: Package):
         return self.parent.add(package)
@@ -276,7 +276,7 @@ class DBPackageCache(PackageCache):
                     yield package
         else:
             if isinstance(to_match, Package):
-                source=to_match.source
+                source:Optional[str] = to_match.source
             else:
                 source = None
             # we intentionally build a list before yielding so that we don't keep the session query lingering

@@ -84,7 +84,7 @@ class Package:
             raise ValueError(f"{source} is not a known resolver")
         self.name: str = name
         self.version: Version = version
-        self.dependencies: Set[Dependency] = set(dependencies)
+        self.dependencies: FrozenSet[Dependency] = frozenset(dependencies)
         self.source: str = source
 
     @property
@@ -139,8 +139,10 @@ class Package:
     def dumps(self) -> str:
         return json.dumps(self.to_obj())
 
-
-
+    def __eq__(self, other):
+        if isinstance(other, Package):
+            return other.name == self.name and other.source == self.source and other.version == self.version
+        return False
 class PackageCache(ABC):
     """ An abstract base class for a collection of packages """
     def __init__(self):

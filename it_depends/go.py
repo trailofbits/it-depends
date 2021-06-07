@@ -87,9 +87,9 @@ class GoSpec(SimpleSpec):
     class Parser(SimpleSpec.Parser):
         @classmethod
         def parse(cls, expression):
-            if not expression.startswith("="):
-                raise NotImplementedError(f"Only EQ version specification implemented for go ({expression})")
-            return Range(operator=Range.OP_EQ, target=GoVersion(expression[1:]))
+            if expression.startswith("="):
+                expression = expression[1:]
+            return Range(operator=Range.OP_EQ, target=GoVersion(expression))
 
     def __contains__(self, item):
         return item == self.clause.target

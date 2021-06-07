@@ -24,7 +24,6 @@ class TestDB(TestCase):
             pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnusedResolver(),
                           dependencies=(Dependency(package="dep", semantic_version=SimpleSpec(">3.0"),
                                                    source=UnusedResolver()),))
-            breakpoint()
             cache.add(pkg)
             self.assertIn(pkg, cache)
             self.assertEqual(len(cache), 1)
