@@ -143,6 +143,8 @@ class Package:
         if isinstance(other, Package):
             return other.name == self.name and other.source == self.source and other.version == self.version
         return False
+
+
 class PackageCache(ABC):
     """ An abstract base class for a collection of packages """
     def __init__(self):
@@ -539,7 +541,7 @@ class DependencyResolver:
     @abstractmethod
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the given dependency"""
-        print (self)
+        logger.info (f"{self} does not implement `resolve()`")
         raise NotImplementedError
 
     def cached_resolve(
@@ -671,9 +673,7 @@ def resolve(
         repo = PackageRepository()
     try:
         if cache is None:
-            cm = nullcontext()
-        else:
-            cm = cache
+            cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
         if isinstance(repo_or_spec, Dependency):
             dep: Optional[Dependency] = repo_or_spec
         elif isinstance(repo_or_spec, Package):
@@ -683,7 +683,7 @@ def resolve(
         else:
             raise ValueError(f"repo_or_spec must be either a Package, Dependency, or SourceRepository")
 
-        with cm:
+        with cache:
             if dep is None:
                 for resolver in resolvers():
                     if resolver.is_available():
@@ -709,11 +709,10 @@ def resolve(
 
             if depth_limit != 0:
                 unresolved_dependencies = tuple(repo.unresolved_dependencies())
-
                 print ("unresolved deps..", tuple(map(str,unresolved_dependencies)))
                 print ("repo packages",     repo.package_names())
                 for dep in unresolved_dependencies:
-                    if cache and cache.was_resolved(dep):
+                    if cache is not None and cache.was_resolved(dep):
                         repo.extend(cache.match(dep))
                         repo.set_resolved(dep)
                     else:

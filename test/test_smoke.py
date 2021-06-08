@@ -226,17 +226,15 @@ class TestSmoke(TestCase):
         }
     },
     "cargo": {
-        "0.50.1": {
+        "0.53.0": {
             "dependencies": {
                 "anyhow": "^1.0",
                 "atty": "^0.2",
                 "bytesize": "^1.0",
                 "cargo-platform": "^0.1.1",
-                "cargo-test-macro": "*",
-                "cargo-test-support": "*",
                 "clap": "^2.31.2",
                 "core-foundation": "^0.9.0",
-                "crates-io": "^0.31.1",
+                "crates-io": "^0.33.0",
                 "crossbeam-utils": "^0.8",
                 "crypto-hash": "^0.3.1",
                 "curl": "^0.4.23",
@@ -245,8 +243,8 @@ class TestSmoke(TestCase):
                 "filetime": "^0.2.9",
                 "flate2": "^1.0.3",
                 "fwdansi": "^1.1.0",
-                "git2": "^0.13.12",
-                "git2-curl": "^0.14.0",
+                "git2": "^0.13.16",
+                "git2-curl": "^0.14.1",
                 "glob": "^0.3.0",
                 "hex": "^0.4",
                 "home": "^0.5",
@@ -257,15 +255,16 @@ class TestSmoke(TestCase):
                 "lazy_static": "^1.2.0",
                 "lazycell": "^1.2.0",
                 "libc": "^0.2",
-                "libgit2-sys": "^0.12.14",
+                "libgit2-sys": "^0.12.18",
                 "log": "^0.4.6",
                 "memchr": "^2.1.3",
-                "miow": "^0.3.1",
+                "miow": "^0.3.6",
                 "num_cpus": "^1.0",
                 "opener": "^0.4",
                 "openssl": "^0.10.11",
                 "percent-encoding": "^2.0",
                 "pretty_env_logger": "^0.4",
+                "rand": "^0.8.3",
                 "rustc-workspace-hack": "^1.0.0",
                 "rustfix": "^0.5.0",
                 "same-file": "^1",
@@ -372,7 +371,7 @@ class TestSmoke(TestCase):
         }
     },
     "crates-io": {
-        "0.31.1": {
+        "0.33.0": {
             "dependencies": {
                 "anyhow": "^1.0.34",
                 "curl": "^0.4",
@@ -587,6 +586,23 @@ class TestSmoke(TestCase):
                 "url": "^2.0"
             },
             "source": "cargo"
+        },
+        "0.13.20": {
+            "dependencies": {
+                "bitflags": "^1.1.0",
+                "libc": "^0.2",
+                "libgit2-sys": "^0.12.21",
+                "log": "^0.4.8",
+                "openssl-probe": "^0.1",
+                "openssl-sys": "^0.9.0",
+                "paste": "^1",
+                "structopt": "^0.3",
+                "tempfile": "^3.1.0",
+                "thread-id": "^3.3.0",
+                "time": "^0.1.39",
+                "url": "^2.0"
+            },
+            "source": "cargo"
         }
     },
     "git2-curl": {
@@ -781,10 +797,27 @@ class TestSmoke(TestCase):
                 "rustc-std-workspace-core": "^1.0.0"
             },
             "source": "cargo"
+        },
+        "0.2.95": {
+            "dependencies": {
+                "rustc-std-workspace-core": "^1.0.0"
+            },
+            "source": "cargo"
         }
     },
     "libgit2-sys": {
         "0.12.18+1.1.0": {
+            "dependencies": {
+                "cc": "^1.0.43",
+                "libc": "^0.2",
+                "libssh2-sys": "^0.2.19",
+                "libz-sys": "^1.1.0",
+                "openssl-sys": "^0.9",
+                "pkg-config": "^0.3.7"
+            },
+            "source": "cargo"
+        },
+        "0.12.21+1.1.0": {
             "dependencies": {
                 "cc": "^1.0.43",
                 "libc": "^0.2",
@@ -910,6 +943,14 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "rand": "^0.4",
                 "socket2": "^0.3.16",
+                "winapi": "^0.3.3"
+            },
+            "source": "cargo"
+        },
+        "0.3.7": {
+            "dependencies": {
+                "rand": "^0.8.0",
+                "socket2": "^0.4.0",
                 "winapi": "^0.3.3"
             },
             "source": "cargo"
@@ -1154,6 +1195,13 @@ class TestSmoke(TestCase):
                 "rustc-std-workspace-core": "^1.0.0"
             },
             "source": "cargo"
+        },
+        "0.1.19": {
+            "dependencies": {
+                "compiler_builtins": "^0.1.2",
+                "rustc-std-workspace-core": "^1.0.0"
+            },
+            "source": "cargo"
         }
     },
     "rustc-workspace-hack": {
@@ -1351,6 +1399,13 @@ class TestSmoke(TestCase):
                 "winapi": "^0.3.3"
             },
             "source": "cargo"
+        },
+        "0.4.0": {
+            "dependencies": {
+                "libc": "^0.2.86",
+                "winapi": "^0.3.9"
+            },
+            "source": "cargo"
         }
     },
     "strip-ansi-escapes": {
@@ -1468,23 +1523,6 @@ class TestSmoke(TestCase):
             "source": "cargo"
         }
     },
-    "tinyvec": {
-        "1.1.1": {
-            "dependencies": {
-                "criterion": "^0.3.0",
-                "serde": "^1.0",
-                "serde_test": "^1.0",
-                "tinyvec_macros": "^0.1"
-            },
-            "source": "cargo"
-        }
-    },
-    "tinyvec_macros": {
-        "0.1.0": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
     "toml": {
         "0.5.8": {
             "dependencies": {
@@ -1499,14 +1537,6 @@ class TestSmoke(TestCase):
     "typenum": {
         "1.12.0": {
             "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "ucd-trie": {
-        "0.1.3": {
-            "dependencies": {
-                "lazy_static": "^1"
-            },
             "source": "cargo"
         }
     },
@@ -1608,6 +1638,15 @@ class TestSmoke(TestCase):
     },
     "walkdir": {
         "2.3.1": {
+            "dependencies": {
+                "doc-comment": "^0.3",
+                "same-file": "^1.0.1",
+                "winapi": "^0.3",
+                "winapi-util": "^0.1.1"
+            },
+            "source": "cargo"
+        },
+        "2.3.2": {
             "dependencies": {
                 "doc-comment": "^0.3",
                 "same-file": "^1.0.1",

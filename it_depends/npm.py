@@ -24,7 +24,7 @@ class NPMResolver(DependencyResolver):
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
-        return NPMResolver.from_package_json(repo)
+        return NPMResolver.from_package_json(repo, cache)
 
     @staticmethod
     def from_package_json(package_json_path: Union[Path, str, SourceRepository]) -> SourcePackage:
@@ -61,8 +61,10 @@ class NPMResolver(DependencyResolver):
             for dep_name, dep_version in dependencies.items()
         ))
 
-    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the dependency without expanding those packages' dependencies"""
+        if dependency.source != self.name:
+            return
         try:
             output = subprocess.check_output(["npm", "view", "--json",
                                               f"{dependency.package}@{dependency.semantic_version!s}", "dependencies"])

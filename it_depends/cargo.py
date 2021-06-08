@@ -38,7 +38,7 @@ class CargoSpec(SimpleSpec):
         return ",".join(b.strip() for b in self.expression.split(','))
 
 
-def get_dependencies(repo: SourceRepository, check_for_cargo: bool = True) -> Iterator[Package]:
+def get_dependencies(repo: SourceRepository, check_for_cargo: bool = True, cache:Optional[PackageCache]=None) -> Iterator[Package]:
     if check_for_cargo and shutil.which("cargo") is None:
         raise ValueError("`cargo` does not appear to be installed! Make sure it is installed and in the PATH.")
 
@@ -52,6 +52,7 @@ def get_dependencies(repo: SourceRepository, check_for_cargo: bool = True) -> It
         workspace_members = set()
 
     for package in metadata["packages"]:
+        print (package['name'])
         if package["name"] in workspace_members:
             _class: Type[Union[SourcePackage, Package]] = SourcePackage
             kwargs = {"source_repo": repo}
@@ -94,14 +95,17 @@ class CargoResolver(DependencyResolver):
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
+        print ("Resolve FROM SOURCE CARGO!!", repo)
         result = None
         for package in get_dependencies(repo, check_for_cargo=False):
             if isinstance(package, SourcePackage):
                 result = package
             else:
-                if cache:
+                if cache is not None:
+                    print ("CACHE", package)
                     cache.add(package)
                     for dep in package.dependencies:
+                        print ("set resolced", dep)
                         cache.set_resolved(dep)
         return result
 
@@ -123,9 +127,8 @@ class CargoResolver(DependencyResolver):
             try:
                 metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=tmpdir))
             except Exception as e:
-                print(tmpdir)
-                #breakpoint()
-                print (metadata, e)
+                logger.error("Cargo failed to resolve {dependency}. ({e})")
+                raise
             for package in metadata["packages"]:
                 if not package["name"] == dependency.package:
                     continue
