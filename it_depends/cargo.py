@@ -1,17 +1,20 @@
-import json
-from os import chdir, getcwd
 from pathlib import Path
+import json
+import tempfile
+from os import chdir, getcwd
 import shutil
 import subprocess
-from typing import Iterable, Optional, Type, Union
+import logging
+from typing import Iterator, Optional, Type, Union
 
 from semantic_version.base import Always, BaseSpec
 
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, Package, PackageCache, SimpleSpec, SourcePackage,
+    Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage,
     SourceRepository, Version
 )
 
+logger = logging.getLogger(__name__)
 
 @BaseSpec.register_syntax
 class CargoSpec(SimpleSpec):
@@ -35,20 +38,11 @@ class CargoSpec(SimpleSpec):
         return ",".join(b.strip() for b in self.expression.split(','))
 
 
-def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool = True) -> Iterable[Package]:
+def get_dependencies(repo: SourceRepository, check_for_cargo: bool = True, cache:Optional[PackageCache]=None) -> Iterator[Package]:
     if check_for_cargo and shutil.which("cargo") is None:
         raise ValueError("`cargo` does not appear to be installed! Make sure it is installed and in the PATH.")
 
-    if not isinstance(cargo_package_path, Path):
-        cargo_package_path = Path(cargo_package_path)
-
-    orig_dir = getcwd()
-    chdir(cargo_package_path)
-
-    try:
-        metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"]))
-    finally:
-        chdir(orig_dir)
+    metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=repo.path))
 
     if "workspace_members" in metadata:
         workspace_members = {
@@ -60,19 +54,19 @@ def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool
     for package in metadata["packages"]:
         if package["name"] in workspace_members:
             _class: Type[Union[SourcePackage, Package]] = SourcePackage
-            kwargs = {"source_path": cargo_package_path}
+            kwargs = {"source_repo": repo}
         else:
             _class = Package
             kwargs = {}
         yield _class(  # type: ignore
             name=package["name"],
             version=Version.coerce(package["version"]),
-            source=CargoClassifier(),
+            source="cargo",
             dependencies=[
                 Dependency(
                     package=dep["name"],
-                    semantic_version=CargoClassifier.parse_spec(dep["req"]),
-                    source=CargoClassifier(),
+                    semantic_version=CargoResolver.parse_spec(dep["req"]),
+                    source="cargo",
                 )
                 for dep in package["dependencies"]
             ],
@@ -80,22 +74,70 @@ def get_dependencies(cargo_package_path: Union[Path, str], check_for_cargo: bool
         )
 
 
-class CargoClassifier(DependencyClassifier):
+class CargoResolver(DependencyResolver):
     name = "cargo"
     description = "classifies the dependencies of Rust packages using `cargo metadata`"
 
-    def is_available(self) -> ClassifierAvailability:
+    def is_available(self) -> ResolverAvailability:
         if shutil.which("cargo") is None:
-            return ClassifierAvailability(False, "`cargo` does not appear to be installed! "
-                                                 "Make sure it is installed and in the PATH.")
-        return ClassifierAvailability(True)
+            return ResolverAvailability(False, "`cargo` does not appear to be installed! "
+                                               "Make sure it is installed and in the PATH.")
+        return ResolverAvailability(True)
 
     @classmethod
     def parse_spec(cls, spec: str) -> CargoSpec:
         return CargoSpec(spec)
 
-    def can_classify(self, repo: SourceRepository) -> bool:
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return (repo.path / "Cargo.toml").exists()
 
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        repo.extend(get_dependencies(repo.path, check_for_cargo=False))
+    def resolve_from_source(
+            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+    ) -> Optional[SourcePackage]:
+        result = None
+        for package in get_dependencies(repo, check_for_cargo=False):
+            if isinstance(package, SourcePackage):
+                result = package
+            else:
+                if cache is not None:
+                    cache.add(package)
+                    for dep in package.dependencies:
+                        cache.set_resolved(dep)
+        return result
+
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
+        search_result = subprocess.check_output(["cargo", "search", str(dependency.package)]).decode()
+        for line in search_result.splitlines():
+            pkgid = (line.split("#",1)[0].strip())
+            if pkgid.startswith(f"{dependency.package}"):
+                break
+        else:
+            return
+
+        logger.debug(f"Found {pkgid} for {dependency} in crates.io")
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            subprocess.check_output(["cargo", "init"], cwd=tmpdir)
+            with open(Path(tmpdir)/"Cargo.toml", "a") as f:
+                f.write(f"{pkgid}\n")
+            try:
+                metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=tmpdir))
+            except Exception as e:
+                logger.error("Cargo failed to resolve {dependency}. ({e})")
+                raise
+            for package in metadata["packages"]:
+                if not package["name"] == dependency.package:
+                    continue
+                yield Package(  # type: ignore
+                    name=package["name"],
+                    version=Version.coerce(package["version"]),
+                    source=CargoResolver(),
+                    dependencies=[
+                        Dependency(
+                            package=dep["name"],
+                            semantic_version=CargoResolver.parse_spec(dep["req"]),
+                            source=CargoResolver(),
+                        )
+                        for dep in package["dependencies"]
+                    ]
+                )

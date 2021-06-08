@@ -12,8 +12,9 @@ from tqdm import tqdm
 from . import version as it_depends_version
 from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 from .dependencies import (
-    classifiers, ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup,
-    Package, PackageCache, SimpleSpec, SourceRepository, Version
+    Dependency, DependencyResolver, DockerSetup, Package, PackageCache, resolvers, ResolverAvailability,
+    SemanticVersion, SimpleSpec,
+    SourcePackage, SourceRepository, Version
 )
 
 
@@ -53,8 +54,8 @@ class NativeLibrary:
 
 
 class NativeResolver(DependencyResolver):
-    def __init__(self, cache: Optional[PackageCache] = None):
-        super().__init__(source=NativeClassifier(), cache=cache)
+    name = "native"
+    description = "attempts to detect native library usage by loading packages in a container"
 
     @staticmethod
     def get_libraries(
@@ -97,13 +98,20 @@ class NativeResolver(DependencyResolver):
     def _expand(package: Package, container: DockerContainer):
         return package, NativeResolver.get_package_libraries(container, package)
 
-    def expand(self, existing: PackageCache, max_workers: Optional[int] = None):
-        sources: Set[DependencyClassifier] = set()
+    def _native_dep(self, package: Package) -> Dependency:
+        return Dependency(
+            package=f"{package.name}",
+            semantic_version=SemanticVersion.parse(str(package.version)),
+            source=package.source
+        )
+
+    def expand(self, existing: PackageCache, max_workers: Optional[int] = None, cache: Optional[PackageCache] = None):
+        sources: Set[DependencyResolver] = set()
         for package in existing:
             # Loop over all of the packages that have already been classified by other classifiers
             if package.source is not None and package.source not in sources \
-                    and package.source.docker_setup() is not None:
-                sources.add(package.source)
+                    and package.resolver.docker_setup() is not None:
+                sources.add(package.resolver)
         if max_workers is None:
             max_workers = max(cpu_count() // 2, 1)
         for source in tqdm(sources, desc="resolving native libs", leave=False, unit=" sources"):
@@ -125,12 +133,12 @@ class NativeResolver(DependencyResolver):
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                     futures = set()
                     for package in packages:
-                        cached = self.resolve_from_cache(package.to_dependency())
-                        if cached is None:
-                            futures.add(executor.submit(self._expand, package, container))
-                        else:
+                        native_dep = self._native_dep(package)
+                        if cache is not None and cache.was_resolved(native_dep):
                             t.update(1)
-                            existing.extend(cached)
+                            existing.extend(cache.match(native_dep))
+                        else:
+                            futures.add(executor.submit(self._expand, package, container))
                     while futures:
                         done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
                         for finished in done:
@@ -144,7 +152,7 @@ class NativeResolver(DependencyResolver):
                                             new_package = Package(
                                                 name=library.name,
                                                 version=version,
-                                                source=self.source
+                                                source=self
                                             )
                                             existing.add(new_package)
                                         except ValueError:
@@ -154,35 +162,33 @@ class NativeResolver(DependencyResolver):
                                             required_version = SimpleSpec(f"~={library.version}")
                                         except ValueError:
                                             required_version = SimpleSpec("*")
-                                        package.dependencies[library.name] = Dependency(
+                                        package.dependencies.add(Dependency(
                                             package=library.name,
                                             semantic_version=required_version,
-                                            source=NativeClassifier()
-                                        )
+                                            source=self
+                                        ))
                                         # re-add the package so we can cache the new dependency
                                         existing.add(package)
-                            self.set_resolved_in_cache(package)
-
-
-class NativeClassifier(DependencyClassifier):
-    name = "native"
-    description = "attempts to detect native library usage by loading packages in a container"
+                            if cache is not None:
+                                cache.set_resolved(self._native_dep(package))
 
     def __lt__(self, other):
         """Make sure that the Native Classifier runs second-to-last, before the Ubuntu Classifier"""
         return other.name == "ubuntu"
 
-    def is_available(self) -> ClassifierAvailability:
+    def is_available(self) -> ResolverAvailability:
         if shutil.which("docker") is None:
-            return ClassifierAvailability(False, "`docker` does not appear to be installed! "
-                                                 "Make sure it is installed and in the PATH.")
-        return ClassifierAvailability(True)
+            return ResolverAvailability(False, "`docker` does not appear to be installed! "
+                                               "Make sure it is installed and in the PATH.")
+        return ResolverAvailability(True)
 
-    def can_classify(self, repo: SourceRepository) -> bool:
-        for classifier in sorted(classifiers()):  # type: ignore
-            if classifier.docker_setup() is not None and classifier.can_classify(repo):
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
+        for resolver in resolvers():  # type: ignore
+            if resolver.docker_setup() is not None and resolver.can_resolve_from_source(repo):
                 return True
         return False
 
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        NativeResolver(cache=cache).expand(repo)
+    def resolve_from_source(
+            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+    ) -> Optional[SourcePackage]:
+        return None

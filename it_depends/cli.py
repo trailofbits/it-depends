@@ -6,7 +6,7 @@ import sys
 from typing import Iterator, Optional, Sequence, TextIO
 
 from .db import DEFAULT_DB_PATH, DBPackageCache
-from .dependencies import classifiers, resolve
+from .dependencies import resolvers, resolve, SourceRepository
 
 
 @contextmanager
@@ -33,14 +33,19 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                              f"memory rather than reading/writing to disk (default is {DEFAULT_DB_PATH!s})")
     parser.add_argument("--output-format", "-f", choices=("json", "dot"), default="json",
                         help="how the output should be formatted (default is JSON)")
+    parser.add_argument("--depth-limit", "-d", type=int, default=-1,
+                        help="depth limit for recursively solving dependencies (default is -1 to resolve all "
+                             "dependencies)")
+    parser.add_argument("--max-workers", "-j", type=int, default=None, help="maximum number of jobs to run concurrently"
+                                                                            " (default is # of CPUs)")
 
     args = parser.parse_args(argv[1:])
 
     if args.list:
         sys.stdout.flush()
-        sys.stderr.write(f"Available classifiers for {os.path.abspath(args.PATH)}:\n")
+        sys.stderr.write(f"Available resolvers for {os.path.abspath(args.PATH)}:\n")
         sys.stderr.flush()
-        for name, classifier in sorted((c.name, c) for c in classifiers()):
+        for name, classifier in sorted((c.name, c) for c in resolvers()):
             sys.stdout.write(name + " "*(12-len(name)))
             sys.stdout.flush()
             available = classifier.is_available()
@@ -56,7 +61,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     with no_stdout() as real_stdout:
         with DBPackageCache(args.database) as cache:
-            package_list = resolve(args.PATH, cache)
+            # TODO: Add support for searching by package name
+            repo = SourceRepository(args.PATH)
+
+            package_list = resolve(repo, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
+
             if args.output_format == "dot":
                 real_stdout.write(cache.to_dot(package_list.source_packages).source)
             elif args.output_format == "json":

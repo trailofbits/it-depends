@@ -7,7 +7,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, sessionmaker
 
-from .dependencies import classifier_by_name, Dependency, DependencyClassifier, Package, SemanticVersion, PackageCache
+from .dependencies import resolver_by_name, Dependency, DependencyResolver, Package, SemanticVersion, PackageCache
 
 DEFAULT_DB_PATH = Path.home() / ".config" / "it-depends" / "dependencies.sqlite"
 
@@ -33,6 +33,7 @@ class DBDependency(Base, Dependency):  # type: ignore
     id = Column(Integer, primary_key=True)
     from_package_id = Column(Integer, ForeignKey("packages.id"))
     from_package = relationship("DBPackage", back_populates="raw_dependencies")
+    source = Column(String, nullable=False)
     package = Column(String, nullable=False)
     semantic_version_string = Column("semantic_version", String, nullable=True)
 
@@ -43,16 +44,14 @@ class DBDependency(Base, Dependency):  # type: ignore
     def __init__(self, package: "DBPackage", dep: Dependency):
         # We intentionally skip calling super().__init__()
         self.from_package_id = package.id
+        self.source = dep.source
         self.package = dep.package
         self.semantic_version = dep.semantic_version  # type: ignore
 
-    @hybrid_property
+    @hybrid_property  # type: ignore
     def semantic_version(self) -> SemanticVersion:
-        if self.from_package.source is None:
-            classifier = DependencyClassifier()
-        else:
-            classifier = self.from_package.source
-        return classifier.parse_spec(self.semantic_version_string)
+        resolver = resolver_by_name(self.source)
+        return resolver.parse_spec(self.semantic_version_string)
 
     @semantic_version.setter  # type: ignore
     def semantic_version(self, new_version: Union[SemanticVersion, str]):
@@ -97,7 +96,7 @@ class DBPackage(Base, Package):  # type: ignore
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     version_str = Column("version", String, nullable=False)
-    source_name = Column("source", String, nullable=False)
+    source = Column("source", String, nullable=False)
 
     __table_args__ = (
         UniqueConstraint("name", "version", "source", name="package_unique_constraint"),
@@ -109,11 +108,11 @@ class DBPackage(Base, Package):  # type: ignore
         # We intentionally skip calling super().__init__()
         self.name = package.name
         self.version = package.version
-        self.source_name = package.source_name
+        self.source = package.source
 
     @property
-    def source(self) -> DependencyClassifier:
-        return classifier_by_name(self.source_name)
+    def resolver(self) -> DependencyResolver:
+        return resolver_by_name(self.source)
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":
@@ -122,23 +121,21 @@ class DBPackage(Base, Package):  # type: ignore
             package = DBPackage(package)
             session.add(package)
             session.flush()
-            session.add_all([DBDependency(package, dep) for dep in dep_pkg.dependencies.values()])
+            session.add_all([DBDependency(package, dep) for dep in dep_pkg.dependencies])
         else:
             session.add(package)
         return package
 
     def to_package(self) -> Package:
-        assert self.source is not None
-        return Package(name=self.name, version=self.version, dependencies=(
+        return Package(source=self.source, name=self.name, version=self.version, dependencies=(
             Dependency(package=dep.package, semantic_version=dep.semantic_version, source=self.source) for dep in self.raw_dependencies
-        ), source=self.source)
+        ))
 
     @property
     def version(self) -> Version:
-        source = self.source
-        if source is None:
-            source = DependencyClassifier  # type: ignore
-        return source.parse_version(self.version_str)  # type: ignore
+        #resolver = resolver_by_name(self.source)
+        resolver = self.resolver
+        return resolver.parse_version(self.version_str)
 
     @version.setter
     def version(self, new_version: Union[Version, str]):
@@ -181,7 +178,7 @@ class SourceFilteredPackageCache(PackageCache):
                          .filter(DBPackage.source_name.like(self.source)).all())
 
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
-        return self.parent.match(to_match, source=self.source)
+        return self.parent.match(to_match)
 
     def add(self, package: Package):
         return self.parent.add(package)
@@ -261,7 +258,7 @@ class DBPackageCache(PackageCache):
 
     def _make_query(self, to_match: Union[str, Package], source: Optional[str] = None):
         if source is not None:
-            filters: Tuple[Any, ...] = (DBPackage.source_name.like(source),)
+            filters: Tuple[Any, ...] = (DBPackage.source.like(source),)
         else:
             filters = ()
         if isinstance(to_match, Package):
@@ -271,19 +268,21 @@ class DBPackageCache(PackageCache):
         else:
             return self.session.query(DBPackage).filter(DBPackage.name.like(to_match), *filters)
 
-    def match(
-            self, to_match: Union[str, Package, Dependency], source: Optional[str] = None
-    ) -> Iterator[Package]:
+    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
         if isinstance(to_match, Dependency):
-            for package in self.match(to_match.package, source=source):
-                if to_match.semantic_version is not None and package.version in to_match.semantic_version:
+            for package in self.match(to_match.package):
+                if package.version in to_match.semantic_version:
                     yield package
         else:
+            if isinstance(to_match, Package):
+                source:Optional[str] = to_match.source
+            else:
+                source = None
             # we intentionally build a list before yielding so that we don't keep the session query lingering
             yield from [package.to_package() for package in self._make_query(to_match, source=source).all()]
 
     def was_resolved(self, dependency: Dependency) -> bool:
-        source=dependency.source_name
+        source=dependency.source
         filters: Tuple[Any, ...] = (Resolution.source.like(source),)
         return self.session.query(Resolution).filter(
             Resolution.package.like(dependency.package),
@@ -293,6 +292,6 @@ class DBPackageCache(PackageCache):
 
     def set_resolved(self, dependency: Dependency):
         self.session.add(
-            Resolution(package=dependency.package, version=str(dependency.semantic_version), source=dependency.source_name)
+            Resolution(package=dependency.package, version=str(dependency.semantic_version), source=dependency.source)
         )
         self.session.commit()
