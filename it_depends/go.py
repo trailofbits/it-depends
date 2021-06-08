@@ -283,7 +283,7 @@ class GoResolver(DependencyResolver):
     name = "go"
     description = "classifies the dependencies of JavaScript packages using `npm`"
 
-    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
         assert isinstance(dependency.semantic_version, GoSpec)
         version_string = str(dependency.semantic_version)
         module = GoModule.from_import(dependency.package, version_string)

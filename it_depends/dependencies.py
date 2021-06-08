@@ -551,7 +551,6 @@ class DependencyResolver:
 
         If the dependency is resolved, it is added to the cache
         """
-        print ("CACHED RESOLVEEEEE")
         if record_results and cache is None:
             raise ValueError("`cache` may only be None if `record_results` is also False")
         elif dependency.source != self.name:
@@ -588,7 +587,6 @@ class DependencyResolver:
         If depth_limit is zero, do nothing and return.
 
         """
-        print ("RESOLVE UNSASTIFIED", depth_limit, packages)
         if depth_limit == 0:
             return
         if max_workers is None:

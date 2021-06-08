@@ -52,7 +52,6 @@ def get_dependencies(repo: SourceRepository, check_for_cargo: bool = True, cache
         workspace_members = set()
 
     for package in metadata["packages"]:
-        print (package['name'])
         if package["name"] in workspace_members:
             _class: Type[Union[SourcePackage, Package]] = SourcePackage
             kwargs = {"source_repo": repo}
@@ -95,17 +94,14 @@ class CargoResolver(DependencyResolver):
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
-        print ("Resolve FROM SOURCE CARGO!!", repo)
         result = None
         for package in get_dependencies(repo, check_for_cargo=False):
             if isinstance(package, SourcePackage):
                 result = package
             else:
                 if cache is not None:
-                    print ("CACHE", package)
                     cache.add(package)
                     for dep in package.dependencies:
-                        print ("set resolced", dep)
                         cache.set_resolved(dep)
         return result
 

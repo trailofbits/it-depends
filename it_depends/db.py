@@ -266,7 +266,6 @@ class DBPackageCache(PackageCache):
                 DBPackage.name.like(to_match.name), DBPackage.version_str.like(str(to_match.version)), *filters
             )
         else:
-            print ("AAAAAAAA"*999)
             return self.session.query(DBPackage).filter(DBPackage.name.like(to_match), *filters)
 
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
