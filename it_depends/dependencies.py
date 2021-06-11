@@ -120,7 +120,6 @@ class Package:
         return f"{self.source}:{self.name}@{self.version}" + dependencies
 
     def to_dependency(self) -> Dependency:
-        print ("VEEEEEEER", self.version, type(self.version))
         return Dependency(
             package=self.name, semantic_version=self.resolver.parse_spec(f"={self.version}"), source=self.source
         )

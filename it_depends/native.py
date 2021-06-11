@@ -136,7 +136,8 @@ class NativeResolver(DependencyResolver):
             if dep not in baseline:
                 yield dep
 
-    def expand(self, existing: PackageCache, max_workers: Optional[int] = None, use_baseline: bool = False, cache: Optional[PackageCache] = None):
+    def expand(self, existing: PackageCache, max_workers: Optional[int] = None, use_baseline: bool = False,
+               cache: Optional[PackageCache] = None):
         """Resolves the native dependencies for all packages in the cache"""
         sources: Set[DependencyResolver] = set()
         for package in existing:
