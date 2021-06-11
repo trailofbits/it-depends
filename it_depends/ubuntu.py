@@ -7,8 +7,7 @@ import re
 
 from .dependencies import Version, SimpleSpec
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, Package, PackageCache,
-    SourceRepository
+    Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SourcePackage, SourceRepository
 )
 from .docker import DockerContainer, InMemoryDockerfile
 
@@ -76,13 +75,15 @@ RUN apt-get update && apt-get install -y apt-file && apt-file update
 
 
 class UbuntuResolver(DependencyResolver):
+    name = "ubuntu"
+    description = "expands dependencies based upon Ubuntu package dependencies"
+
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
 
-    def resolve_missing(self, dependency: Dependency) -> Iterator[Package]:
-        source = dependency.source_name
-        if not (source == "native" or source == "ubuntu" or source == "cmake" or source == "autotools"):
-            return
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
+        if dependency.source != "ubuntu":
+            raise ValueError(f"{self} can not resolve dependencies from other sources ({dependency})")
 
         # Parses the dependencies of dependency.package out of the `apt show` command
         logger.info(f"Running apt-cache depends {dependency.package}")
@@ -105,7 +106,13 @@ class UbuntuResolver(DependencyResolver):
                         raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
                     dep_package = matched.group('package')
                     dep_version = matched.group('version')
-                    dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                    try:
+                        dep_version = dep_version.replace(" ", "")
+                        SimpleSpec(dep_version.replace(" ", ""))
+                    except Exception as e:
+                        print ("UBUNTU DEP VERSION SPEC FAIL", dep_version)
+                        dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+
                     deps.append((dep_package, dep_version))
             if line.startswith("Version: "):
                 version = line[9:]
@@ -122,33 +129,30 @@ class UbuntuResolver(DependencyResolver):
         version = Version.coerce(matched.group("version"))
 
         yield Package(name=dependency.package, version=version,
-                      source=UbuntuClassifier(),
+                      source=UbuntuResolver(),
                       dependencies=(
                           Dependency(package=pkg,
                                      semantic_version=SimpleSpec(ver),
-                                     source=UbuntuClassifier()
+                                     source=UbuntuResolver()
                                      )
                           for pkg, ver in deps
                       ))
-
-
-class UbuntuClassifier(DependencyClassifier):
-    name = "ubuntu"
-    description = "expands dependencies based upon Ubuntu package dependencies"
 
     def __lt__(self, other):
         """Make sure that the Ubuntu Classifier runs last"""
         return False
 
-    def is_available(self) -> ClassifierAvailability:
+    def is_available(self) -> ResolverAvailability:
         if not (shutil.which("apt") is not None and is_running_ubuntu()) and shutil.which("docker") is None:
-            return ClassifierAvailability(False,
+            return ResolverAvailability(False,
                                           "`Ubuntu` classifier either needs to be running from Ubuntu 20.04 or "
                                           "to have Docker installed")
-        return ClassifierAvailability(True)
+        return ResolverAvailability(True)
 
-    def can_classify(self, repo: SourceRepository) -> bool:
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return True
 
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        UbuntuResolver(self, cache).resolve_unsatisfied(repo)
+    def resolve_from_source(
+            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+    ) -> Optional[SourcePackage]:
+        return None
