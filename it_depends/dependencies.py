@@ -14,7 +14,6 @@ from graphviz import Digraph
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
 from tqdm import tqdm
-from contextlib import nullcontext
 from tempfile import mkdtemp
 from shutil import rmtree
 from subprocess import check_call
@@ -47,7 +46,6 @@ class Dependency:
             package, version_string = package_version.split("@")
             version = SimpleSpec(version_string)
         except Exception as e:
-            print (e)
             raise ValueError(f"Can not parse dependency description <{description}>") from e
         return cls(source=source, package=package, semantic_version=version)
 
@@ -355,7 +353,6 @@ class InMemoryPackageCache(PackageCache):
                 yield from packages[package_name].values()
 
     def match(self, to_match: Union[Package, Dependency]) -> Iterator[Package]:
-        print(to_match, type(to_match))
         if isinstance(to_match, Package):
             to_match = to_match.to_dependency()
         assert(isinstance(to_match, Dependency))
@@ -363,22 +360,6 @@ class InMemoryPackageCache(PackageCache):
         for version, package in source_dict.get(to_match.package, {}).items():
             if to_match.semantic_version is not None and version in to_match.semantic_version:
                 yield package
-
-
-    def match1(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
-        if isinstance(to_match, Package):
-            # Ignore the package source
-            for source_dict in self._cache.values():
-                package = source_dict.get(to_match.name, {}).get(to_match.version, None)
-                if package is not None:
-                    yield package
-        elif isinstance(to_match, Dependency):
-            for source_dict in self._cache.values():
-                for version, package in source_dict.get(to_match.package, {}).items():
-                    if to_match.semantic_version is not None and version in to_match.semantic_version:
-                        yield package
-        else:
-            return any(str(to_match) in source_dict for source_dict in self._cache.values())
 
     def add(self, package: Package):
         if package in self:
@@ -612,7 +593,6 @@ class DependencyResolver:
                             cache.extend(new_packages)
                         packages.set_resolved(dep)
                         packages.extend(new_packages)
-                        print ("DDDDDDDDDEPTH!!", depth_limit, depth, depth_limit < 0 or depth < depth_limit)
                         if depth_limit < 0 or depth < depth_limit:
                             futures |= {
                                 executor.submit(self._resolve_worker, new_dep, depth)
@@ -689,6 +669,10 @@ def resolve(
                             source_package = resolver.resolve_from_source(repo_or_spec, cache=cache)
                             if source_package is None:
                                 continue
+                            resolver_native = resolver_by_name("native")
+                            native_deps = resolver_native.get_native_dependencies(source_package)
+                            source_package.dependencies = source_package.dependencies.union(frozenset(native_deps))
+
                             repo.add(source_package)
                         else:
                             logger.debug(f"{resolver.name} can not resolve {repo_or_spec}")
@@ -703,17 +687,18 @@ def resolve(
                     if cache:
                         cache.extend(solutions)
                         cache.set_resolved(dep)
+                for package in cache.match(dep):
+                    resolver_native = resolver_by_name("native")
+                    new_deps = resolver_native.get_native_dependencie(package)
+                    package.dependencies = package.dependencies.union(frozenset(new_deps))
 
             if depth_limit != 0:
                 unresolved_dependencies = tuple(repo.unresolved_dependencies())
-                print ("unresolved deps..", tuple(map(str,unresolved_dependencies)))
-                print ("repo packages",     repo.package_names())
                 for dep in unresolved_dependencies:
                     if cache is not None and cache.was_resolved(dep):
                         repo.extend(cache.match(dep))
                         repo.set_resolved(dep)
                     else:
-                        print("UNRESOLVEDDD???", dep)
                         resolve(repo_or_spec=dep, cache=cache, depth_limit=depth_limit-1, max_workers=max_workers, repo=repo)
 
             # TODO: Resolve Native dependencies here, and also do Ubuntu magic

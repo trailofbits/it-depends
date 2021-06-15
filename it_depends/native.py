@@ -85,7 +85,7 @@ class NativeResolver(DependencyResolver):
                                 name = file_to_package(path)
                             except (ValueError, subprocess.CalledProcessError):
                                 pass
-                            yield NativeLibrary(name=name, path=path, version=m.group(6))
+                            yield Dependency(package=name, source="ubuntu", semantic_version=SemanticVersion.parse('*'))
         finally:
             Path(stdout.name).unlink()
 
@@ -135,10 +135,13 @@ class NativeResolver(DependencyResolver):
         for dep in NativeResolver.get_package_libraries(container, package):
             if dep not in baseline:
                 yield dep
+            else:
+                logger.debug(f"{dep} is in the baseline")
 
     def expand(self, existing: PackageCache, max_workers: Optional[int] = None, use_baseline: bool = False,
                cache: Optional[PackageCache] = None):
         """Resolves the native dependencies for all packages in the cache"""
+        breakpoint()
         sources: Set[DependencyResolver] = set()
         for package in existing:
             # Loop over all of the packages that have already been classified by other classifiers
