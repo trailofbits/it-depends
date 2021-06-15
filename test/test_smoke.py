@@ -13,7 +13,7 @@ REPOS_FOLDER = TESTS_DIR / "repos"
 class TestResolvers(TestCase):
     maxDiff = None
     def test_resolvers(self):
-        """We see all known resolver"""
+        """We see all known resolvers"""
         resolver_names = {resolver.name for resolver in resolvers()}
         self.assertSetEqual(resolver_names, {'cargo', 'ubuntu', 'native', 'autotools', 'go', 'cmake', 'npm', 'pip'})
         self.assertSetEqual(resolvers(), {resolver_by_name(name) for name in resolver_names})
@@ -95,7 +95,9 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "cvss": "~=2.2",
                 "python-dateutil": "~=2.8.1",
-                "tqdm": "~=4.48.0"
+                "tqdm": "~=4.48.0",
+                "ubuntu:libc6": "*",
+                "ubuntu:libtinfo6": "*"
             },
             "is_source_package": true,
             "source": "pip"
@@ -105,6 +107,46 @@ class TestSmoke(TestCase):
         "2.2.0": {
             "dependencies": {},
             "source": "pip"
+        }
+    },
+    "gcc-10-base": {
+        "10.2.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libc6": {
+        "2.31.0": {
+            "dependencies": {
+                "libcrypt1": "*",
+                "libgcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libcrypt1": {
+        "4.4.10": {
+            "dependencies": {
+                "libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgcc-s1": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libtinfo6": {
+        "6.2.0": {
+            "dependencies": {
+                "libc6": ">=2.16"
+            },
+            "source": "ubuntu"
         }
     },
     "python-dateutil": {
@@ -1703,30 +1745,51 @@ class TestSmoke(TestCase):
     "crypto-js": {
         "4.0.0": {
             "dependencies": {
-                "libdl": "~=2",
-                "libnss_files": "~=2",
-                "libtinfo": "~=6"
+                "ubuntu:libc6": "*",
+                "ubuntu:libtinfo6": "*"
             },
             "is_source_package": true,
             "source": "npm"
         }
     },
-    "libdl": {
-        "2.0.0": {
+    "gcc-10-base": {
+        "10.2.0": {
             "dependencies": {},
-            "source": "native"
+            "source": "ubuntu"
         }
     },
-    "libnss_files": {
-        "2.0.0": {
-            "dependencies": {},
-            "source": "native"
+    "libc6": {
+        "2.31.0": {
+            "dependencies": {
+                "libcrypt1": "*",
+                "libgcc-s1": "*"
+            },
+            "source": "ubuntu"
         }
     },
-    "libtinfo": {
-        "6.0.0": {
-            "dependencies": {},
-            "source": "native"
+    "libcrypt1": {
+        "4.4.10": {
+            "dependencies": {
+                "libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgcc-s1": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libtinfo6": {
+        "6.2.0": {
+            "dependencies": {
+                "libc6": ">=2.16"
+            },
+            "source": "ubuntu"
         }
     }
 }"""
