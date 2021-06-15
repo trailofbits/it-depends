@@ -689,8 +689,10 @@ def resolve(
                         cache.set_resolved(dep)
                 for package in cache.match(dep):
                     resolver_native = resolver_by_name("native")
-                    new_deps = resolver_native.get_native_dependencie(package)
+                    new_deps = resolver_native.get_native_dependencies(package)
                     package.dependencies = package.dependencies.union(frozenset(new_deps))
+                    cache.add(package)
+                    repo.add(package)
 
             if depth_limit != 0:
                 unresolved_dependencies = tuple(repo.unresolved_dependencies())

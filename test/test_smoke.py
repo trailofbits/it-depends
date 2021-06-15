@@ -95,7 +95,9 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "cvss": "~=2.2",
                 "python-dateutil": "~=2.8.1",
-                "tqdm": "~=4.48.0"
+                "tqdm": "~=4.48.0",
+                "ubuntu:libc6": "*",
+                "ubuntu:libtinfo6": "*"
             },
             "is_source_package": true,
             "source": "pip"
@@ -105,6 +107,46 @@ class TestSmoke(TestCase):
         "2.2.0": {
             "dependencies": {},
             "source": "pip"
+        }
+    },
+    "gcc-10-base": {
+        "10.2.0": {
+            "dependencies": {},
+            "source": "ubuntu"
+        }
+    },
+    "libc6": {
+        "2.31.0": {
+            "dependencies": {
+                "libcrypt1": "*",
+                "libgcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libcrypt1": {
+        "4.4.10": {
+            "dependencies": {
+                "libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libgcc-s1": {
+        "10.2.0": {
+            "dependencies": {
+                "gcc-10-base": "*",
+                "libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "libtinfo6": {
+        "6.2.0": {
+            "dependencies": {
+                "libc6": ">=2.16"
+            },
+            "source": "ubuntu"
         }
     },
     "python-dateutil": {

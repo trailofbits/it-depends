@@ -131,6 +131,8 @@ class NativeResolver(DependencyResolver):
     @staticmethod
     def get_native_dependencies(package: Package, use_baseline: bool = False) -> Iterator[NativeLibrary]:
         """Yields the native dependencies for an individual package"""
+        if not package.resolver.docker_setup():
+            return
         container, baseline = NativeResolver.configure_docker(package.resolver, run_baseline=use_baseline)
         for dep in NativeResolver.get_package_libraries(container, package):
             if dep not in baseline:
