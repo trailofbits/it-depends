@@ -5,7 +5,7 @@ from os import chdir, getcwd
 import shutil
 import subprocess
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
-from .utils import cached_file_to_package as file_to_package, search_package
+from .apt import cached_file_to_package as file_to_package, search_package
 import logging
 try:
     # Used to parse the cmake trace. If this is not installed the plugin will
@@ -18,6 +18,7 @@ from .dependencies import (
     Dependency, DependencyResolver, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage, SourceRepository,
     Version
 )
+from .ubuntu import run_command
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +113,7 @@ class CMakeResolver(DependencyResolver):
         except ValueError:
             found_package = search_package(package)
 
-            contents = subprocess.run(["apt-file", "list", found_package],
-                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode("utf8")
+            contents = run_command("apt-file", "list", found_package).decode("utf8")
             if file_to_package_cache is not None:
                 for line in contents.split("\n"):
                     if ": " not in line:
@@ -281,7 +281,9 @@ class CMakeResolver(DependencyResolver):
                 orig_cmakelists = os.path.join(apath, "CMakeLists.txt")
                 backup = os.path.join(tmpdirname, "backup")
                 shutil.copyfile(orig_cmakelists, backup)
-                output = os.path.join(tmpdirname, 'output')
+                output = os.path.join(tmpdirname, "output")
+                build_dir = os.path.join(tmpdirname, "build")
+                os.mkdir(build_dir)
                 try:
                     # Replaces the message function by a no-op
                     # Not that message(FATAL_ERROR ...) terminates cmake
@@ -292,9 +294,13 @@ class CMakeResolver(DependencyResolver):
                         cmake_lists.write(patched)
                         cmake_lists.flush()
                     cmake_lists.close()
-                    subprocess.run(
-                        ["cmake", "-Wno-dev", "-trace", "--trace-expand", f"--trace-redirect={output}", apath],
-                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode("utf8")
+                    p = subprocess.run(
+                        ["cmake", "-Wno-dev", "--trace", "--trace-expand", f"--trace-redirect={output}", apath],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=build_dir
+                    )
+                    if p.returncode != 0:
+                        logger.error(f"Error running cmake:\n{p.stdout.decode('utf-8')}\n{p.stderr.decode('utf-8')}")
+                        exit(1)
                     with open(output, "rt") as outfd:
                         trace = outfd.read()
                 finally:

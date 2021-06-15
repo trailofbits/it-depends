@@ -1,13 +1,17 @@
 import functools
 import gzip
-import os
+from pathlib import Path
 import re
 import logging
-import subprocess
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from urllib import request
 
+from .it_depends import APP_DIRS
+from .ubuntu import run_command
+
 logger = logging.getLogger(__name__)
+
+CACHE_DIR = Path(APP_DIRS.user_cache_dir)
 
 r''' Evan disapproves this
 popdb = {}
@@ -50,7 +54,7 @@ def get_apt_packages() -> Tuple[str, ...]:
     global all_packages
     if all_packages is None:
         logger.info("Rebuilding global apt package list.")
-        raw_packages = subprocess.check_output(["apt", "list"], stderr=subprocess.DEVNULL).decode("utf8")
+        raw_packages = run_command("apt", "list").decode("utf-8")
         all_packages = tuple(x.split("/")[0] for x in raw_packages.splitlines() if x)
 
         logger.info(f"Global apt package count {len(all_packages)}")
@@ -75,6 +79,7 @@ def search_package(package: str) -> str:
 
 
 contents_db: Dict[str, List[str]] = {}
+_loaded_dbs: Set[Path] = set()
 
 
 @functools.lru_cache(maxsize=128)
@@ -88,19 +93,17 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
         raise ValueError("Only amd64 and i386 supported")
     selected = None
 
-    # TODO find better location https://pypi.org/project/appdirs/?
-    dbfile = os.path.join(os.path.dirname(__file__), f"Contents-{arch}.gz")
-    if not os.path.exists(dbfile):
-        request.urlretrieve(
-            f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz",
-            dbfile)
-    if not contents_db:
+    dbfile = CACHE_DIR / f"Contents-{arch}.gz"
+    if not dbfile.exists():
+        request.urlretrieve(f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz", dbfile)
+    if not dbfile in _loaded_dbs:
         logger.info("Rebuilding contents db")
-        with gzip.open(dbfile, "rt") as contents:
+        with gzip.open(str(dbfile), "rt") as contents:
             for line in contents.readlines():
                 filename_i, *packages_i = re.split(r"\s+", line[:-1])
                 assert(len(packages_i) > 0)
                 contents_db.setdefault(filename_i, []).extend(packages_i)
+        _loaded_dbs.add(dbfile)
 
     regex = re.compile("(.*/)+"+filename+"$")
     matches = 0
@@ -111,8 +114,7 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
                 if selected is None or len(selected[0]) > len(filename_i):
                     selected = filename_i, package_i
     if selected:
-        logger.info(
-            f"Found {matches} matching packages for {filename}. Choosing {selected[1]}")
+        logger.info(f"Found {matches} matching packages for {filename}. Choosing {selected[1]}")
     else:
         raise ValueError(f"{filename} not found in Contents database")
     return selected[1]
@@ -123,8 +125,7 @@ def _file_to_package_apt_file(filename: str, arch: str = "amd64") -> str:
     if arch not in ("amd64", "i386"):
         raise ValueError("Only amd64 and i386 supported")
     logger.debug(f'Running [{" ".join(["apt-file", "-x", "search", filename])}]')
-    contents = subprocess.run(["apt-file", "-x", "search", filename],
-                              stdout=subprocess.PIPE).stdout.decode("utf8")
+    contents = run_command("apt-file", "-x", "search", filename).decode("utf-8")
     db: Dict[str, str] = {}
     selected = None
     for line in contents.split("\n"):
@@ -146,7 +147,7 @@ def _file_to_package_apt_file(filename: str, arch: str = "amd64") -> str:
 
 @functools.lru_cache(maxsize=128)
 def file_to_package(filename: str, arch: str = "amd64") -> str:
-    filename = f"/{filename}$"
+    filename = f"^{Path(filename).absolute()}$"
     return _file_to_package_apt_file(filename, arch=arch)
 
 
@@ -165,8 +166,7 @@ def cached_file_to_package(pattern: str, file_to_package_cache: Optional[List[Tu
     # a new package is chosen add all the files it provides to our cache
     # uses `apt-file` command line tool
     if file_to_package_cache is not None:
-        contents = subprocess.run(["apt-file", "list", package],
-                                  stdout=subprocess.PIPE).stdout.decode("utf8")
+        contents = run_command("apt-file", "list", package).decode("utf-8")
         for line in contents.split("\n"):
             if ":" not in line:
                 break

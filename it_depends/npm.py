@@ -24,7 +24,7 @@ class NPMResolver(DependencyResolver):
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
-        return NPMResolver.from_package_json(repo, cache)
+        return NPMResolver.from_package_json(repo)
 
     @staticmethod
     def from_package_json(package_json_path: Union[Path, str, SourceRepository]) -> SourcePackage:

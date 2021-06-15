@@ -10,7 +10,7 @@ import logging
 import tempfile
 from typing import List, Optional, Tuple
 
-from .utils import cached_file_to_package as file_to_package
+from .apt import cached_file_to_package as file_to_package
 
 from .dependencies import (
     Dependency, DependencyResolver, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage, SourceRepository,

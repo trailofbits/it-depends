@@ -1,14 +1,77 @@
+from pathlib import Path
 from typing import Iterator, Optional
 import shutil
 import subprocess
 import logging
 import re
+
 from .dependencies import Version, SimpleSpec
 from .dependencies import (
     Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SourcePackage, SourceRepository
 )
+from .docker import DockerContainer, InMemoryDockerfile
 
 logger = logging.getLogger(__name__)
+
+
+_container: Optional[DockerContainer] = None
+
+_UBUNTU_NAME_MATCH: re.Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
+_VERSION_ID_MATCH: re.Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
+
+
+def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
+    """
+    Tests whether the current system is running Ubuntu
+
+    If `check_version` is not None, the specific version of Ubuntu is also tested.
+    """
+    os_release_path = Path("/etc/os-release")
+    if not os_release_path.exists():
+        return False
+    is_ubuntu = False
+    version: Optional[str] = None
+    with open(os_release_path, "r") as f:
+        for line in f.readlines():
+            line = line.strip()
+            is_ubuntu = is_ubuntu or bool(_UBUNTU_NAME_MATCH.match(line))
+            if check_version is None:
+                if is_ubuntu:
+                    return True
+            elif version is None:
+                m = _VERSION_ID_MATCH.match(line)
+                if m:
+                    version = m.group(1)
+            else:
+                break
+    return is_ubuntu and (check_version is None or version == check_version)
+
+
+def run_command(*args: str) -> bytes:
+    """
+    Runs the given command in Ubuntu 20.04
+
+    If the host system is not runnign Ubuntu 20.04, the command is run in Docker.
+
+    """
+    if shutil.which(args[0]) is None or not is_running_ubuntu(check_version="20.04"):
+        # we do not have apt installed natively or are not running Ubuntu
+        global _container
+        if _container is None:
+            with InMemoryDockerfile("""FROM ubuntu:20.04
+
+RUN apt-get update && apt-get install -y apt-file && apt-file update
+""") as dockerfile:
+                _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
+                _container.rebuild()
+        logger.debug(f"running {' '.join(args)} in Docker")
+        p = _container.run(*args, interactive=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, rebuild=False)
+    else:
+        logger.debug(f"running {' '.join(args)}")
+        p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    if p.returncode != 0:
+        raise subprocess.CalledProcessError(p.returncode, cmd=f"{' '.join(args)}")
+    return p.stdout
 
 
 class UbuntuResolver(DependencyResolver):
@@ -24,8 +87,7 @@ class UbuntuResolver(DependencyResolver):
 
         # Parses the dependencies of dependency.package out of the `apt show` command
         logger.info(f"Running apt-cache depends {dependency.package}")
-        contents = subprocess.run(["apt", "show", dependency.package],
-                                  stdout=subprocess.PIPE).stdout.decode("utf8")
+        contents = run_command("apt", "show", dependency.package).decode("utf8")
 
         # Possibly means that the package does not appear ubuntu with the exact name
         if not contents:
@@ -81,10 +143,10 @@ class UbuntuResolver(DependencyResolver):
         return False
 
     def is_available(self) -> ResolverAvailability:
-        # TODO: Check for docker if necessary later
-        if shutil.which("apt") is None:
-            return ResolverAvailability(False, "`Ubuntu` classifier needs apt-cache tool")
-
+        if not (shutil.which("apt") is not None and is_running_ubuntu()) and shutil.which("docker") is None:
+            return ResolverAvailability(False,
+                                          "`Ubuntu` classifier either needs to be running from Ubuntu 20.04 or "
+                                          "to have Docker installed")
         return ResolverAvailability(True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
