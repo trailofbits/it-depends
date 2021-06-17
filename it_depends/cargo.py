@@ -16,6 +16,7 @@ from .dependencies import (
 
 logger = logging.getLogger(__name__)
 
+
 @BaseSpec.register_syntax
 class CargoSpec(SimpleSpec):
     SYNTAX = 'cargo'
@@ -123,8 +124,8 @@ class CargoResolver(DependencyResolver):
             try:
                 metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=tmpdir))
             except Exception as e:
-                logger.error("Cargo failed to resolve {dependency}. ({e})")
-                raise
+                logger.error(f"Cargo failed to resolve {dependency}. ({e})")
+                return
             for package in metadata["packages"]:
                 if not package["name"] == dependency.package:
                     continue

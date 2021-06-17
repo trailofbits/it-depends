@@ -304,11 +304,13 @@ class PackageCache(ABC):
 
     def unresolved_dependencies(self, packages: Optional[Iterable[Package]] = None) -> Iterable[Dependency]:
         """List all unresolved dependencies of packages."""
+        print ("Unresolved_dependencies(): ")
         unresolved = set()
         if packages is None:
             packages = self
         for package in packages:
             for dep in package.dependencies:
+                print ("\tDep?", dep)
                 if not self.was_resolved(dep) and dep not in unresolved:
                     unresolved.add(dep)
                     yield dep
@@ -567,6 +569,7 @@ class DependencyResolver:
         If depth_limit is zero, do nothing and return.
 
         """
+        #### dead code / unused func?
         if depth_limit == 0:
             return
         if max_workers is None:
@@ -635,9 +638,10 @@ class PackageRepository(InMemoryPackageCache):
 def resolve(
         repo_or_spec: Union[Package, Dependency, SourceRepository],
         cache: Optional[PackageCache] = None,
-        depth_limit: int = -1,
+        depth_limit: int = 10,
         max_workers: Optional[int] = None,
         repo: Optional[PackageRepository] = None,
+        queue: Set[Dependency] = ()
 ) -> PackageRepository:
     """
     Resolves the dependencies for a package, dependency, or source repository.
@@ -648,9 +652,10 @@ def resolve(
     """
     if repo is None:
         repo = PackageRepository()
+    if cache is None:
+        cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
+
     try:
-        if cache is None:
-            cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
         if isinstance(repo_or_spec, Dependency):
             dep: Optional[Dependency] = repo_or_spec
         elif isinstance(repo_or_spec, Package):
@@ -688,20 +693,26 @@ def resolve(
                         cache.extend(solutions)
                         cache.set_resolved(dep)
                 for package in cache.match(dep):
+                    # this package may be added/cached by previous resolution
+                    # For example cargo over a source repo solves it all to the cache but
+                    # none has native resolution done
                     resolver_native = resolver_by_name("native")
                     new_deps = resolver_native.get_native_dependencies(package)
                     package.dependencies = package.dependencies.union(frozenset(new_deps))
                     cache.add(package)
                     repo.add(package)
 
-            if depth_limit != 0:
-                unresolved_dependencies = tuple(repo.unresolved_dependencies())
-                for dep in unresolved_dependencies:
-                    if cache is not None and cache.was_resolved(dep):
-                        repo.extend(cache.match(dep))
-                        repo.set_resolved(dep)
-                    else:
-                        resolve(repo_or_spec=dep, cache=cache, depth_limit=depth_limit-1, max_workers=max_workers, repo=repo)
+            while True:
+                if depth_limit != 0:
+                    unresolved_dependencies = tuple(x for x in repo.unresolved_dependencies() if x not in queue)
+                    if not unresolved_dependencies:
+                        return repo
+                    for dep in unresolved_dependencies:
+                        if cache is not None and cache.was_resolved(dep):
+                            repo.extend(cache.match(dep))
+                            repo.set_resolved(dep)
+                        else:
+                            resolve(repo_or_spec=dep, cache=cache, depth_limit=depth_limit-1, max_workers=max_workers, repo=repo, queue=queue+unresolved_dependencies)
 
             # TODO: Resolve Native dependencies here, and also do Ubuntu magic
     except KeyboardInterrupt:
