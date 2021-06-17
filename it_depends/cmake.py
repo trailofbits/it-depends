@@ -2,11 +2,10 @@ import re
 import tempfile
 import os
 from os import chdir, getcwd
-from pathlib import Path
 import shutil
 import subprocess
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
-from .utils import cached_file_to_package as file_to_package, search_package
+from .apt import cached_file_to_package as file_to_package, search_package
 import logging
 try:
     # Used to parse the cmake trace. If this is not installed the plugin will
@@ -16,14 +15,15 @@ except ImportError:
     cmake_parsing = None
 
 from .dependencies import (
-    ClassifierAvailability, Dependency, DependencyClassifier, PackageCache, SimpleSpec, SourcePackage, SourceRepository,
+    Dependency, DependencyResolver, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage, SourceRepository,
     Version
 )
+from .ubuntu import run_command
 
 logger = logging.getLogger(__name__)
 
 
-class CMakeClassifier(DependencyClassifier):
+class CMakeResolver(DependencyResolver):
     """ This attempts to parse CMakelists.txt in an cmake based repo.
 
     CMakelists.txt is patched so no errors ar fatal and then we trace cmake
@@ -52,18 +52,18 @@ class CMakeClassifier(DependencyClassifier):
     name = "cmake"
     description = "classifies the dependencies of native/cmake packages parsing CMakeLists.txt"
 
-    def is_available(self) -> ClassifierAvailability:
+    def is_available(self) -> ResolverAvailability:
         if cmake_parsing is None:
-            return ClassifierAvailability(False, "`parse_cmake` does not appear to be installed! "
-                                                 "Please run `pip install parse_cmake`")
+            return ResolverAvailability(False, "`parse_cmake` does not appear to be installed! "
+                                               "Please run `pip install parse_cmake`")
 
         if shutil.which("cmake") is None:
-            return ClassifierAvailability(False, "`cmake` does not appear to be installed! "
-                                                 "Make sure it is installed and in the PATH.")
+            return ResolverAvailability(False, "`cmake` does not appear to be installed! "
+                                               "Make sure it is installed and in the PATH.")
 
-        return ClassifierAvailability(True)
+        return ResolverAvailability(True)
 
-    def can_classify(self, repo: SourceRepository) -> bool:
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return (repo.path / "CMakeLists.txt").exists()
 
     def _find_package(
@@ -113,8 +113,7 @@ class CMakeClassifier(DependencyClassifier):
         except ValueError:
             found_package = search_package(package)
 
-            contents = subprocess.run(["apt-file", "list", found_package],
-                                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode("utf8")
+            contents = run_command("apt-file", "list", found_package).decode("utf8")
             if file_to_package_cache is not None:
                 for line in contents.split("\n"):
                     if ": " not in line:
@@ -263,11 +262,14 @@ class CMakeClassifier(DependencyClassifier):
             except Exception as e:
                 logger.debug(e)
 
-    def _get_dependencies(self, path: Path):
+    def resolve_from_source(
+            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+    ) -> Optional[SourcePackage]:
+        path = repo.path
         # assert self.is_available()
         # assert self.can_classify(path)
         logger.info(f"Getting dependencies for cmake repo {path}")
-        apath = os.path.abspath(path)
+        apath = str(path.absolute())
         orig_dir = getcwd()
         try:
             with tempfile.TemporaryDirectory() as tmpdirname:
@@ -279,7 +281,9 @@ class CMakeClassifier(DependencyClassifier):
                 orig_cmakelists = os.path.join(apath, "CMakeLists.txt")
                 backup = os.path.join(tmpdirname, "backup")
                 shutil.copyfile(orig_cmakelists, backup)
-                output = os.path.join(tmpdirname, 'output')
+                output = os.path.join(tmpdirname, "output")
+                build_dir = os.path.join(tmpdirname, "build")
+                os.mkdir(build_dir)
                 try:
                     # Replaces the message function by a no-op
                     # Not that message(FATAL_ERROR ...) terminates cmake
@@ -290,9 +294,13 @@ class CMakeClassifier(DependencyClassifier):
                         cmake_lists.write(patched)
                         cmake_lists.flush()
                     cmake_lists.close()
-                    subprocess.run(
-                        ["cmake", "-Wno-dev", "-trace", "--trace-expand", f"--trace-redirect={output}", apath],
-                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode("utf8")
+                    p = subprocess.run(
+                        ["cmake", "-Wno-dev", "--trace", "--trace-expand", f"--trace-redirect={output}", apath],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=build_dir
+                    )
+                    if p.returncode != 0:
+                        logger.error(f"Error running cmake:\n{p.stdout.decode('utf-8')}\n{p.stderr.decode('utf-8')}")
+                        exit(1)
                     with open(output, "rt") as outfd:
                         trace = outfd.read()
                 finally:
@@ -389,16 +397,13 @@ class CMakeClassifier(DependencyClassifier):
             package_name = path.name
             logger.warning(f"Unable to determine package name for {path}. Using {package_name}")
 
-        yield SourcePackage(
+        return SourcePackage(
             name=package_name,
             version=Version.coerce(package_version),
-            source=self,
+            source=self.name,
             dependencies=(
-                Dependency(package=name, semantic_version=SimpleSpec(version is None and "*" or version), source=self)
+                Dependency(package=name, semantic_version=SimpleSpec(version is None and "*" or version), source="ubuntu")
                 for name, version in depsd.items()
             ),
-            source_path=path
+            source_repo=repo
         )
-
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        repo.extend(self._get_dependencies(repo.path))

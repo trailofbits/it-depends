@@ -122,14 +122,14 @@ class InMemoryDockerfile(Dockerfile):
 
 
 class DockerContainer:
-    def __init__(self, dockerfile: Dockerfile, image_name: str, tag: Optional[str] = None):
+    def __init__(self, image_name: str, dockerfile: Optional[Dockerfile] = None, tag: Optional[str] = None):
         self.image_name: str = image_name
         if tag is None:
             self.tag: str = it_depends_version()
         else:
             self.tag = tag
         self._client: Optional[docker.DockerClient] = None
-        self.dockerfile: Dockerfile = dockerfile
+        self.dockerfile: Optional[Dockerfile] = dockerfile
 
     def run(
             self,
@@ -150,7 +150,7 @@ class DockerContainer:
             self.rebuild()
         elif check_existence and not self.exists():
             if build_if_necessary:
-                if self.dockerfile.exists():
+                if self.dockerfile is not None and self.dockerfile.exists():
                     self.rebuild()
                 else:
                     self.pull()
@@ -232,7 +232,10 @@ class DockerContainer:
         raise ImageNotFound(name)
 
     def rebuild(self, nocache: bool = False):
-        if not self.dockerfile.exists():
+        if self.dockerfile is None:
+            _ = self.pull()
+            return
+        elif not self.dockerfile.exists():
             raise ValueError("Could not find the Dockerfile.")
         # use the low-level APIClient so we can get streaming build status
         cli = docker.APIClient()

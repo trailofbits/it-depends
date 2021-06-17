@@ -19,6 +19,7 @@ setup(
     packages=find_packages(exclude=["test"]),
     python_requires=">=3.7",
     install_requires=[
+        "appdirs>=1.4.4",
         "docker>=4.4.0",
         "graphviz>=0.14.1",
         "johnnydep~=1.7",

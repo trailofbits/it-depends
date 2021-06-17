@@ -4,16 +4,19 @@ from multiprocessing import cpu_count
 from pathlib import Path
 import re
 import shutil
+import subprocess
 from tempfile import NamedTemporaryFile
-from typing import Iterator, Optional, Set
+from typing import Iterator, Optional, Set, Tuple
 
 from tqdm import tqdm
 
 from . import version as it_depends_version
+from .apt import file_to_package
 from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 from .dependencies import (
-    classifiers, ClassifierAvailability, Dependency, DependencyClassifier, DependencyResolver, DockerSetup,
-    Package, PackageCache, SimpleSpec, SourceRepository, Version
+    Dependency, DependencyResolver, DockerSetup, Package, PackageCache, resolvers, ResolverAvailability,
+    SemanticVersion, SimpleSpec,
+    SourcePackage, SourceRepository, Version
 )
 
 
@@ -53,14 +56,14 @@ class NativeLibrary:
 
 
 class NativeResolver(DependencyResolver):
-    def __init__(self, cache: Optional[PackageCache] = None):
-        super().__init__(source=NativeClassifier(), cache=cache)
+    name = "native"
+    description = "attempts to detect native library usage by loading packages in a container"
 
     @staticmethod
     def get_libraries(
             container: DockerContainer, command: str, pre_command: Optional[str] = None
     ) -> Iterator[NativeLibrary]:
-        """Yields all dynamic libraries loaded by `command`"""
+        """Yields all dynamic libraries loaded by `command`, in order, including duplicates"""
         stdout = NamedTemporaryFile(prefix="stdout", delete=False)
         if pre_command is not None:
             pre_command = f"{pre_command} > /dev/null 2>/dev/null && "
@@ -74,7 +77,15 @@ class NativeResolver(DependencyResolver):
                 for line in f.readlines():
                     m = STRACE_LIBRARY_REGEX.match(line)
                     if m:
-                        yield NativeLibrary(name=m.group(4), path=m.group(3), version=m.group(6))
+                        path = m.group(2)
+                        if path not in ("/etc/ld.so.cache",):
+                            name = m.group(4)
+                            try:
+                                # see if this path matches to an Ubuntu library:
+                                name = file_to_package(path)
+                            except (ValueError, subprocess.CalledProcessError):
+                                pass
+                            yield Dependency(package=name, source="ubuntu", semantic_version=SemanticVersion.parse('*'))
         finally:
             Path(stdout.name).unlink()
 
@@ -97,40 +108,63 @@ class NativeResolver(DependencyResolver):
     def _expand(package: Package, container: DockerContainer):
         return package, NativeResolver.get_package_libraries(container, package)
 
-    def expand(self, existing: PackageCache, max_workers: Optional[int] = None):
-        sources: Set[DependencyClassifier] = set()
+    @staticmethod
+    def configure_docker(
+            source: DependencyResolver, run_baseline: bool = True
+    ) -> Tuple[DockerContainer, Set[NativeLibrary]]:
+        docker_setup = source.docker_setup()
+        if docker_setup is None:
+            raise ValueError(f"source {source.name} does not support native dependency resolution")
+        with tqdm(desc=f"configuring Docker for {source.name}", leave=False, unit=" steps", total=3, initial=1) as t:
+            with make_dockerfile(docker_setup) as dockerfile:
+                container = DockerContainer(f"trailofbits/it-depends-{source.name!s}", dockerfile,
+                                            tag=it_depends_version())
+                t.update(1)
+                container.rebuild()
+                t.update(1)
+                if run_baseline:
+                    t.desc = f"running baseline for {source.name}"
+                    return container, set(NativeResolver.get_baseline_libraries(container))
+                else:
+                    return container, set()
+
+    @staticmethod
+    def get_native_dependencies(package: Package, use_baseline: bool = False) -> Iterator[NativeLibrary]:
+        """Yields the native dependencies for an individual package"""
+        if not package.resolver.docker_setup():
+            return
+        container, baseline = NativeResolver.configure_docker(package.resolver, run_baseline=use_baseline)
+        for dep in NativeResolver.get_package_libraries(container, package):
+            if dep not in baseline:
+                yield dep
+            else:
+                logger.debug(f"{dep} is in the baseline")
+
+    def expand(self, existing: PackageCache, max_workers: Optional[int] = None, use_baseline: bool = False,
+               cache: Optional[PackageCache] = None):
+        """Resolves the native dependencies for all packages in the cache"""
+        breakpoint()
+        sources: Set[DependencyResolver] = set()
         for package in existing:
             # Loop over all of the packages that have already been classified by other classifiers
             if package.source is not None and package.source not in sources \
-                    and package.source.docker_setup() is not None:
-                sources.add(package.source)
+                    and package.resolver.docker_setup() is not None:
+                sources.add(package.resolver)
         if max_workers is None:
             max_workers = max(cpu_count() // 2, 1)
         for source in tqdm(sources, desc="resolving native libs", leave=False, unit=" sources"):
-            with tqdm(desc=f"configuring Docker for {source.name}", leave=False, unit=" steps", total=4) as t:
-                docker_setup = source.docker_setup()
-                with make_dockerfile(docker_setup) as dockerfile:
-                    t.update(1)
-                    container = DockerContainer(
-                        dockerfile, f"trailofbits/it-depends-{source.name!s}", tag=it_depends_version()
-                    )
-                    t.update(1)
-                    container.rebuild()
-                    t.update(1)
-                    t.desc = f"running baseline for {source.name}"
-                    baseline = set(NativeResolver.get_baseline_libraries(container))
-                    t.update(1)
+            container, baseline = NativeResolver.configure_docker(source=source, run_baseline=use_baseline)
             packages = existing.from_source(source.name)
             with tqdm(desc=source.name, leave=False, unit=" deps", total=len(packages)) as t:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
                     futures = set()
                     for package in packages:
-                        cached = self.resolve_from_cache(package.to_dependency())
-                        if cached is None:
-                            futures.add(executor.submit(self._expand, package, container))
-                        else:
+                        native_dep = package.to_dependency()
+                        if cache is not None and cache.was_resolved(native_dep):
                             t.update(1)
-                            existing.extend(cached)
+                            existing.extend(cache.match(native_dep))
+                        else:
+                            futures.add(executor.submit(self._expand, package, container))
                     while futures:
                         done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
                         for finished in done:
@@ -138,51 +172,32 @@ class NativeResolver(DependencyResolver):
                             package, libraries = finished.result()
                             for library in libraries:
                                 if library not in baseline:
-                                    if library.version is not None and library.version:
-                                        try:
-                                            version = Version.coerce(library.version)
-                                            new_package = Package(
-                                                name=library.name,
-                                                version=version,
-                                                source=self.source
-                                            )
-                                            existing.add(new_package)
-                                        except ValueError:
-                                            pass
-                                    if library.name not in package.dependencies:
-                                        try:
-                                            required_version = SimpleSpec(f"~={library.version}")
-                                        except ValueError:
-                                            required_version = SimpleSpec("*")
-                                        package.dependencies[library.name] = Dependency(
-                                            package=library.name,
-                                            semantic_version=required_version,
-                                            source=NativeClassifier()
-                                        )
+                                    # ignore the library version, because native library requirements aren't
+                                    # typically versioned
+                                    if all(dep.package != library.name for dep in package.dependencies):
+                                        package.dependencies += library.to_dependency()
                                         # re-add the package so we can cache the new dependency
                                         existing.add(package)
-                            self.set_resolved_in_cache(package)
-
-
-class NativeClassifier(DependencyClassifier):
-    name = "native"
-    description = "attempts to detect native library usage by loading packages in a container"
+                            if cache is not None:
+                                cache.set_resolved(package.to_dependency())
 
     def __lt__(self, other):
         """Make sure that the Native Classifier runs second-to-last, before the Ubuntu Classifier"""
         return other.name == "ubuntu"
 
-    def is_available(self) -> ClassifierAvailability:
+    def is_available(self) -> ResolverAvailability:
         if shutil.which("docker") is None:
-            return ClassifierAvailability(False, "`docker` does not appear to be installed! "
-                                                 "Make sure it is installed and in the PATH.")
-        return ClassifierAvailability(True)
+            return ResolverAvailability(False, "`docker` does not appear to be installed! "
+                                               "Make sure it is installed and in the PATH.")
+        return ResolverAvailability(True)
 
-    def can_classify(self, repo: SourceRepository) -> bool:
-        for classifier in sorted(classifiers()):  # type: ignore
-            if classifier.docker_setup() is not None and classifier.can_classify(repo):
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
+        for resolver in resolvers():  # type: ignore
+            if resolver.docker_setup() is not None and resolver.can_resolve_from_source(repo):
                 return True
         return False
 
-    def classify(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
-        NativeResolver(cache=cache).expand(repo)
+    def resolve_from_source(
+            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+    ) -> Optional[SourcePackage]:
+        return None
