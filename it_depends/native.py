@@ -88,7 +88,7 @@ class NativeResolver(DependencyResolver):
                                 name = file_to_package(path)
                             except (ValueError, subprocess.CalledProcessError):
                                 pass
-                            yield Dependency(package=name, source="ubuntu", semantic_version=SemanticVersion.parse('*'))
+                            yield NativeLibrary(name=name, path=path, version=SemanticVersion.parse('*'))
         finally:
             Path(stdout.name).unlink()
 
