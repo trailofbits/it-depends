@@ -4,6 +4,8 @@ from contextlib import contextmanager
 import json
 import sys
 from typing import Iterator, Optional, Sequence, TextIO
+import webbrowser
+
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import resolvers, resolve, SourceRepository
 
