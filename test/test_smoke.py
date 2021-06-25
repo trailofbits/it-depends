@@ -13,7 +13,9 @@ REPOS_FOLDER = TESTS_DIR / "repos"
 class TestResolvers(TestCase):
     maxDiff = None
     def test_resolvers(self):
-        """We see all known resolvers"""
+        """We see all known resolvers
+        caveat: Iff an unknown resolver was defined by another test it will appear here
+        """
         resolver_names = {resolver.name for resolver in resolvers()}
         self.assertSetEqual(resolver_names, {'cargo', 'ubuntu', 'native', 'autotools', 'go', 'cmake', 'npm', 'pip'})
         self.assertSetEqual(resolvers(), {resolver_by_name(name) for name in resolver_names})
@@ -110,7 +112,7 @@ class TestSmoke(TestCase):
         }
     },
     "gcc-10-base": {
-        "10.2.0": {
+        "10.3.0": {
             "dependencies": {},
             "source": "ubuntu"
         }
@@ -133,7 +135,7 @@ class TestSmoke(TestCase):
         }
     },
     "libgcc-s1": {
-        "10.2.0": {
+        "10.3.0": {
             "dependencies": {
                 "gcc-10-base": "*",
                 "libc6": ">=2.14"
@@ -178,7 +180,6 @@ class TestSmoke(TestCase):
         "0.2.3": {
             "dependencies": {
                 "compiler_builtins": "^0.1.2",
-                "criterion": "^0.3.2",
                 "rustc-std-workspace-core": "^1.0.0"
             },
             "source": "cargo"
@@ -187,8 +188,13 @@ class TestSmoke(TestCase):
     "aho-corasick": {
         "0.7.15": {
             "dependencies": {
-                "doc-comment": "^0.3.1",
                 "memchr": "^2.2.0"
+            },
+            "source": "cargo"
+        },
+        "0.7.18": {
+            "dependencies": {
+                "memchr": "^2.4.0"
             },
             "source": "cargo"
         }
@@ -203,13 +209,7 @@ class TestSmoke(TestCase):
     },
     "anyhow": {
         "1.0.38": {
-            "dependencies": {
-                "futures": "^0.3",
-                "rustversion": "^1.0",
-                "syn": "^1.0",
-                "thiserror": "^1.0",
-                "trybuild": "^1.0.19"
-            },
+            "dependencies": {},
             "source": "cargo"
         }
     },
@@ -223,12 +223,6 @@ class TestSmoke(TestCase):
             "source": "cargo"
         }
     },
-    "autocfg": {
-        "1.0.1": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
     "bitflags": {
         "1.2.1": {
             "dependencies": {},
@@ -238,8 +232,6 @@ class TestSmoke(TestCase):
     "bitmaps": {
         "2.1.0": {
             "dependencies": {
-                "proptest": "^0.9.1",
-                "proptest-derive": "^0.1.0",
                 "typenum": "^1.10.0"
             },
             "source": "cargo"
@@ -250,11 +242,8 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "lazy_static": "^1.2",
                 "memchr": "^2.1.2",
-                "quickcheck": "^1",
                 "regex-automata": "^0.1.5",
-                "serde": "^1.0.85",
-                "ucd-parse": "^0.1.3",
-                "unicode-segmentation": "^1.2.1"
+                "serde": "^1.0.85"
             },
             "source": "cargo"
         }
@@ -268,7 +257,7 @@ class TestSmoke(TestCase):
         }
     },
     "cargo": {
-        "0.53.0": {
+        "0.50.1": {
             "dependencies": {
                 "anyhow": "^1.0",
                 "atty": "^0.2",
@@ -276,7 +265,7 @@ class TestSmoke(TestCase):
                 "cargo-platform": "^0.1.1",
                 "clap": "^2.31.2",
                 "core-foundation": "^0.9.0",
-                "crates-io": "^0.33.0",
+                "crates-io": "^0.31.1",
                 "crossbeam-utils": "^0.8",
                 "crypto-hash": "^0.3.1",
                 "curl": "^0.4.23",
@@ -285,8 +274,8 @@ class TestSmoke(TestCase):
                 "filetime": "^0.2.9",
                 "flate2": "^1.0.3",
                 "fwdansi": "^1.1.0",
-                "git2": "^0.13.16",
-                "git2-curl": "^0.14.1",
+                "git2": "^0.13.12",
+                "git2-curl": "^0.14.0",
                 "glob": "^0.3.0",
                 "hex": "^0.4",
                 "home": "^0.5",
@@ -297,16 +286,15 @@ class TestSmoke(TestCase):
                 "lazy_static": "^1.2.0",
                 "lazycell": "^1.2.0",
                 "libc": "^0.2",
-                "libgit2-sys": "^0.12.18",
+                "libgit2-sys": "^0.12.14",
                 "log": "^0.4.6",
                 "memchr": "^2.1.3",
-                "miow": "^0.3.6",
+                "miow": "^0.3.1",
                 "num_cpus": "^1.0",
                 "opener": "^0.4",
                 "openssl": "^0.10.11",
                 "percent-encoding": "^2.0",
                 "pretty_env_logger": "^0.4",
-                "rand": "^0.8.3",
                 "rustc-workspace-hack": "^1.0.0",
                 "rustfix": "^0.5.0",
                 "same-file": "^1",
@@ -337,15 +325,6 @@ class TestSmoke(TestCase):
             "source": "cargo"
         }
     },
-    "cc": {
-        "1.0.67": {
-            "dependencies": {
-                "jobserver": "^0.1.16",
-                "tempfile": "^3"
-            },
-            "source": "cargo"
-        }
-    },
     "cfg-if": {
         "1.0.0": {
             "dependencies": {
@@ -362,14 +341,11 @@ class TestSmoke(TestCase):
                 "atty": "^0.2.2",
                 "bitflags": "^1.0",
                 "clippy": "~0.0.166",
-                "lazy_static": "^1.3",
-                "regex": "^1",
                 "strsim": "^0.8",
                 "term_size": "^0.3.0",
                 "textwrap": "^0.11.0",
                 "unicode-width": "^0.1.4",
                 "vec_map": "^0.8",
-                "version-sync": "^0.8",
                 "yaml-rust": "^0.3.5"
             },
             "source": "cargo"
@@ -379,8 +355,7 @@ class TestSmoke(TestCase):
         "0.2.0": {
             "dependencies": {
                 "clippy": "^0.0",
-                "commoncrypto-sys": "^0.2.0",
-                "hex": "^0.2"
+                "commoncrypto-sys": "^0.2.0"
             },
             "source": "cargo"
         }
@@ -389,7 +364,6 @@ class TestSmoke(TestCase):
         "0.2.0": {
             "dependencies": {
                 "clippy": "^0.0",
-                "hex": "^0.2",
                 "libc": "^0.2"
             },
             "source": "cargo"
@@ -413,7 +387,7 @@ class TestSmoke(TestCase):
         }
     },
     "crates-io": {
-        "0.33.0": {
+        "0.31.1": {
             "dependencies": {
                 "anyhow": "^1.0.34",
                 "curl": "^0.4",
@@ -428,10 +402,7 @@ class TestSmoke(TestCase):
     "crc32fast": {
         "1.2.1": {
             "dependencies": {
-                "bencher": "^0.1",
-                "cfg-if": "^1.0",
-                "quickcheck": "^0.9",
-                "rand": "^0.7"
+                "cfg-if": "^1.0"
             },
             "source": "cargo"
         }
@@ -439,11 +410,9 @@ class TestSmoke(TestCase):
     "crossbeam-utils": {
         "0.8.2": {
             "dependencies": {
-                "autocfg": "^1.0.0",
                 "cfg-if": "^1",
                 "lazy_static": "^1.4.0",
-                "loom": "^0.4",
-                "rand": "^0.8"
+                "loom": "^0.4"
             },
             "source": "cargo"
         }
@@ -462,11 +431,8 @@ class TestSmoke(TestCase):
     "curl": {
         "0.4.34": {
             "dependencies": {
-                "anyhow": "^1.0.31",
                 "curl-sys": "^0.4.37",
                 "libc": "^0.2.42",
-                "mio": "^0.6",
-                "mio-extras": "^2.0.3",
                 "openssl-probe": "^0.1.2",
                 "openssl-sys": "^0.9.43",
                 "schannel": "^0.1.13",
@@ -479,14 +445,11 @@ class TestSmoke(TestCase):
     "curl-sys": {
         "0.4.40+curl-7.75.0": {
             "dependencies": {
-                "cc": "^1.0",
                 "libc": "^0.2.2",
                 "libnghttp2-sys": "^0.1.3",
                 "libz-sys": "^1.0.18",
                 "mesalink": "^1.1.0-cratesio",
                 "openssl-sys": "^0.9",
-                "pkg-config": "^0.3.3",
-                "vcpkg": "^0.2",
                 "winapi": "^0.3"
             },
             "source": "cargo"
@@ -495,14 +458,23 @@ class TestSmoke(TestCase):
     "either": {
         "1.6.1": {
             "dependencies": {
-                "serde": "^1.0",
-                "serde_json": "^1.0.0"
+                "serde": "^1.0"
             },
             "source": "cargo"
         }
     },
     "env_logger": {
         "0.8.3": {
+            "dependencies": {
+                "atty": "^0.2.5",
+                "humantime": "^2.0.0",
+                "log": "^0.4.8",
+                "regex": "^1.0.3",
+                "termcolor": "^1.0.2"
+            },
+            "source": "cargo"
+        },
+        "0.8.4": {
             "dependencies": {
                 "atty": "^0.2.5",
                 "humantime": "^2.0.0",
@@ -519,7 +491,6 @@ class TestSmoke(TestCase):
                 "cfg-if": "^1.0.0",
                 "libc": "^0.2.27",
                 "redox_syscall": "^0.2",
-                "tempfile": "^3",
                 "winapi": "^0.3"
             },
             "source": "cargo"
@@ -531,16 +502,12 @@ class TestSmoke(TestCase):
                 "cfg-if": "^1.0.0",
                 "cloudflare-zlib-sys": "^0.2.0",
                 "crc32fast": "^1.2.0",
-                "futures": "^0.1",
+                "futures": "^0.1.25",
                 "libc": "^0.2.65",
                 "libz-sys": "^1.1.0",
                 "miniz-sys": "^0.1.11",
-                "miniz_oxide": "^0.4.0",
-                "quickcheck": "^0.9",
-                "rand": "^0.7",
-                "tokio-io": "^0.1.11",
-                "tokio-tcp": "^0.1.3",
-                "tokio-threadpool": "^0.1.10"
+                "miniz_oxide": "^0.4.0,^0.4.0",
+                "tokio-io": "^0.1.11"
             },
             "source": "cargo"
         }
@@ -578,7 +545,6 @@ class TestSmoke(TestCase):
         "1.1.0": {
             "dependencies": {
                 "memchr": "^2",
-                "proptest": "^0.9",
                 "termcolor": "^1"
             },
             "source": "cargo"
@@ -587,10 +553,8 @@ class TestSmoke(TestCase):
     "generator": {
         "0.6.24": {
             "dependencies": {
-                "cc": "^1.0",
                 "libc": "^0.2",
                 "log": "^0.4",
-                "rustversion": "^1.0",
                 "winapi": "^0.3"
             },
             "source": "cargo"
@@ -605,8 +569,7 @@ class TestSmoke(TestCase):
                 "libc": "^0.2.64",
                 "rustc-std-workspace-core": "^1.0",
                 "wasi": "^0.10",
-                "wasm-bindgen": "^0.2.62",
-                "wasm-bindgen-test": "^0.3.18"
+                "wasm-bindgen": "^0.2.62"
             },
             "source": "cargo"
         }
@@ -620,28 +583,6 @@ class TestSmoke(TestCase):
                 "log": "^0.4.8",
                 "openssl-probe": "^0.1",
                 "openssl-sys": "^0.9.0",
-                "paste": "^1",
-                "structopt": "^0.3",
-                "tempfile": "^3.1.0",
-                "thread-id": "^3.3.0",
-                "time": "^0.1.39",
-                "url": "^2.0"
-            },
-            "source": "cargo"
-        },
-        "0.13.20": {
-            "dependencies": {
-                "bitflags": "^1.1.0",
-                "libc": "^0.2",
-                "libgit2-sys": "^0.12.21",
-                "log": "^0.4.8",
-                "openssl-probe": "^0.1",
-                "openssl-sys": "^0.9.0",
-                "paste": "^1",
-                "structopt": "^0.3",
-                "tempfile": "^3.1.0",
-                "thread-id": "^3.3.0",
-                "time": "^0.1.39",
                 "url": "^2.0"
             },
             "source": "cargo"
@@ -650,13 +591,9 @@ class TestSmoke(TestCase):
     "git2-curl": {
         "0.14.1": {
             "dependencies": {
-                "civet": "^0.11",
-                "conduit": "^0.8",
-                "conduit-git-http-backend": "^0.8",
                 "curl": "^0.4.33",
                 "git2": "^0.13",
                 "log": "^0.4",
-                "tempfile": "^3.0",
                 "url": "^2.0"
             },
             "source": "cargo"
@@ -664,9 +601,7 @@ class TestSmoke(TestCase):
     },
     "glob": {
         "0.3.0": {
-            "dependencies": {
-                "tempdir": "^0.3"
-            },
+            "dependencies": {},
             "source": "cargo"
         }
     },
@@ -676,12 +611,9 @@ class TestSmoke(TestCase):
                 "aho-corasick": "^0.7.3",
                 "bstr": "^0.2.0",
                 "fnv": "^1.0.6",
-                "glob": "^0.3.0",
-                "lazy_static": "^1",
                 "log": "^0.4.5",
                 "regex": "^1.1.5",
-                "serde": "^1.0.104",
-                "serde_json": "^1.0.45"
+                "serde": "^1.0.104"
             },
             "source": "cargo"
         }
@@ -711,13 +643,7 @@ class TestSmoke(TestCase):
         },
         "0.4.2": {
             "dependencies": {
-                "criterion": "^0.3",
-                "faster-hex": "^0.4",
-                "pretty_assertions": "^0.6",
-                "rustc-hex": "^2.0",
-                "serde": "^1.0",
-                "serde_json": "^1.0",
-                "version-sync": "^0.8"
+                "serde": "^1.0"
             },
             "source": "cargo"
         }
@@ -732,22 +658,14 @@ class TestSmoke(TestCase):
     },
     "humantime": {
         "2.1.0": {
-            "dependencies": {
-                "chrono": "^0.4",
-                "rand": "^0.6",
-                "time": "^0.1"
-            },
+            "dependencies": {},
             "source": "cargo"
         }
     },
     "idna": {
         "0.2.2": {
             "dependencies": {
-                "assert_matches": "^1.3",
-                "bencher": "^0.1",
                 "matches": "^0.1",
-                "rustc-test": "^0.3",
-                "serde_json": "^1.0",
                 "unicode-bidi": "^0.3",
                 "unicode-normalization": "^0.1.17"
             },
@@ -757,7 +675,6 @@ class TestSmoke(TestCase):
     "ignore": {
         "0.4.17": {
             "dependencies": {
-                "crossbeam-channel": "^0.5.0",
                 "crossbeam-utils": "^0.8.0",
                 "globset": "^0.4.5",
                 "lazy_static": "^1.1",
@@ -777,21 +694,15 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "arbitrary": "^0.4",
                 "bitmaps": "^2",
-                "metrohash": "^1",
-                "pretty_assertions": "^0.6",
                 "proptest": "^0.9",
-                "proptest-derive": "^0.1",
                 "quickcheck": "^0.9",
-                "rand": "^0.7",
                 "rand_core": "^0.5.1",
                 "rand_xoshiro": "^0.4",
                 "rayon": "^1",
                 "refpool": "^0.4",
                 "serde": "^1",
-                "serde_json": "^1",
                 "sized-chunks": "^0.6",
-                "typenum": "^1.12",
-                "version_check": "^0.9"
+                "typenum": "^1.12"
             },
             "source": "cargo"
         }
@@ -805,12 +716,7 @@ class TestSmoke(TestCase):
     "jobserver": {
         "0.1.21": {
             "dependencies": {
-                "futures": "^0.1",
-                "libc": "^0.2.50",
-                "num_cpus": "^1.0",
-                "tempdir": "^0.3",
-                "tokio-core": "^0.1",
-                "tokio-process": "^0.2"
+                "libc": "^0.2.50"
             },
             "source": "cargo"
         }
@@ -818,7 +724,6 @@ class TestSmoke(TestCase):
     "lazy_static": {
         "1.4.0": {
             "dependencies": {
-                "doc-comment": "^0.3.1",
                 "spin": "^0.5.0"
             },
             "source": "cargo"
@@ -839,34 +744,15 @@ class TestSmoke(TestCase):
                 "rustc-std-workspace-core": "^1.0.0"
             },
             "source": "cargo"
-        },
-        "0.2.95": {
-            "dependencies": {
-                "rustc-std-workspace-core": "^1.0.0"
-            },
-            "source": "cargo"
         }
     },
     "libgit2-sys": {
         "0.12.18+1.1.0": {
             "dependencies": {
-                "cc": "^1.0.43",
                 "libc": "^0.2",
                 "libssh2-sys": "^0.2.19",
                 "libz-sys": "^1.1.0",
-                "openssl-sys": "^0.9",
-                "pkg-config": "^0.3.7"
-            },
-            "source": "cargo"
-        },
-        "0.12.21+1.1.0": {
-            "dependencies": {
-                "cc": "^1.0.43",
-                "libc": "^0.2",
-                "libssh2-sys": "^0.2.19",
-                "libz-sys": "^1.1.0",
-                "openssl-sys": "^0.9",
-                "pkg-config": "^0.3.7"
+                "openssl-sys": "^0.9"
             },
             "source": "cargo"
         }
@@ -874,7 +760,6 @@ class TestSmoke(TestCase):
     "libnghttp2-sys": {
         "0.1.6+1.43.0": {
             "dependencies": {
-                "cc": "^1.0.24",
                 "libc": "^0.2"
             },
             "source": "cargo"
@@ -883,12 +768,9 @@ class TestSmoke(TestCase):
     "libssh2-sys": {
         "0.2.21": {
             "dependencies": {
-                "cc": "^1.0.25",
                 "libc": "^0.2",
                 "libz-sys": "^1.1.0",
-                "openssl-sys": "^0.9.35",
-                "pkg-config": "^0.3.11",
-                "vcpkg": "^0.2"
+                "openssl-sys": "^0.9.35"
             },
             "source": "cargo"
         }
@@ -896,34 +778,17 @@ class TestSmoke(TestCase):
     "libz-sys": {
         "1.1.2": {
             "dependencies": {
-                "cc": "^1.0.18",
-                "cmake": "^0.1.44",
-                "libc": "^0.2.43",
-                "pkg-config": "^0.3.9",
-                "vcpkg": "^0.2"
+                "libc": "^0.2.43"
             },
             "source": "cargo"
         }
     },
     "llvm-ir": {
-        "0.7.4": {
+        "0.7.5": {
             "dependencies": {
-                "either": "^1.5.2",
-                "env_logger": "^0.6.2",
-                "llvm-sys": "^90.2.0",
+                "either": "^1.6",
+                "llvm-sys": "^100.2.0,^110.0.0,^120.0.0,^80.3.0,^90.2.0",
                 "log": "^0.4.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "llvm-sys": {
-        "110.0.0": {
-            "dependencies": {
-                "cc": "^1.0",
-                "lazy_static": "^1.0",
-                "libc": "^0.2",
-                "regex": "^1.0",
-                "semver": "^0.11"
             },
             "source": "cargo"
         }
@@ -933,7 +798,6 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "cfg-if": "^1.0",
                 "serde": "^1.0",
-                "serde_test": "^1.0",
                 "sval": "^1.0.0-alpha.5",
                 "value-bag": "^1.0.0-alpha.6"
             },
@@ -962,8 +826,13 @@ class TestSmoke(TestCase):
     "memchr": {
         "2.3.4": {
             "dependencies": {
-                "libc": "^0.2.18",
-                "quickcheck": "^0.9"
+                "libc": "^0.2.18"
+            },
+            "source": "cargo"
+        },
+        "2.4.0": {
+            "dependencies": {
+                "libc": "^0.2.18"
             },
             "source": "cargo"
         }
@@ -972,7 +841,6 @@ class TestSmoke(TestCase):
         "0.4.3": {
             "dependencies": {
                 "adler": "^0.2.3",
-                "autocfg": "^1.0",
                 "compiler_builtins": "^0.1.2",
                 "rustc-std-workspace-alloc": "^1.0.0",
                 "rustc-std-workspace-core": "^1.0.0"
@@ -983,16 +851,7 @@ class TestSmoke(TestCase):
     "miow": {
         "0.3.6": {
             "dependencies": {
-                "rand": "^0.4",
                 "socket2": "^0.3.16",
-                "winapi": "^0.3.3"
-            },
-            "source": "cargo"
-        },
-        "0.3.7": {
-            "dependencies": {
-                "rand": "^0.8.0",
-                "socket2": "^0.4.0",
                 "winapi": "^0.3.3"
             },
             "source": "cargo"
@@ -1010,10 +869,7 @@ class TestSmoke(TestCase):
     "once_cell": {
         "1.6.0": {
             "dependencies": {
-                "crossbeam-utils": "^0.7.2",
-                "lazy_static": "^1.0.0",
-                "parking_lot": "^0.11",
-                "regex": "^1.2.0"
+                "parking_lot": "^0.11"
             },
             "source": "cargo"
         }
@@ -1032,11 +888,9 @@ class TestSmoke(TestCase):
                 "bitflags": "^1.0",
                 "cfg-if": "^1.0",
                 "foreign-types": "^0.3.1",
-                "hex": "^0.3",
                 "lazy_static": "^1",
                 "libc": "^0.2",
-                "openssl-sys": "^0.9.60",
-                "tempdir": "^0.3"
+                "openssl-sys": "^0.9.60"
             },
             "source": "cargo"
         }
@@ -1050,12 +904,7 @@ class TestSmoke(TestCase):
     "openssl-sys": {
         "0.9.60": {
             "dependencies": {
-                "autocfg": "^1.0",
-                "cc": "^1.0",
-                "libc": "^0.2",
-                "openssl-src": "^111.0.1",
-                "pkg-config": "^0.3.9",
-                "vcpkg": "^0.2.8"
+                "libc": "^0.2"
             },
             "source": "cargo"
         }
@@ -1063,24 +912,6 @@ class TestSmoke(TestCase):
     "percent-encoding": {
         "2.1.0": {
             "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "pest": {
-        "2.1.3": {
-            "dependencies": {
-                "serde": "^1.0.89",
-                "serde_json": "^1.0.39",
-                "ucd-trie": "^0.1.1"
-            },
-            "source": "cargo"
-        }
-    },
-    "pkg-config": {
-        "0.3.19": {
-            "dependencies": {
-                "lazy_static": "^1"
-            },
             "source": "cargo"
         }
     },
@@ -1096,11 +927,7 @@ class TestSmoke(TestCase):
                 "proc-macro-error-attr": "=1.0.4",
                 "proc-macro2": "^1",
                 "quote": "^1",
-                "serde_derive": "=1.0.107",
-                "syn": "^1",
-                "toml": "=0.5.2",
-                "trybuild": "^1.0.19",
-                "version_check": "^0.9"
+                "syn": "^1"
             },
             "source": "cargo"
         }
@@ -1109,8 +936,7 @@ class TestSmoke(TestCase):
         "1.0.4": {
             "dependencies": {
                 "proc-macro2": "^1",
-                "quote": "^1",
-                "version_check": "^0.9"
+                "quote": "^1"
             },
             "source": "cargo"
         }
@@ -1118,7 +944,6 @@ class TestSmoke(TestCase):
     "proc-macro2": {
         "1.0.24": {
             "dependencies": {
-                "quote": "^1.0",
                 "unicode-xid": "^0.2"
             },
             "source": "cargo"
@@ -1127,9 +952,7 @@ class TestSmoke(TestCase):
     "quote": {
         "1.0.9": {
             "dependencies": {
-                "proc-macro2": "^1.0.20",
-                "rustversion": "^1.0",
-                "trybuild": "^1.0.19"
+                "proc-macro2": "^1.0.20"
             },
             "source": "cargo"
         }
@@ -1137,14 +960,12 @@ class TestSmoke(TestCase):
     "rand": {
         "0.8.3": {
             "dependencies": {
-                "bincode": "^1.2.1",
                 "libc": "^0.2.22",
                 "log": "^0.4.4",
                 "packed_simd_2": "^0.3.4",
                 "rand_chacha": "^0.3.0",
                 "rand_core": "^0.6.0",
                 "rand_hc": "^0.3.0",
-                "rand_pcg": "^0.3.0",
                 "serde": "^1.0.103"
             },
             "source": "cargo"
@@ -1186,7 +1007,6 @@ class TestSmoke(TestCase):
     "rand_xoshiro": {
         "0.4.0": {
             "dependencies": {
-                "bincode": "^1",
                 "rand_core": "^0.5",
                 "serde": "^1"
             },
@@ -1205,12 +1025,17 @@ class TestSmoke(TestCase):
         "1.4.3": {
             "dependencies": {
                 "aho-corasick": "^0.7.6",
-                "lazy_static": "^1",
                 "memchr": "^2.2.1",
-                "quickcheck": "^0.8",
-                "rand": "^0.6.5",
                 "regex-syntax": "^0.6.22",
                 "thread_local": "^1"
+            },
+            "source": "cargo"
+        },
+        "1.5.4": {
+            "dependencies": {
+                "aho-corasick": "^0.7.18",
+                "memchr": "^2.4.0",
+                "regex-syntax": "^0.6.25"
             },
             "source": "cargo"
         }
@@ -1219,26 +1044,22 @@ class TestSmoke(TestCase):
         "0.6.22": {
             "dependencies": {},
             "source": "cargo"
+        },
+        "0.6.25": {
+            "dependencies": {},
+            "source": "cargo"
         }
     },
     "remove_dir_all": {
         "0.5.3": {
             "dependencies": {
-                "doc-comment": "^0.3",
                 "winapi": "^0.3"
             },
             "source": "cargo"
         }
     },
     "rustc-demangle": {
-        "0.1.18": {
-            "dependencies": {
-                "compiler_builtins": "^0.1.2",
-                "rustc-std-workspace-core": "^1.0.0"
-            },
-            "source": "cargo"
-        },
-        "0.1.19": {
+        "0.1.20": {
             "dependencies": {
                 "compiler_builtins": "^0.1.2",
                 "rustc-std-workspace-core": "^1.0.0"
@@ -1256,22 +1077,9 @@ class TestSmoke(TestCase):
         "0.5.1": {
             "dependencies": {
                 "anyhow": "^1.0.0",
-                "difference": "^2.0.0",
-                "duct": "^0.9",
-                "env_logger": "^0.5.0-rc.1",
                 "log": "^0.4.1",
-                "proptest": "^0.7.0",
                 "serde": "^1.0",
-                "serde_json": "^1.0",
-                "tempdir": "^0.3.5"
-            },
-            "source": "cargo"
-        }
-    },
-    "rustversion": {
-        "1.0.4": {
-            "dependencies": {
-                "trybuild": "^1.0.35"
+                "serde_json": "^1.0"
             },
             "source": "cargo"
         }
@@ -1279,10 +1087,7 @@ class TestSmoke(TestCase):
     "ryu": {
         "1.0.5": {
             "dependencies": {
-                "no-panic": "^0.1",
-                "num_cpus": "^1.8",
-                "rand": "^0.7",
-                "rand_xorshift": "^0.2"
+                "no-panic": "^0.1"
             },
             "source": "cargo"
         }
@@ -1290,7 +1095,6 @@ class TestSmoke(TestCase):
     "same-file": {
         "1.0.6": {
             "dependencies": {
-                "doc-comment": "^0.3",
                 "winapi-util": "^0.1.1"
             },
             "source": "cargo"
@@ -1316,32 +1120,12 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "diesel": "^1.1",
                 "semver-parser": "^0.7.0",
-                "serde": "^1.0",
-                "serde_derive": "^1.0",
-                "serde_json": "^1.0"
-            },
-            "source": "cargo"
-        },
-        "0.11.0": {
-            "dependencies": {
-                "diesel": "^1.1",
-                "semver-parser": "^0.10.0",
-                "serde": "^1.0",
-                "serde_derive": "^1.0",
-                "serde_json": "^1.0"
+                "serde": "^1.0"
             },
             "source": "cargo"
         }
     },
     "semver-parser": {
-        "0.10.2": {
-            "dependencies": {
-                "pest": "^2.1.0",
-                "pest_generator": "^2.1",
-                "proc-macro2": "^1.0"
-            },
-            "source": "cargo"
-        },
         "0.7.0": {
             "dependencies": {},
             "source": "cargo"
@@ -1350,7 +1134,7 @@ class TestSmoke(TestCase):
     "serde": {
         "1.0.123": {
             "dependencies": {
-                "serde_derive": "^1.0"
+                "serde_derive": "=1.0.123"
             },
             "source": "cargo"
         }
@@ -1360,7 +1144,6 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "proc-macro2": "^1.0",
                 "quote": "^1.0",
-                "serde": "^1.0",
                 "syn": "^1.0.60"
             },
             "source": "cargo"
@@ -1369,9 +1152,7 @@ class TestSmoke(TestCase):
     "serde_ignored": {
         "0.1.2": {
             "dependencies": {
-                "serde": "^1.0",
-                "serde_derive": "^1.0",
-                "serde_json": "^1.0"
+                "serde": "^1.0"
             },
             "source": "cargo"
         }
@@ -1379,16 +1160,10 @@ class TestSmoke(TestCase):
     "serde_json": {
         "1.0.62": {
             "dependencies": {
-                "automod": "^1.0",
                 "indexmap": "^1.5",
                 "itoa": "^0.4.3",
-                "rustversion": "^1.0",
                 "ryu": "^1.0",
-                "serde": "^1.0.100",
-                "serde_bytes": "^0.11",
-                "serde_derive": "^1.0",
-                "serde_stacker": "^0.1",
-                "trybuild": "^1.0.19"
+                "serde": "^1.0.100"
             },
             "source": "cargo"
         }
@@ -1437,15 +1212,7 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "cfg-if": "^1.0",
                 "libc": "^0.2.66",
-                "tempdir": "^0.3",
                 "winapi": "^0.3.3"
-            },
-            "source": "cargo"
-        },
-        "0.4.0": {
-            "dependencies": {
-                "libc": "^0.2.86",
-                "winapi": "^0.3.9"
             },
             "source": "cargo"
         }
@@ -1470,9 +1237,7 @@ class TestSmoke(TestCase):
                 "clap": "^2.33",
                 "lazy_static": "^1.4.0",
                 "paw": "^1",
-                "rustversion": "^1",
-                "structopt-derive": "=0.4.14",
-                "trybuild": "^1.0.5"
+                "structopt-derive": "=0.4.14"
             },
             "source": "cargo"
         }
@@ -1492,20 +1257,9 @@ class TestSmoke(TestCase):
     "syn": {
         "1.0.60": {
             "dependencies": {
-                "anyhow": "^1.0",
-                "flate2": "^1.0",
-                "insta": "^1.0",
                 "proc-macro2": "^1.0.23",
                 "quote": "^1.0",
-                "rayon": "^1.0",
-                "ref-cast": "^1.0",
-                "regex": "^1.0",
-                "reqwest": "^0.10",
-                "syn-test-suite": "^0",
-                "tar": "^0.4.16",
-                "termcolor": "^1.0",
-                "unicode-xid": "^0.2",
-                "walkdir": "^2.1"
+                "unicode-xid": "^0.2"
             },
             "source": "cargo"
         }
@@ -1515,7 +1269,6 @@ class TestSmoke(TestCase):
             "dependencies": {
                 "filetime": "^0.2.8",
                 "libc": "^0.2",
-                "tempfile": "^3",
                 "xattr": "^0.2"
             },
             "source": "cargo"
@@ -1546,12 +1299,8 @@ class TestSmoke(TestCase):
         "0.11.0": {
             "dependencies": {
                 "hyphenation": "^0.7.1",
-                "lipsum": "^0.6",
-                "rand": "^0.6",
-                "rand_xorshift": "^0.1",
                 "term_size": "^0.3.0",
-                "unicode-width": "^0.1.3",
-                "version-sync": "^0.6"
+                "unicode-width": "^0.1.3"
             },
             "source": "cargo"
         }
@@ -1565,13 +1314,26 @@ class TestSmoke(TestCase):
             "source": "cargo"
         }
     },
+    "tinyvec": {
+        "1.1.1": {
+            "dependencies": {
+                "serde": "^1.0",
+                "tinyvec_macros": "^0.1"
+            },
+            "source": "cargo"
+        }
+    },
+    "tinyvec_macros": {
+        "0.1.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
     "toml": {
         "0.5.8": {
             "dependencies": {
                 "indexmap": "^1.0",
-                "serde": "^1.0.97",
-                "serde_derive": "^1.0",
-                "serde_json": "^1.0"
+                "serde": "^1.0.97"
             },
             "source": "cargo"
         }
@@ -1588,8 +1350,7 @@ class TestSmoke(TestCase):
                 "flame": "^0.1",
                 "flamer": "^0.1",
                 "matches": "^0.1",
-                "serde": ">=0.8,<2.0",
-                "serde_test": ">=0.8,<2.0"
+                "serde": ">=0.8,<2.0"
             },
             "source": "cargo"
         }
@@ -1604,10 +1365,7 @@ class TestSmoke(TestCase):
     },
     "unicode-segmentation": {
         "1.7.1": {
-            "dependencies": {
-                "bencher": "^0.1",
-                "quickcheck": "^0.7"
-            },
+            "dependencies": {},
             "source": "cargo"
         }
     },
@@ -1630,13 +1388,11 @@ class TestSmoke(TestCase):
     "url": {
         "2.2.1": {
             "dependencies": {
-                "bencher": "^0.1",
                 "form_urlencoded": "^1.0.0",
                 "idna": "^0.2.0",
                 "matches": "^0.1",
                 "percent-encoding": "^2.1.0",
-                "serde": "^1.0",
-                "serde_json": "^1.0"
+                "serde": "^1.0"
             },
             "source": "cargo"
         }
@@ -1647,26 +1403,11 @@ class TestSmoke(TestCase):
             "source": "cargo"
         }
     },
-    "vcpkg": {
-        "0.2.11": {
-            "dependencies": {
-                "lazy_static": "^1",
-                "tempdir": "^0.3.7"
-            },
-            "source": "cargo"
-        }
-    },
     "vec_map": {
         "0.8.2": {
             "dependencies": {
                 "serde": "^1.0"
             },
-            "source": "cargo"
-        }
-    },
-    "version_check": {
-        "0.9.2": {
-            "dependencies": {},
             "source": "cargo"
         }
     },
@@ -1681,7 +1422,6 @@ class TestSmoke(TestCase):
     "walkdir": {
         "2.3.1": {
             "dependencies": {
-                "doc-comment": "^0.3",
                 "same-file": "^1.0.1",
                 "winapi": "^0.3",
                 "winapi-util": "^0.1.1"
@@ -1690,7 +1430,6 @@ class TestSmoke(TestCase):
         },
         "2.3.2": {
             "dependencies": {
-                "doc-comment": "^0.3",
                 "same-file": "^1.0.1",
                 "winapi": "^0.3",
                 "winapi-util": "^0.1.1"
@@ -1753,7 +1492,7 @@ class TestSmoke(TestCase):
         }
     },
     "gcc-10-base": {
-        "10.2.0": {
+        "10.3.0": {
             "dependencies": {},
             "source": "ubuntu"
         }
@@ -1776,7 +1515,7 @@ class TestSmoke(TestCase):
         }
     },
     "libgcc-s1": {
-        "10.2.0": {
+        "10.3.0": {
             "dependencies": {
                 "gcc-10-base": "*",
                 "libc6": ">=2.14"

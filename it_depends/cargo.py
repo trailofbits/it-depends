@@ -1,21 +1,19 @@
 from pathlib import Path
 import json
 import tempfile
-from os import chdir, getcwd
 import shutil
 import subprocess
 import logging
-from typing import Iterator, Optional, Type, Union
+from typing import Iterator, Optional, Type, Union, Dict
 
 from semantic_version.base import Always, BaseSpec
 
 from .dependencies import (
     Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage,
-    SourceRepository, Version
+    SourceRepository, Version, InMemoryPackageCache
 )
 
 logger = logging.getLogger(__name__)
-
 
 @BaseSpec.register_syntax
 class CargoSpec(SimpleSpec):
@@ -38,6 +36,8 @@ class CargoSpec(SimpleSpec):
         # remove the whitespace to canonicalize the spec
         return ",".join(b.strip() for b in self.expression.split(','))
 
+    def __or__(self, other):
+        return CargoSpec(f"{self.expression},{other.expression}")
 
 def get_dependencies(repo: SourceRepository, check_for_cargo: bool = True, cache:Optional[PackageCache]=None) -> Iterator[Package]:
     if check_for_cargo and shutil.which("cargo") is None:
@@ -59,18 +59,27 @@ def get_dependencies(repo: SourceRepository, check_for_cargo: bool = True, cache
         else:
             _class = Package
             kwargs = {}
+
+        dependencies: Dict[str, Dependency] = {}
+        for dep in package["dependencies"]:
+            if dep['kind'] is not None:
+                continue
+            if dep["name"] in dependencies:
+                dependencies[dep["name"]].semantic_version = dependencies[
+                                                                 dep["name"]].semantic_version | CargoResolver.parse_spec(
+                    dep["req"])
+            else:
+                dependencies[dep["name"]] = Dependency(
+                    package=dep["name"],
+                    semantic_version=CargoResolver.parse_spec(dep["req"]),
+                    source=CargoResolver(),
+                )
+
         yield _class(  # type: ignore
             name=package["name"],
             version=Version.coerce(package["version"]),
             source="cargo",
-            dependencies=[
-                Dependency(
-                    package=dep["name"],
-                    semantic_version=CargoResolver.parse_spec(dep["req"]),
-                    source="cargo",
-                )
-                for dep in package["dependencies"]
-            ],
+            dependencies=dependencies.values(),
             **kwargs
         )
 
@@ -103,42 +112,39 @@ class CargoResolver(DependencyResolver):
                 if cache is not None:
                     cache.add(package)
                     for dep in package.dependencies:
-                        cache.set_resolved(dep)
+                        if not cache.was_resolved(dep):
+                            cache.set_resolved(dep)
         return result
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        search_result = subprocess.check_output(["cargo", "search", str(dependency.package)]).decode()
+        """search_result = subprocess.check_output(["cargo", "search", "--limit", "100", str(dependency.package)]).decode()
         for line in search_result.splitlines():
-            pkgid = (line.split("#",1)[0].strip())
+            pkgid = (line.split("#", 1)[0].strip())
             if pkgid.startswith(f"{dependency.package}"):
                 break
         else:
             return
+        """
+        pkgid = dependency.package
 
-        logger.debug(f"Found {pkgid} for {dependency} in crates.io")
+        # Need to translate a semantic version into a cargo semantic version
+        #  https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements
+        #  caret requirement
+        semantic_version = str(dependency.semantic_version)
+        semantic_versions = semantic_version.split(",")
+        cache = InMemoryPackageCache()
+        with cache:
+            for semantic_version in map(str.strip, semantic_versions):
+                if semantic_version[0].isnumeric():
+                    semantic_version="="+semantic_version
+                pkgid = f'{pkgid.split("=")[0].strip()} = "{semantic_version}"'
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            subprocess.check_output(["cargo", "init"], cwd=tmpdir)
-            with open(Path(tmpdir)/"Cargo.toml", "a") as f:
-                f.write(f"{pkgid}\n")
-            try:
-                metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=tmpdir))
-            except Exception as e:
-                logger.error(f"Cargo failed to resolve {dependency}. ({e})")
-                return
-            for package in metadata["packages"]:
-                if not package["name"] == dependency.package:
-                    continue
-                yield Package(  # type: ignore
-                    name=package["name"],
-                    version=Version.coerce(package["version"]),
-                    source=CargoResolver(),
-                    dependencies=[
-                        Dependency(
-                            package=dep["name"],
-                            semantic_version=CargoResolver.parse_spec(dep["req"]),
-                            source=CargoResolver(),
-                        )
-                        for dep in package["dependencies"]
-                    ]
-                )
+                logger.debug(f"Found {pkgid} for {dependency} in crates.io")
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    subprocess.check_output(["cargo", "init"], cwd=tmpdir)
+                    with open(Path(tmpdir)/"Cargo.toml", "a") as f:
+                        f.write(f"{pkgid}\n")
+                    self.resolve_from_source(SourceRepository(path=tmpdir), cache)
+        cache.set_resolved(dependency)
+        # TODO: propagate up any other info we have in this cache
+        return cache.match(dependency)
