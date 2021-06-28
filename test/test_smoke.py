@@ -111,8 +111,8 @@ class TestSmoke(TestCase):
             "source": "pip"
         }
     },
-    "gcc-10-base": {
-        "10.3.0": {
+    "gcc-11-base": {
+        "11.1.0": {
             "dependencies": {},
             "source": "ubuntu"
         }
@@ -137,7 +137,7 @@ class TestSmoke(TestCase):
     "libgcc-s1": {
         "10.3.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6": ">=2.14"
             },
             "source": "ubuntu"
@@ -1491,8 +1491,8 @@ class TestSmoke(TestCase):
             "source": "npm"
         }
     },
-    "gcc-10-base": {
-        "10.3.0": {
+    "gcc-11-base": {
+        "11.1.0": {
             "dependencies": {},
             "source": "ubuntu"
         }
@@ -1517,7 +1517,7 @@ class TestSmoke(TestCase):
     "libgcc-s1": {
         "10.3.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6": ">=2.14"
             },
             "source": "ubuntu"
@@ -1652,8 +1652,8 @@ class TestSmoke(TestCase):
             "source": "ubuntu"
         }
     },
-    "gcc-10-base": {
-        "10.2.0": {
+    "gcc-11-base": {
+        "11.1.0": {
             "dependencies": {},
             "source": "ubuntu"
         }
@@ -1707,7 +1707,7 @@ class TestSmoke(TestCase):
     "lib32gcc-s1": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6-i386": "*"
             },
             "source": "ubuntu"
@@ -1716,7 +1716,7 @@ class TestSmoke(TestCase):
     "lib32quadmath0": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6-i386": "*"
             },
             "source": "ubuntu"
@@ -1725,7 +1725,7 @@ class TestSmoke(TestCase):
     "lib32stdc++6": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "lib32gcc-s1": "*",
                 "libc6-i386": "*"
             },
@@ -2184,7 +2184,7 @@ class TestSmoke(TestCase):
     "libgcc-s1": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6": "*"
             },
             "source": "ubuntu"
@@ -2193,7 +2193,7 @@ class TestSmoke(TestCase):
     "libgcc1": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6": "*",
                 "libgcc-s1": "*"
             },
@@ -3152,7 +3152,7 @@ class TestSmoke(TestCase):
     "libquadmath0": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6": "*"
             },
             "source": "ubuntu"
@@ -3247,7 +3247,7 @@ class TestSmoke(TestCase):
     "libstdc++6": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6": "*",
                 "libgcc-s1": "*"
             },
@@ -3415,7 +3415,7 @@ class TestSmoke(TestCase):
     "libx32gcc-s1": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6-x32": "*"
             },
             "source": "ubuntu"
@@ -3424,7 +3424,7 @@ class TestSmoke(TestCase):
     "libx32quadmath0": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6-x32": "*"
             },
             "source": "ubuntu"
@@ -3433,7 +3433,7 @@ class TestSmoke(TestCase):
     "libx32stdc++6": {
         "10.2.0": {
             "dependencies": {
-                "gcc-10-base": "*",
+                "gcc-11-base": "*",
                 "libc6-x32": "*",
                 "libx32gcc-s1": "*"
             },
