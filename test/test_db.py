@@ -9,7 +9,7 @@ class TestDB(TestCase):
         with DBPackageCache() as cache:
             pkg = Package(name="package", version=Version.coerce("1.0.0"), source="unknown",
                           dependencies=(Dependency(package="dep", semantic_version=SimpleSpec(">3.0"),
-                                                   source=UnusedResolver()),))
+                                                   source="unknown"),))
             cache.add(pkg)
             self.assertIn(pkg, cache)
             self.assertEqual(len(cache), 1)
