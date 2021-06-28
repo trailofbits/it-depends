@@ -10,14 +10,15 @@ from .dependencies import (
     Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SourcePackage, SourceRepository
 )
 from .docker import DockerContainer, InMemoryDockerfile
+from typing import Pattern
 
 logger = logging.getLogger(__name__)
 
 
 _container: Optional[DockerContainer] = None
 
-_UBUNTU_NAME_MATCH: re.Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
-_VERSION_ID_MATCH: re.Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
+_UBUNTU_NAME_MATCH: Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
+_VERSION_ID_MATCH: Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
 
 
 def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
