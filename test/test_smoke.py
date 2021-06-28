@@ -135,7 +135,7 @@ class TestSmoke(TestCase):
         }
     },
     "libgcc-s1": {
-        "10.3.0": {
+        "11.1.0": {
             "dependencies": {
                 "gcc-11-base": "*",
                 "libc6": ">=2.14"
@@ -1515,7 +1515,7 @@ class TestSmoke(TestCase):
         }
     },
     "libgcc-s1": {
-        "10.3.0": {
+        "11.1.0": {
             "dependencies": {
                 "gcc-11-base": "*",
                 "libc6": ">=2.14"
