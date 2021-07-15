@@ -1,4 +1,5 @@
 import concurrent.futures
+import functools
 from dataclasses import dataclass
 from multiprocessing import cpu_count
 from pathlib import Path
@@ -48,21 +49,14 @@ RUN chmod +x *.sh
 STRACE_LIBRARY_REGEX = re.compile(r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
 
 
-@dataclass(unsafe_hash=True, frozen=True, order=True)
-class NativeLibrary:
-    name: str
-    path: str
-    version: Optional[str]
-
-
 class NativeResolver(DependencyResolver):
     name = "native"
     description = "attempts to detect native library usage by loading packages in a container"
 
     @staticmethod
-    def get_libraries(
+    def get_dependencies(
             container: DockerContainer, command: str, pre_command: Optional[str] = None
-    ) -> Iterator[NativeLibrary]:
+    ) -> Iterator[Dependency]:
         """Yields all dynamic libraries loaded by `command`, in order, including duplicates"""
         stdout = NamedTemporaryFile(prefix="stdout", delete=False)
         if pre_command is not None:
@@ -90,28 +84,28 @@ class NativeResolver(DependencyResolver):
             Path(stdout.name).unlink()
 
     @staticmethod
-    def get_package_libraries(container: DockerContainer, package: Package) -> Iterator[NativeLibrary]:
-        yield from NativeResolver.get_libraries(
+    def get_package_dependencies(container: DockerContainer, package: Package) -> Iterator[Dependency]:
+        yield from NativeResolver.get_dependencies(
             container=container,
             pre_command=f"./install.sh {package.name} {package.version!s}",
             command=f"./run.sh {package.name}"
         )
 
     @staticmethod
-    def get_baseline_libraries(container: DockerContainer) -> Iterator[NativeLibrary]:
-        yield from NativeResolver.get_libraries(
+    def get_baseline_dependencies(container: DockerContainer) -> Iterator[Dependency]:
+        yield from NativeResolver.get_dependencies(
             container=container,
             command="./baseline.sh"
         )
 
     @staticmethod
     def _expand(package: Package, container: DockerContainer):
-        return package, NativeResolver.get_package_libraries(container, package)
+        return package, NativeResolver.get_package_dependencies(container, package)
 
     @staticmethod
     def configure_docker(
             source: DependencyResolver, run_baseline: bool = True
-    ) -> Tuple[DockerContainer, Set[NativeLibrary]]:
+    ) -> Tuple[DockerContainer, Set[Dependency]]:
         docker_setup = source.docker_setup()
         if docker_setup is None:
             raise ValueError(f"source {source.name} does not support native dependency resolution")
@@ -124,26 +118,23 @@ class NativeResolver(DependencyResolver):
                 t.update(1)
                 if run_baseline:
                     t.desc = f"running baseline for {source.name}"
-                    return container, set(NativeResolver.get_baseline_libraries(container))
+                    return container, set(NativeResolver.get_baseline_dependencies(container))
                 else:
                     return container, set()
 
     @staticmethod
-    def get_native_dependencies(package: Package, use_baseline: bool = False) -> Iterator[NativeLibrary]:
+    def get_native_dependencies(package: Package, use_baseline: bool = False) -> Iterator[Dependency]:
         """Yields the native dependencies for an individual package"""
         if not package.resolver.docker_setup():
             return
         container, baseline = NativeResolver.configure_docker(package.resolver, run_baseline=use_baseline)
-        for dep in NativeResolver.get_package_libraries(container, package):
+        for dep in NativeResolver.get_package_dependencies(container, package):
             if dep not in baseline:
                 yield dep
-            else:
-                logger.debug(f"{dep} is in the baseline")
 
     def expand(self, existing: PackageCache, max_workers: Optional[int] = None, use_baseline: bool = False,
                cache: Optional[PackageCache] = None):
         """Resolves the native dependencies for all packages in the cache"""
-        breakpoint()
         sources: Set[DependencyResolver] = set()
         for package in existing:
             # Loop over all of the packages that have already been classified by other classifiers

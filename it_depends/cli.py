@@ -8,7 +8,6 @@ from typing import Iterator, Optional, Sequence, TextIO
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import resolvers, resolve, SourceRepository
 
-
 @contextmanager
 def no_stdout() -> Iterator[TextIO]:
     """A context manager that redirects STDOUT to STDERR"""

@@ -58,6 +58,18 @@ class Dependency:
                   self.source == other.source and \
                   self.semantic_version == other.semantic_version
 
+    def __lt__(self, other):
+        if not isinstance(other, Dependency):
+            raise ValueError("Need a Dependency")
+        return str(self) < str(other)
+
+    def includes(self, other):
+        if not isinstance(other, Dependency) or \
+                  self.package != other.package and \
+                  self.source != other.source:
+            return False
+        return self.semantic_version.clause.includes(other.semantic_version.clause)
+
     def __hash__(self):
         return hash((self.source, self.package, self.semantic_version))
 
@@ -320,7 +332,7 @@ class InMemoryPackageCache(PackageCache):
             self._cache: Dict[str, Dict[str, Dict[Version, Package]]] = {}
         else:
             self._cache = _cache
-        self._resolved: Dict[str, Set[Dependency]] = defaultdict(set)
+        self._resolved: Dict[str, Set[Dependency]] = defaultdict(set)  # source:package -> dep
 
     def __len__(self):
         return sum(sum(map(len, source.values())) for source in self._cache.values())
@@ -329,10 +341,22 @@ class InMemoryPackageCache(PackageCache):
         return (p for d in self._cache.values() for v in d.values() for p in v.values())
 
     def was_resolved(self, dependency: Dependency) -> bool:
-        return dependency in self._resolved[dependency.source]
+        dependency_set = self._resolved[f"{dependency.source}:{dependency.package}"]
+        if dependency in dependency_set:
+            return True
+        """
+        # It could still be already resolved by composing a number of solver deps
+        # But....
+        hit = any(dep.includes(dependency) for dep in dependency_set)
+        if hit:
+            print (str(dependency), ", ".join(map(str, dependency_set)))
+            print("HIT")
+        """
+        return False
+
 
     def set_resolved(self, dependency: Dependency):
-        self._resolved[dependency.source].add(dependency)
+        self._resolved[f"{dependency.source}:{dependency.package}"].add(dependency)
 
     def from_source(self, source: Union[str, "DependencyResolver"]) -> "PackageCache":
         if isinstance(source, DependencyResolver):
@@ -567,6 +591,7 @@ class DependencyResolver:
         If depth_limit is zero, do nothing and return.
 
         """
+        #### dead code / unused func?
         if depth_limit == 0:
             return
         if max_workers is None:
@@ -638,6 +663,7 @@ def resolve(
         depth_limit: int = -1,
         max_workers: Optional[int] = None,
         repo: Optional[PackageRepository] = None,
+        queue: FrozenSet[Dependency] = frozenset()
 ) -> PackageRepository:
     """
     Resolves the dependencies for a package, dependency, or source repository.
@@ -648,9 +674,10 @@ def resolve(
     """
     if repo is None:
         repo = PackageRepository()
+    if cache is None:
+        cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
+
     try:
-        if cache is None:
-            cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
         if isinstance(repo_or_spec, Dependency):
             dep: Optional[Dependency] = repo_or_spec
         elif isinstance(repo_or_spec, Package):
@@ -672,7 +699,6 @@ def resolve(
                             resolver_native = resolver_by_name("native")
                             native_deps = resolver_native.get_native_dependencies(source_package)
                             source_package.dependencies = source_package.dependencies.union(frozenset(native_deps))
-
                             repo.add(source_package)
                         else:
                             logger.debug(f"{resolver.name} can not resolve {repo_or_spec}")
@@ -687,23 +713,31 @@ def resolve(
                     if cache:
                         cache.extend(solutions)
                         cache.set_resolved(dep)
+
+
                 for package in cache.match(dep):
+                    # this package may be added/cached by previous resolution
+                    # For example cargo over a source repo solves it all to the cache but
+                    # none has native resolution done
                     resolver_native = resolver_by_name("native")
                     new_deps = resolver_native.get_native_dependencies(package)
-                    package.dependencies = package.dependencies.union(frozenset(new_deps))
-                    cache.add(package)
-                    repo.add(package)
+                    new_dependencies = package.dependencies.union(frozenset(new_deps))
+                    if package.dependencies != new_dependencies:
+                        package.dependencies = new_dependencies
+                        cache.add(package)
+                        repo.add(package)
+            while True:
+                if depth_limit != 0:
+                    unresolved_dependencies = tuple(x for x in repo.unresolved_dependencies() if x not in queue)
+                    if not unresolved_dependencies:
+                        return repo
+                    for dep in sorted(unresolved_dependencies):
+                        if cache is not None and cache.was_resolved(dep):
+                            repo.extend(cache.match(dep))
+                            repo.set_resolved(dep)
+                        else:
+                            resolve(repo_or_spec=dep, cache=cache, depth_limit=depth_limit-1, max_workers=max_workers, repo=repo, queue=queue.union(unresolved_dependencies))
 
-            if depth_limit != 0:
-                unresolved_dependencies = tuple(repo.unresolved_dependencies())
-                for dep in unresolved_dependencies:
-                    if cache is not None and cache.was_resolved(dep):
-                        repo.extend(cache.match(dep))
-                        repo.set_resolved(dep)
-                    else:
-                        resolve(repo_or_spec=dep, cache=cache, depth_limit=depth_limit-1, max_workers=max_workers, repo=repo)
-
-            # TODO: Resolve Native dependencies here, and also do Ubuntu magic
     except KeyboardInterrupt:
         if sys.stderr.isatty() and sys.stdin.isatty():
             try:
