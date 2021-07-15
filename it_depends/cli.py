@@ -88,7 +88,7 @@ def get_html_graph(nodes, edges):
     // initialize global variables.
     var edges;
     var nodes;
-    var network; 
+    var network;
     var container;
     var options, data;
 

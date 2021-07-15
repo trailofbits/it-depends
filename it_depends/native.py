@@ -21,7 +21,7 @@ from .dependencies import (
     SourcePackage, SourceRepository, Version
 )
 
-logger = getLogger(__file__)
+logger = getLogger(__name__)
 
 
 def make_dockerfile(docker_setup: DockerSetup) -> InMemoryDockerfile:
@@ -82,7 +82,7 @@ class NativeResolver(DependencyResolver):
                                 name = file_to_package(path)
                             except (ValueError, subprocess.CalledProcessError):
                                 pass
-                            yield NativeLibrary(name=name, path=path, version=SemanticVersion.parse('*'))
+                            yield Dependency(package=name, source="ubuntu", semantic_version=SemanticVersion.parse('*'))
         finally:
             Path(stdout.name).unlink()
 

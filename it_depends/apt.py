@@ -138,5 +138,3 @@ def cached_file_to_package(pattern: str, file_to_package_cache: Optional[List[Tu
             file_to_package_cache.append((package_i, filename_i))
 
     return package
-
-
