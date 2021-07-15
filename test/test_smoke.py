@@ -1232,18 +1232,18 @@ class TestSmoke(TestCase):
         }
     },
     "structopt": {
-        "0.3.21": {
+        "0.3.22": {
             "dependencies": {
                 "clap": "^2.33",
                 "lazy_static": "^1.4.0",
                 "paw": "^1",
-                "structopt-derive": "=0.4.14"
+                "structopt-derive": "=0.4.15"
             },
             "source": "cargo"
         }
     },
     "structopt-derive": {
-        "0.4.14": {
+        "0.4.15": {
             "dependencies": {
                 "heck": "^0.3.0",
                 "proc-macro-error": "^1.0.0",
