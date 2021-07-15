@@ -1,3 +1,5 @@
+import json
+import sys
 import functools
 import gzip
 from pathlib import Path
@@ -10,45 +12,7 @@ from .it_depends import APP_DIRS
 from .ubuntu import run_command
 
 logger = logging.getLogger(__name__)
-
-CACHE_DIR = Path(APP_DIRS.user_cache_dir)
-
-r''' Evan disapproves this
-popdb = {}
-@functools.lru_cache(maxsize=128)
-def _popularity(packagename):
-    """
-    Downloads and uses popularity database
-    """
-
-    if arch not in ("amd64", "i386"):
-        raise ValueError("Only amd64 and i386 supported")
-    selected = None
-
-    if not popdb:
-        # TODO find better location https://pypi.org/project/appdirs/?
-
-        dbfile = os.path.join(os.path.dirname(__file__), f"popcount.gz")
-        if not os.path.exists(dbfile):
-            logger.info("Popularity db not found. Downloading.")
-            urllib.request.urlretrieve(
-                "https://popcon.ubuntu.com/by_inst.gz",
-                dbfile)
-
-        logger.info("Popularity memory index not found. Building.")
-        with gzip.open(dbfile, "rt") as contents:
-            for line in contents.readlines():
-                if line.startswith("#"):
-                    continue
-                print (line)
-                re.compile(r"(?P<name>\S+)\s+")
-                line.split(" ")
-    print ("AAAAAAAAAAAAHH!")
-    return 0
-'''
-
 all_packages: Optional[Tuple[str, ...]] = None
-
 
 def get_apt_packages() -> Tuple[str, ...]:
     global all_packages
@@ -93,7 +57,7 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
         raise ValueError("Only amd64 and i386 supported")
     selected = None
 
-    dbfile = CACHE_DIR / f"Contents-{arch}.gz"
+    dbfile = Path(APP_DIRS.user_cache_dir) / f"Contents-{arch}.gz"
     if not dbfile.exists():
         request.urlretrieve(f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz", dbfile)
     if not dbfile in _loaded_dbs:

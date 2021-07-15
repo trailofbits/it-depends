@@ -1,6 +1,7 @@
 import concurrent.futures
 import functools
 from dataclasses import dataclass
+from logging import getLogger
 from multiprocessing import cpu_count
 from pathlib import Path
 import re
@@ -19,6 +20,8 @@ from .dependencies import (
     SemanticVersion, SimpleSpec,
     SourcePackage, SourceRepository, Version
 )
+
+logger = getLogger(__name__)
 
 
 def make_dockerfile(docker_setup: DockerSetup) -> InMemoryDockerfile:
