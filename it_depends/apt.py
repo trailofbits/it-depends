@@ -1,4 +1,3 @@
-import webbrowser
 import json
 import sys
 import functools
@@ -58,7 +57,7 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
         raise ValueError("Only amd64 and i386 supported")
     selected = None
 
-    dbfile = CACHE_DIR / f"Contents-{arch}.gz"
+    dbfile = Path(APP_DIRS.user_cache_dir) / f"Contents-{arch}.gz"
     if not dbfile.exists():
         request.urlretrieve(f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz", dbfile)
     if not dbfile in _loaded_dbs:
