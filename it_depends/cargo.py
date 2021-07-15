@@ -112,8 +112,7 @@ class CargoResolver(DependencyResolver):
                 if cache is not None:
                     cache.add(package)
                     for dep in package.dependencies:
-                        if not cache.was_resolved(dep):
-                            cache.set_resolved(dep)
+                        cache.set_resolved(dep)
         return result
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
