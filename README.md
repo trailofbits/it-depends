@@ -26,7 +26,8 @@ with all the discovered dependencies.
 This is the resulting [Graphviz dot file](https://gist.github.com/feliam/275951f5788c23a477bc7cf758a32cc2)
 producing this
 ![dependency graph](https://user-images.githubusercontent.com/1017522/116887041-33903b80-ac00-11eb-9288-f3d286231e47.png).
-This is the [vis-network](https://github.com/visjs/vis-network) resulting graph.
+
+And this is the [vis-network](https://github.com/visjs/vis-network) resulting graph.
 ![dependency graph](https://user-images.githubusercontent.com/1017522/126380710-0bf4fd66-0d2f-4cb1-a0ff-96fe715c4981.png).
 
 ### It-Depends’ Dependencies 🎭
