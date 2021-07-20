@@ -208,7 +208,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if not available:
                 sys.stderr.write(f"\tnot available: {available.reason}")
                 sys.stderr.flush()
-            elif not classifier.can_classify(args.PATH):
+            elif not classifier.can_resolve_from_source(SourceRepository(args.PATH)):
                 sys.stderr.write("\tincompatible with this path")
                 sys.stderr.flush()
             sys.stdout.write("\n")
