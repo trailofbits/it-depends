@@ -211,6 +211,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             elif not classifier.can_resolve_from_source(SourceRepository(args.PATH)):
                 sys.stderr.write("\tincompatible with this path")
                 sys.stderr.flush()
+            else:
+                sys.stderr.write("\tenabled")
+                sys.stderr.flush()
+
             sys.stdout.write("\n")
             sys.stdout.flush()
         return 0
@@ -221,13 +225,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             repo = SourceRepository(args.PATH)
 
             package_list = resolve(repo, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
+            if not package_list:
+                real_stdout.write(f"Try --list to check for available resolvers for {args.PATH}")
 
             if args.output_format == "dot":
                 real_stdout.write(cache.to_dot(package_list.source_packages).source)
             if args.output_format == "html":
                 show_graph(package_list.to_obj())
             elif args.output_format == "json":
-                # assume JSON
                 real_stdout.write(json.dumps(package_list.to_obj(), indent=4))
             else:
                 raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
