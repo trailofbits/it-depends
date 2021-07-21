@@ -1,9 +1,7 @@
+import os
 import functools
 import re
 import itertools
-import os
-from os import chdir, getcwd
-from pathlib import Path
 import shutil
 import subprocess
 import logging
@@ -114,7 +112,7 @@ class AutotoolsResolver(DependencyResolver):
             if sol is not None:
                 token = token.replace(f"${var}", sol).replace(f"${{{var}}}", sol)
         if "$" in token:
-            raise Exception(f"Could not find a binding for variable/s in {token}")
+            raise ValueError(f"Could not find a binding for variable/s in {token}")
         return token
 
     def resolve_from_source(
@@ -169,9 +167,18 @@ class AutotoolsResolver(DependencyResolver):
         PACKAGE_STRING='Bitcoin Core 21.99.0'
         PACKAGE_BUGREPORT='https://github.com/bitcoin/bitcoin/issues'
         PACKAGE_URL='https://bitcoincore.org/'''
-        package_name = self._replace_variables("$PACKAGE_NAME", configure)
-        package_version = self._replace_variables("$PACKAGE_VERSION", configure)
+        try:
+            package_name = self._replace_variables("$PACKAGE_NAME", configure)
+        except ValueError as e:
+            logger.error(str(e))
+            package_name = os.path.basename(repo.path)
 
+        try:
+            package_version = self._replace_variables("$PACKAGE_VERSION", configure)
+        except ValueError as e:
+            logger.error(str(e))
+            package_version = "0.0.0"
+            
         return SourcePackage(
             name=package_name,
             version=Version.coerce(package_version),

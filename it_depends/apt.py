@@ -1,5 +1,3 @@
-import json
-import sys
 import functools
 import gzip
 from pathlib import Path
@@ -111,7 +109,6 @@ def _file_to_package_apt_file(filename: str, arch: str = "amd64") -> str:
 
 @functools.lru_cache(maxsize=128)
 def file_to_package(filename: str, arch: str = "amd64") -> str:
-    filename = f"^{Path(filename).absolute()}$"
     return _file_to_package_apt_file(filename, arch=arch)
 
 
