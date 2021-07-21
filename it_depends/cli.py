@@ -226,7 +226,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
             package_list = resolve(repo, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
             if not package_list:
-                real_stdout.write(f"Try --list to check for available resolvers for {args.PATH}")
+                sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH}\n")
+                sys.stderr.flush()
+
 
             if args.output_format == "dot":
                 real_stdout.write(cache.to_dot(package_list.source_packages).source)
