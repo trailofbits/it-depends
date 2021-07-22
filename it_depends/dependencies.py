@@ -541,88 +541,14 @@ class DependencyResolver:
             raise TypeError(f"{cls.__name__} must define a `description` class member")
         resolvers.cache_clear()
 
-
     @abstractmethod
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the given dependency"""
         logger.info (f"{self} does not implement `resolve()`")
         raise NotImplementedError
 
-    def cached_resolve(
-            self, dependency: Dependency, record_results: bool = True, cache: Optional[PackageCache] = None
-    ) -> Iterator[Package]:
-        """Yields all packages that satisfy the given dependency, resolving the dependency if necessary
-
-        If the dependency is resolved, it is added to the cache
-        """
-        if record_results and cache is None:
-            raise ValueError("`cache` may only be None if `record_results` is also False")
-        elif dependency.source != self.name:
-            raise ValueError(f"Resolver {self.name} cannot resolve a dependency from {dependency.source}")
-        elif cache is not None and cache.was_resolved(dependency):
-            yield from cache.match(dependency)
-            return
-        # we never tried to resolve this dependency before, so do a manual resolution
-        for package in self.resolve(dependency):
-            if record_results:
-                cache.add(package)  # type: ignore
-            yield package
-        if record_results:
-            cache.set_resolved(dependency)  # type: ignore
-
     def _resolve_worker(self, dependency: Dependency, depth: int) -> Tuple[int, Dependency, List[Package]]:
         return depth + 1, dependency, list(self.resolve(dependency))
-
-    def resolve_unsatisfied(
-            self,
-            packages: PackageCache,
-            depth_limit: int = -1,
-            max_workers: Optional[int] = None,
-            cache: Optional[PackageCache] = None
-    ):
-        """
-        Resolves any packages dependencies that have not yet been resolved, saving them to the cache.
-
-        This is expensive and may reproduce work. In general, it should only be called from subclasses with knowledge
-        of specifically when it needs to be called.
-
-        If depth_limit is negative (the default), continue resolving unsatisfied dependencies until none remain.
-        If depth_limit is greater than zero, only recursively resolve unsatisfied dependencies that many times.
-        If depth_limit is zero, do nothing and return.
-
-        """
-        #### dead code / unused func?
-        if depth_limit == 0:
-            return
-        if max_workers is None:
-            try:
-                max_workers = cpu_count()
-            except NotImplementedError:
-                max_workers = 5
-
-        with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=0) as t:
-            resolution_cache = _ResolutionCache(self, results=packages, cache=cache, t=t)
-            with concurrent.futures.ThreadPoolExecutor(
-                    max_workers=max_workers) as executor:
-                futures = {
-                    executor.submit(self._resolve_worker, dep, 0)
-                    for dep, package in resolution_cache.extend(packages)
-                }
-                while futures:
-                    done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
-                    for finished in done:
-                        t.update(1)
-                        depth, dep, new_packages = finished.result()
-                        if cache is not None:
-                            cache.set_resolved(dep)
-                            cache.extend(new_packages)
-                        packages.set_resolved(dep)
-                        packages.extend(new_packages)
-                        if depth_limit < 0 or depth < depth_limit:
-                            futures |= {
-                                executor.submit(self._resolve_worker, new_dep, depth)
-                                for new_dep, package in resolution_cache.extend(new_packages)
-                            }
 
     @classmethod
     def parse_spec(cls, spec: str) -> SemanticVersion:
