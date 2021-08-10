@@ -1,8 +1,4 @@
-import concurrent.futures
-import functools
-from dataclasses import dataclass
 from logging import getLogger
-from multiprocessing import cpu_count
 from pathlib import Path
 import re
 import shutil
@@ -17,8 +13,7 @@ from .apt import file_to_package
 from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 from .dependencies import (
     Dependency, DependencyResolver, DockerSetup, Package, PackageCache, resolvers, ResolverAvailability,
-    SemanticVersion, SimpleSpec,
-    SourcePackage, SourceRepository, Version
+    SemanticVersion, SourcePackage, SourceRepository
 )
 
 logger = getLogger(__name__)

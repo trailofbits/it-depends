@@ -145,12 +145,12 @@ class UbuntuResolver(DependencyResolver):
     def is_available(self) -> ResolverAvailability:
         if not (shutil.which("apt") is not None and is_running_ubuntu()) and shutil.which("docker") is None:
             return ResolverAvailability(False,
-                                          "`Ubuntu` classifier either needs to be running from Ubuntu 20.04 or "
-                                          "to have Docker installed")
+                                        "`Ubuntu` classifier either needs to be running from Ubuntu 20.04 or "
+                                        "to have Docker installed")
         return ResolverAvailability(True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return True
+        return False
 
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None

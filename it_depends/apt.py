@@ -12,6 +12,7 @@ from .ubuntu import run_command
 logger = logging.getLogger(__name__)
 all_packages: Optional[Tuple[str, ...]] = None
 
+
 def get_apt_packages() -> Tuple[str, ...]:
     global all_packages
     if all_packages is None:
