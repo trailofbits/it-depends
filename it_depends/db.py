@@ -130,8 +130,6 @@ class DBPackage(Base, Package):  # type: ignore
 
     @staticmethod
     def from_package(package: Package, session) -> "DBPackage":
-        for instance in session.query(DBPackage):
-            print(instance)
         if not isinstance(package, DBPackage):
             dep_pkg = package
             package = DBPackage(package)
