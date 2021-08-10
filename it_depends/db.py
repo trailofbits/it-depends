@@ -191,7 +191,7 @@ class SourceFilteredPackageCache(PackageCache):
         return frozenset(self.parent.session.query(distinct(DBPackage.name))
                          .filter(DBPackage.source_name.like(self.source)).all())
 
-    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
+    def match(self, to_match: Union[Package, Dependency]) -> Iterator[Package]:
         return self.parent.match(to_match)
 
     def add(self, package: Package):
@@ -269,7 +269,8 @@ class DBPackageCache(PackageCache):
         ]
 
     def package_full_names(self) -> FrozenSet[str]:
-        return frozenset(f"{result[0]}:{result[1]}" for result in self.session.query(distinct(DBPackage.source), distinct(DBPackage.name)).all())
+        return frozenset(f"{result[0]}:{result[1]}" for result in self.session.query(distinct(DBPackage.source),
+                                                                                     distinct(DBPackage.name)).all())
 
     def _make_query(self, to_match: Union[str, Package], source: Optional[str] = None):
         if source is not None:

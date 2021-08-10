@@ -1,6 +1,6 @@
 from multiprocessing import cpu_count
 from tqdm import tqdm
-from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 
 import functools
 from abc import ABC, abstractmethod
@@ -92,7 +92,10 @@ class Package:
         self.name: str = name
         self.version: Version = version
         self.dependencies: FrozenSet[Dependency] = frozenset(dependencies)
-        self.source = source
+        if isinstance(source, DependencyResolver):
+            self.source: str = source.name
+        else:
+            self.source = source
 
     def update_dependencies(self, dependencies: FrozenSet[Dependency]):
         self.dependencies = self.dependencies.union(dependencies)
@@ -234,11 +237,11 @@ class PackageCache(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def package_full_names(self) -> Iterator[str]:
+    def package_full_names(self) -> FrozenSet[str]:
         raise NotImplementedError()
 
     @abstractmethod
-    def match(self, to_match: Dependency) -> Iterator[Package]:
+    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
         """
         Yields all packages in this collection of packages that match the Dependency.
 
@@ -407,7 +410,9 @@ class InMemoryPackageCache(PackageCache):
         if package_name in packages:
             yield from packages[package_name].values()
 
-    def match(self, to_match: Union[Package, Dependency]) -> Iterator[Package]:
+    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
+        if isinstance(to_match, str):
+            to_match = Package.from_string(to_match)
         if isinstance(to_match, Package):
             to_match = to_match.to_dependency()
         assert(isinstance(to_match, Dependency))
@@ -430,7 +435,7 @@ class InMemoryPackageCache(PackageCache):
 def resolvers() -> FrozenSet["DependencyResolver"]:
     """ Collection of all the default instances of DependencyResolvers
     """
-    return frozenset(cls() for cls in DependencyResolver.__subclasses__())
+    return frozenset(cls() for cls in DependencyResolver.__subclasses__())  # type: ignore
 
 
 @functools.lru_cache()
@@ -668,7 +673,7 @@ def resolve(
 
             t.total = len(unupdated_packages) + len(unresolved_dependencies)
 
-            futures = set()
+            futures: Set[Future[Union[_DependencyResult, _PackageResult]]] = set()
             queued: Set[Dependency] = {d for d, _ in unresolved_dependencies}
             if max_workers > 1:
                 pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="it-depends-resolver")
@@ -676,9 +681,9 @@ def resolve(
             def process_updated_package(
                     updated_package: Package, at_depth: int, was_updated: bool = True
             ):
-                repo.add(updated_package)
+                repo.add(updated_package)  # type: ignore
                 if not isinstance(Package, SourcePackage) and was_updated:
-                    cache.add(updated_package)
+                    cache.add(updated_package)  # type: ignore
                 if depth_limit < 0 or at_depth < depth_limit:
                     new_deps = {d for d in updated_package.dependencies if d not in queued}
                     unresolved_dependencies.extend((d, at_depth + 1) for d in sorted(new_deps))
@@ -689,7 +694,7 @@ def resolve(
                     dep: Dependency, packages: Iterable[Package], at_depth: int, already_cached: bool = False
             ):
                 """This gets called whenever we resolve a new package"""
-                repo.set_resolved(dep)
+                repo.set_resolved(dep)  # type: ignore
                 packages = list(packages)
                 if not already_cached and cache is not None:
                     cache.set_resolved(dep)
@@ -740,25 +745,25 @@ def resolve(
                     # don't use concurrency
                     if unupdated_packages:
                         t.update(1)
-                        ret = _update_package(*unupdated_packages[0])
+                        pkg_result = _update_package(*unupdated_packages[0])
                         unupdated_packages = unupdated_packages[1:]
-                        process_updated_package(ret.package, ret.depth, ret.was_updated)
+                        process_updated_package(pkg_result.package, pkg_result.depth, pkg_result.was_updated)
                     if unresolved_dependencies:
                         t.update(1)
-                        ret = _process_dep(*unresolved_dependencies[0])
+                        dep_result = _process_dep(*unresolved_dependencies[0])
                         unresolved_dependencies = unresolved_dependencies[1:]
-                        process_resolution(ret.dep, ret.packages, ret.depth)
+                        process_resolution(dep_result.dep, dep_result.packages, dep_result.depth)
                 else:
                     # new_jobs is the number of new concurrent resolutions we can start without exceeding max_workers
                     new_jobs = max_workers - len(futures)
                     # create `new_jobs` package update jobs:
-                    futures |= {
+                    futures |= {  # type: ignore
                         pool.submit(_update_package, package, depth) for package, depth in unupdated_packages[:new_jobs]
                     }
                     unupdated_packages = unupdated_packages[new_jobs:]
                     new_jobs = max_workers - len(futures)
                     # create `new_jobs` new resolution jobs:
-                    futures |= {
+                    futures |= {  # type: ignore
                         pool.submit(_process_dep, dep, depth) for dep, depth in unresolved_dependencies[:new_jobs]
                     }
                     unresolved_dependencies = unresolved_dependencies[new_jobs:]
