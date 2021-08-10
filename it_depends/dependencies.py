@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import (
-    Dict, FrozenSet, Iterable, Iterator, List, Optional, Set, Tuple, Union
+    Dict, FrozenSet, Iterable, Iterator, List, Optional, Set, Union
 )
 import sys
 from graphviz import Digraph
@@ -163,6 +163,7 @@ class Package:
     def __hash__(self):
         return hash((self.version, self.name, self.version))
 
+
 class PackageCache(ABC):
     """ An abstract base class for a collection of packages """
     def __init__(self):
@@ -213,17 +214,17 @@ class PackageCache(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    def set_updated(self, package:Package, resolver:str):
+    def set_updated(self, package: Package, resolver: str):
         """Update package for updates made by resolver"""
         raise NotImplementedError()
 
     @abstractmethod
-    def was_updated(self, package:Package, resolver:str) -> bool:
+    def was_updated(self, package: Package, resolver: str) -> bool:
         """True if package was updated by resolver"""
         raise NotImplementedError()
 
     @abstractmethod
-    def updated_by(self, package:Package) -> FrozenSet[str]:
+    def updated_by(self, package: Package) -> FrozenSet[str]:
         """A set of resolver names that updated package"""
         raise NotImplementedError()
 
@@ -247,14 +248,13 @@ class PackageCache(ABC):
         """
         raise NotImplementedError()
 
-    def get(self, source, name, version):
+    def get(self, source: Union[str, "DependencyResolver"], name: str, version: Union[str, Version]) -> Optional[Package]:
         pkg = Package(source=source, name=name, version=version)
         it = self.match(pkg.to_dependency())
         try:
             return next(it)
-        except StopIteration as e:
-            return
-        return
+        except StopIteration:
+            return None
 
     def to_obj(self):
         def package_to_dict(package):
@@ -352,6 +352,7 @@ class PackageCache(ABC):
                     unresolved.add(dep)
                     yield dep
 
+
 class InMemoryPackageCache(PackageCache):
     def __init__(self, _cache: Optional[Dict[str, Dict[str, Dict[Version, Package]]]] = None):
         super().__init__()
@@ -368,15 +369,14 @@ class InMemoryPackageCache(PackageCache):
     def __iter__(self) -> Iterator[Package]:
         return (p for d in self._cache.values() for v in d.values() for p in v.values())
 
-    def updated_by(self, package:Package) -> FrozenSet[str]:
+    def updated_by(self, package: Package) -> FrozenSet[str]:
         return frozenset(self._updated[package])
 
-    def was_updated(self, package:Package, resolver:str) -> bool:
+    def was_updated(self, package: Package, resolver:str) -> bool:
         return resolver in self._updated[package]
 
-    def set_updated(self, package:Package, resolver:str):
-        print (resolver, "A"*100)
-        self._resolved[package].add(resolver)
+    def set_updated(self, package: Package, resolver: str):
+        self._updated[package].add(resolver)
 
     def was_resolved(self, dependency: Dependency) -> bool:
         return dependency in self._resolved[f"{dependency.source}:{dependency.package}"]
@@ -391,9 +391,7 @@ class InMemoryPackageCache(PackageCache):
 
     def package_full_names(self) -> FrozenSet[str]:
         ret: Set[str] = set()
-        #self._cache: Dict[str, Dict[str, Dict[Version, Package]]]
         for source, versions in self._cache.items():
-            print (source)
             for name, version in versions.items():
                 ret.add(f"{source}:{name}")
         return frozenset(ret)
@@ -414,38 +412,39 @@ class InMemoryPackageCache(PackageCache):
                 yield package
 
     def add(self, package: Package):
-
         original_package = self._cache.setdefault(package.source, {}).setdefault(package.name, {}).get(package.version)
         if original_package is not None:
             package = original_package.update_dependencies(package.dependencies)
         self._cache[package.source][package.name][package.version] = package
 
     def __str__(self):
-        return '[' + ",".join(self.package_names()) + ']'
+        return '[' + ",".join(self.package_full_names()) + ']'
 
 
 @functools.lru_cache()
-def resolvers():
+def resolvers() -> FrozenSet["DependencyResolver"]:
     """ Collection of all the default instances of DependencyResolvers
     """
     return frozenset(cls() for cls in DependencyResolver.__subclasses__())
 
 
 @functools.lru_cache()
-def resolver_by_name(name: str):
+def resolver_by_name(name: str) -> "DependencyResolver":
     """ Finds a resolver instance by name. The result is cached."""
     for instance in resolvers():
         if instance.name == name:
             return instance
     raise KeyError(name)
 
-def is_known_resolver(name: str):
+
+def is_known_resolver(name: str) -> bool:
     """Checks if name is a valid/known resolver name"""
     try:
         resolver_by_name(name)
         return True
     except KeyError:
         return False
+
 
 class ResolverAvailability:
     def __init__(self, is_available: bool, reason: str = ""):
@@ -579,6 +578,7 @@ class DependencyResolver:
 
 class PackageRepository(InMemoryPackageCache):
     pass
+
 
 def update_dependencies(package, repo, cache):
     # round two, fix point?
