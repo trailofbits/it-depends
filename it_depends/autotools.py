@@ -37,7 +37,7 @@ class AutotoolsResolver(DependencyResolver):
         return ResolverAvailability(True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return self.is_available() and (repo.path / "configure.ac").exists()
+        return bool(self.is_available()) and (repo.path / "configure.ac").exists()
 
     @staticmethod
     def _ac_check_header(header_file, file_to_package_cache=None):

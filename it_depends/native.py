@@ -135,46 +135,6 @@ class NativeResolver(DependencyResolver):
             if dep not in baseline:
                 yield dep
 
-    def expand_deactivated(self, existing: PackageCache, max_workers: Optional[int] = None, use_baseline: bool = False,
-               cache: Optional[PackageCache] = None):
-        """Resolves the native dependencies for all packages in the cache"""
-        sources: Set[DependencyResolver] = set()
-        for package in existing:
-            # Loop over all of the packages that have already been classified by other classifiers
-            if package.source is not None and package.source not in sources \
-                    and package.resolver.docker_setup() is not None:
-                sources.add(package.resolver)
-        if max_workers is None:
-            max_workers = max(cpu_count() // 2, 1)
-        for source in tqdm(sources, desc="resolving native libs", leave=False, unit=" sources"):
-            container, baseline = NativeResolver.configure_docker(source=source, run_baseline=use_baseline)
-            packages = existing.from_source(source.name)
-            with tqdm(desc=source.name, leave=False, unit=" deps", total=len(packages)) as t:
-                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = set()
-                    for package in packages:
-                        native_dep = package.to_dependency()
-                        if cache is not None and cache.was_resolved(native_dep):
-                            t.update(1)
-                            existing.extend(cache.match(native_dep))
-                        else:
-                            futures.add(executor.submit(self._expand, package, container))
-                    while futures:
-                        done, futures = concurrent.futures.wait(futures, return_when=concurrent.futures.FIRST_COMPLETED)
-                        for finished in done:
-                            t.update(1)
-                            package, libraries = finished.result()
-                            for library in libraries:
-                                if library not in baseline:
-                                    # ignore the library version, because native library requirements aren't
-                                    # typically versioned
-                                    if all(dep.package != library.name for dep in package.dependencies):
-                                        package.dependencies += library.to_dependency()
-                                        # re-add the package so we can cache the new dependency
-                                        existing.add(package)
-                            if cache is not None:
-                                cache.set_resolved(package.to_dependency())
-
     def __lt__(self, other):
         """Make sure that the Native Classifier runs second-to-last, before the Ubuntu Classifier"""
         return other.name == "ubuntu"

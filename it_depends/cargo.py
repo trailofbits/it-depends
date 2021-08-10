@@ -99,7 +99,7 @@ class CargoResolver(DependencyResolver):
         return CargoSpec(spec)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return self.is_available() and (repo.path / "Cargo.toml").exists()
+        return bool(self.is_available()) and (repo.path / "Cargo.toml").exists()
 
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
