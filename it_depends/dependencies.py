@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import json
 from pathlib import Path
 from typing import (
-    Dict, FrozenSet, Iterable, Iterator, List, Optional, Set, Union
+    Dict, FrozenSet, Iterable, Iterator, List, Optional, Set, Tuple, Union
 )
 import sys
 from graphviz import Digraph
@@ -37,7 +37,7 @@ class Dependency:
         self.semantic_version: SemanticVersion = semantic_version
 
     @property
-    def resolver(self):
+    def resolver(self) -> "DependencyResolver":
         return resolver_by_name(self.source)
 
     @classmethod
@@ -240,7 +240,7 @@ class PackageCache(ABC):
     @abstractmethod
     def match(self, to_match: Dependency) -> Iterator[Package]:
         """
-        Yields all packages in this collection of packages that match the Dependncy.
+        Yields all packages in this collection of packages that match the Dependency.
 
         This function does not perform any dependency resolution;
         it only matches against existing packages in this cache.
@@ -248,7 +248,12 @@ class PackageCache(ABC):
         """
         raise NotImplementedError()
 
-    def get(self, source: Union[str, "DependencyResolver"], name: str, version: Union[str, Version]) -> Optional[Package]:
+    def get(
+            self,
+            source: Union[str, "DependencyResolver"],
+            name: str,
+            version: Union[str, Version]
+    ) -> Optional[Package]:
         pkg = Package(source=source, name=name, version=version)
         it = self.match(pkg.to_dependency())
         try:
@@ -493,6 +498,9 @@ class SourceRepository:
     def from_filesystem(path: Union[str, Path]) -> "SourceRepository":
         return SourceRepository(path)
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}({str(self.path)!r})"
+
 
 class SourcePackage(Package):
     """A package extracted from source code rather than a package repository
@@ -567,11 +575,9 @@ class DependencyResolver:
         """Resolves any new `SourcePackage`s in this repo"""
         raise NotImplementedError()
 
-    @abstractmethod
     def can_update_dependencies(self, package: Package) -> bool:
         return False
 
-    @abstractmethod
     def update_dependencies(self, package: Package) -> Package:
         return package
 
@@ -580,201 +586,38 @@ class PackageRepository(InMemoryPackageCache):
     pass
 
 
-def update_dependencies(package, repo, cache):
-    # round two, fix point?
-    print("UPDATE ", len(package.dependencies))
-    print("Before:")
-    print(f"  source_package dependencies: {len(package.dependencies)})")
-    print(f"  source_package repo updated by: {repo.updated_by(package)}")
-    print(f"  source_package cache updated by: {cache.updated_by(package)}")
+class _DependencyResult:
+    def __init__(self, dep: Dependency, packages: List[Package], depth: int):
+        self.dep: Dependency = dep
+        self.packages: List[Package] = packages
+        self.depth: int = depth
 
-    repo_package = repo.get(source=package.source, name=package.name, version=package.version)
-    if repo_package:
-        package = package.update_dependencies(repo_package.dependencies)
-        print(f"Got a package from repo with {len(repo_package.dependencies)}")
-    else:
-        print("None package from repo")
-    cache_package = cache.get(source=package.source, name=package.name, version=package.version)
-    if cache_package:
-        package = package.update_dependencies(cache_package.dependencies)
-        print(f"Got a package from cache with {len(cache_package.dependencies)}")
-    else:
-        print("None package from cache")
 
-    for resolver_updater in resolvers():
-        if resolver_updater.can_update_dependencies(package):
-            cache_was_updated = cache.was_updated(package, resolver_updater.name)
-            repo_was_updated = repo.was_updated(package, resolver_updater.name)
-            #If it was not previously updated at neither repo nor cache..
-            if not repo_was_updated and not cache_was_updated:
-                # run the resolver updater on this
-                package = resolver_updater.update_dependencies(package)
+def _process_dep(dep: Dependency, depth: int) -> _DependencyResult:
+    return _DependencyResult(dep=dep, packages=list(dep.resolver.resolve(dep)), depth=depth)
 
-            repo.set_updated(package, resolver_updater.name)
-            cache.set_updated(package, resolver_updater.name)
 
-            print(" UPDATE ", len(package.dependencies))
-    print("After:")
-    print(f"  source_package dependencies: {len(package.dependencies)})")
-    print(f"  source_package repo updated by: {repo.updated_by(package)}")
-    print(f"  source_package cache updated by: {cache.updated_by(package)}")
+class _PackageResult:
+    def __init__(self, package: Package, was_updated: bool, depth: int):
+        self.package: Package = package
+        self.was_updated: bool = was_updated
+        self.depth: int = depth
 
-    repo.add(package)
-    cache.add(package)
-    print(f"  result {package}")
-    return package
+
+def _update_package(package: Package, depth: int) -> _PackageResult:
+    old_deps = frozenset(package.dependencies)
+    for resolver in resolvers():
+        if resolver.can_update_dependencies(package):
+            package = resolver.update_dependencies(package)
+    return _PackageResult(package=package, was_updated=package.dependencies != old_deps, depth=depth)
 
 
 def resolve(
         repo_or_spec: Union[Package, Dependency, SourceRepository],
         cache: Optional[PackageCache] = None,
         depth_limit: int = -1,
-        max_workers: Optional[int] = None,
         repo: Optional[PackageRepository] = None,
-        queue: FrozenSet[Dependency] = frozenset(),
-        t: Optional[tqdm] = None) -> PackageRepository:
-    """
-    Resolves the dependencies for a package, dependency, or source repository.
-
-    If depth_limit is negative (the default), recursively resolve all dependencies.
-    If depth_limit is greater than zero, only recursively resolve dependencies to that depth.
-
-    """
-    breakpoint()
-    if t is None:
-        with tqdm(desc="resolving unsatisfied", leave=False, unit=" deps", total=0) as t:
-            return resolve(repo_or_spec=repo_or_spec, cache=cache, depth_limit=depth_limit, repo=repo, queue=queue, max_workers=max_workers, t=t)
-
-    if repo is None:
-        repo = PackageRepository()
-
-    if cache is None:
-        cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
-
-    try:
-        if isinstance(repo_or_spec, Dependency):
-            dep: Optional[Dependency] = repo_or_spec
-        elif isinstance(repo_or_spec, Package):
-            dep = repo_or_spec.to_dependency()
-        elif isinstance(repo_or_spec, SourceRepository):
-            dep = None
-        else:
-            raise ValueError(f"repo_or_spec must be either a Package, Dependency, or SourceRepository")
-
-        with cache:
-            if dep is None:
-                for resolver in resolvers():
-                    print (resolver.name)
-                    # repo_or_spec is a SourceRepository
-                    source_package = resolver.resolve_from_source(repo_or_spec, cache=cache)
-                    if source_package is None:
-                        logger.debug(f"{resolver.name} can not resolve {repo_or_spec}")
-                        print(f"{resolver.name} can not resolve {repo_or_spec}")
-                        continue
-
-                    # Found something in the source
-                    # 2nd stage resolving (native)
-                    # some resolvers could update the known dependencies of a package
-                    # TODO: should keep updating until a fixed point
-                    print ("Before:")
-                    print (f"  source_package dependencies: {len(source_package.dependencies)})")
-                    print (f"  source_package repo updated by: {repo.updated_by(source_package)}")
-                    print (f"  source_package cache updated by: {cache.updated_by(source_package)}")
-                    source_package = update_dependencies(source_package, repo=repo, cache=cache)
-                    print ("After:")
-                    print (f"  source_package dependencies: {len(source_package.dependencies)})")
-                    print (f"  source_package repo updated by: {repo.updated_by(source_package)}")
-                    print (f"  source_package repo updated by: {cache.updated_by(source_package)}")
-                    repo.add(source_package)  # update the cached package
-                    cache.add(source_package)  # update the cached package
-
-            else:
-
-                solutions = ()
-                # check if dep is resolved in the cache
-                if cache and cache.was_resolved(dep):
-                    solutions = cache.match(dep)
-
-                # check if the repo has the solution already
-                elif not repo.was_resolved(dep):
-                    solutions = dep.resolver.resolve(dep)
-
-                print("EEEEEEEEEEEEEEXTENDING repo", solutions)
-                repo.extend(solutions)
-                repo.set_resolved(dep)
-                t.update(len(repo))
-                # cache the resolution
-                if cache:
-                    print ("EEEEEEEEEEEEEEXTENDING cache", solutions)
-                    cache.extend(solutions)
-                    cache.set_resolved(dep)
-
-                print ("-"*80)
-                print ("-"*80)
-                print (f"Solving {str(dep)} with {tuple(map(str, solutions))}")
-                print ("-"*80)
-                print ("-"*80)
-
-                for package in repo.match(dep):
-                    update_dependencies(package, repo, cache)
-                    # this package may be added/cached by previous resolution
-                    # For example cargo over a source repo solves it all to the cache but
-                    # none has native resolution done
-                    cache.add(package)
-                    repo.add(package)
-
-            t.update(1)
-
-
-            # If depth_limit was positive and have not reached 1
-            # or it was set to something else keeps recurring
-            if depth_limit != 1:
-                unresolved_dependencies = repo.unresolved_dependencies()
-                unresolved_dependencies = (x for x in unresolved_dependencies if x not in queue)
-                unresolved_dependencies = tuple(unresolved_dependencies)
-
-                if not unresolved_dependencies:
-                    return repo
-
-                print ("ADDING!!", len(unresolved_dependencies))
-                t.total += len(unresolved_dependencies)
-
-                for dep in sorted(unresolved_dependencies):
-                    if cache is not None and cache.was_resolved(dep):
-                        print (f"{str(dep)} was resolved in the cache")
-                        repo.extend(cache.match(dep))
-                        repo.set_resolved(dep)
-                        t.update(1)
-                    else:
-                        resolve(repo_or_spec=dep, cache=cache, depth_limit=depth_limit-1, max_workers=max_workers, repo=repo, queue=queue.union(unresolved_dependencies), t=t)
-            else:
-                return repo
-
-    except KeyboardInterrupt:
-        if sys.stderr.isatty() and sys.stdin.isatty():
-            try:
-                while True:
-                    sys.stderr.write("Would you like to output the partial results? [Yn] ")
-                    choice = input().lower()
-                    if choice == "" or choice == "y":
-                        return repo
-                    elif choice == "n":
-                        sys.exit(1)
-            except KeyboardInterrupt:
-                sys.exit(1)
-        raise
-    return repo
-
-
-
-def resolveaa(
-        repo_or_spec: Union[Package, Dependency, SourceRepository],
-        cache: Optional[PackageCache] = None,
-        depth_limit: int = -1,
-        repo: Optional[PackageRepository] = None,
-        queue: FrozenSet[Dependency] = frozenset(),
-        max_workers: Optional[int] = None,
-        pool: Optional[ThreadPoolExecutor] = None
+        max_workers: Optional[int] = None
 ) -> PackageRepository:
     """
     Resolves the dependencies for a package, dependency, or source repository.
@@ -784,7 +627,7 @@ def resolveaa(
     max_workers controls the number of spawned threads, if None cpu_count is used.
     """
     if depth_limit == 0:
-        return
+        return PackageRepository()
 
     if max_workers is None:
         try:
@@ -792,112 +635,144 @@ def resolveaa(
         except NotImplementedError:
             max_workers = 5
 
-    # just restart with an executor
-    if pool is None and max_workers > 1:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            resolve(repo_or_spec=repo_or_spec, cache=cache, depth_limit=depth_limit, repo=repo, queue=queue, max_workers=max_workers, pool=executor)
-
     if repo is None:
         repo = PackageRepository()
 
     if cache is None:
         cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
 
-
     try:
-        if isinstance(repo_or_spec, Dependency):
-            dep: Optional[Dependency] = repo_or_spec
-        elif isinstance(repo_or_spec, Package):
-            dep = repo_or_spec.to_dependency()
-        elif isinstance(repo_or_spec, SourceRepository):
-            dep = None
-        else:
-            raise ValueError(f"repo_or_spec must be either a Package, Dependency, or SourceRepository")
-
-        with cache:
-            if dep is None:
+        with cache, tqdm(desc=f"resolving {repo_or_spec!r}", leave=False, unit=" dependencies") as t:
+            if isinstance(repo_or_spec, Dependency):
+                unresolved_dependencies: List[Tuple[Dependency, int]] = [(repo_or_spec, 0)]
+                unupdated_packages: List[Tuple[Package, int]] = []
+            elif isinstance(repo_or_spec, Package):
+                unresolved_dependencies = []
+                unupdated_packages = [(repo_or_spec, 0)]
+            elif isinstance(repo_or_spec, SourceRepository):
                 # repo_or_spec is a SourceRepository
-                source_package = None
+                unresolved_dependencies = []
+                unupdated_packages = []
+                found_source_package = False
                 for resolver in resolvers():
                     if resolver.can_resolve_from_source(repo_or_spec):
                         source_package = resolver.resolve_from_source(repo_or_spec, cache=cache)
                         if source_package is None:
                             continue
-
-                        # round two, fix point?
-                        for resolver_updater in resolvers():
-                            if resolver_updater.can_update_dependencies(source_package):
-                                source_package = resolver_updater.update_dependencies(source_package)
-                                print (repr(source_package))
-
-                        repo.add(source_package)
-                        cache.add(source_package) # update dependencies
-                if source_package is None:
+                        found_source_package = True
+                        unupdated_packages.append((source_package, 0))
+                if not found_source_package:
                     raise ValueError(f"Can not resolve {repo_or_spec}")
             else:
-                # check if dep is resolved in the cache
-                if cache and cache.was_resolved(dep):
-                    solutions = cache.match(dep)
-                    repo.extend(solutions)
-                    repo.set_resolved(dep)
+                raise ValueError(f"repo_or_spec must be either a Package, Dependency, or SourceRepository")
 
-                # check if the repo has the solution already
-                elif not repo.was_resolved(dep):
-                    solutions = dep.resolver.resolve(dep)
-                    repo.extend(solutions)
-                    repo.set_resolved(dep)
+            t.total = len(unupdated_packages) + len(unresolved_dependencies)
 
-                    if cache:
-                        # cache the resolution
-                        cache.extend(solutions)
-                        cache.set_resolved(dep)
+            futures = set()
+            queued: Set[Dependency] = {d for d, _ in unresolved_dependencies}
+            if max_workers > 1:
+                pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="it-depends-resolver")
 
-                for package in cache.match(dep):
-                    # this package may be added/cached by previous resolution
-                    # For example cargo over a source repo solves it all to the cache but
-                    # none has native resolution done
-                    resolver_native = resolver_by_name("native")
-                    new_deps = resolver_native.get_native_dependencies(package)
-                    new_dependencies = package.dependencies.union(frozenset(new_deps))
-                    if package.dependencies != new_dependencies:
-                        package.dependencies = new_dependencies
-                        cache.add(package)
-                        repo.add(package)
+            def process_updated_package(
+                    updated_package: Package, at_depth: int, was_updated: bool = True
+            ):
+                repo.add(updated_package)
+                if not isinstance(Package, SourcePackage) and was_updated:
+                    cache.add(updated_package)
+                if depth_limit < 0 or at_depth < depth_limit:
+                    new_deps = {d for d in updated_package.dependencies if d not in queued}
+                    unresolved_dependencies.extend((d, at_depth + 1) for d in sorted(new_deps))
+                    t.total += len(new_deps)
+                    queued.update(new_deps)
 
-            # If depth_limit was positive and have not reached 1
-            # or it was set to something else keeps recurring
-            if depth_limit != 1:
-                unresolved_dependencies = tuple(x for x in repo.unresolved_dependencies() if x not in queue)
-                if not unresolved_dependencies:
-                    return repo
+            def process_resolution(
+                    dep: Dependency, packages: Iterable[Package], at_depth: int, already_cached: bool = False
+            ):
+                """This gets called whenever we resolve a new package"""
+                repo.set_resolved(dep)
+                packages = list(packages)
+                if not already_cached and cache is not None:
+                    cache.set_resolved(dep)
+                    cache.extend(packages)
+                unupdated_packages.extend((p, at_depth) for p in packages)
+                t.total += len(packages)
 
-                futures = {}
-                for dep in sorted(unresolved_dependencies):
-                    if cache is not None and cache.was_resolved(dep):
-                        repo.extend(cache.match(dep))
-                        repo.set_resolved(dep)
-                    else:
-                        futures = {pool.submit(resolve, dep, 0) for dep, package in resolution_cache.extend(packages) }
-                        while futures:
-                            done, futures = wait(futures, return_when=FIRST_COMPLETED)
-                            for finished in done:
-                                t.update(1)
-                                depth, dep, new_packages = finished.result()
+            while unresolved_dependencies or unupdated_packages or futures:
+                # while there are more unresolved dependencies, unupdated packages,
+                # or concurrent jobs that are still running:
 
+                if cache is not None:
+                    # loop through the unupdated packages and see if any are cached:
+                    not_updated: List[Tuple[Package, int]] = []
+                    was_updatable = False
+                    for package, depth in unupdated_packages:
+                        for resolver in resolvers():
+                            if resolver.can_update_dependencies(package):
+                                was_updatable = True
+                                if not cache.was_updated(package, resolver.name):
+                                    not_updated.append((package, depth))
+                                    break
+                        else:
+                            if was_updatable:
+                                # every resolver that could have updated this package did update it in the cache
+                                try:
+                                    # retrieve the package from the cache
+                                    package = next(iter(cache.match(package)))
+                                except StopIteration:
+                                    pass
+                            process_updated_package(package, depth)
+                            t.update(1)
 
-                        if cache is not None:
-                            cache.set_resolved(dep)
-                            cache.extend(new_packages)
-                        packages.set_resolved(dep)
-                        packages.extend(new_packages)
-                        if depth_limit < 0 or depth < depth_limit:
-                            futures |= {
-                                executor.submit(self._resolve_worker, new_dep, depth)
-                                for new_dep, package in resolution_cache.extend(new_packages)
-                            }
-                        resolve(repo_or_spec=dep, cache=cache, depth_limit=depth_limit-1, max_workers=max_workers, repo=repo, queue=queue.union(unresolved_dependencies), t=t)
-            else:
-                return repo
+                    unupdated_packages = not_updated
+
+                    # loop through the unresolved deps and see if any are cached:
+                    not_cached: List[Tuple[Dependency, int]] = []
+                    for dep, depth in unresolved_dependencies:
+                        if cache.was_resolved(dep):
+                            matches = cache.match(dep)
+                            process_resolution(dep, matches, depth, already_cached=True)
+                            t.update(1)
+                        else:
+                            not_cached.append((dep, depth))
+                    unresolved_dependencies = not_cached
+
+                if max_workers <= 1:
+                    # don't use concurrency
+                    if unupdated_packages:
+                        t.update(1)
+                        ret = _update_package(*unupdated_packages[0])
+                        unupdated_packages = unupdated_packages[1:]
+                        process_updated_package(ret.package, ret.depth, ret.was_updated)
+                    if unresolved_dependencies:
+                        t.update(1)
+                        ret = _process_dep(*unresolved_dependencies[0])
+                        unresolved_dependencies = unresolved_dependencies[1:]
+                        process_resolution(ret.dep, ret.packages, ret.depth)
+                else:
+                    # new_jobs is the number of new concurrent resolutions we can start without exceeding max_workers
+                    new_jobs = max_workers - len(futures)
+                    # create `new_jobs` package update jobs:
+                    futures |= {
+                        pool.submit(_update_package, package, depth) for package, depth in unupdated_packages[:new_jobs]
+                    }
+                    unupdated_packages = unupdated_packages[new_jobs:]
+                    new_jobs = max_workers - len(futures)
+                    # create `new_jobs` new resolution jobs:
+                    futures |= {
+                        pool.submit(_process_dep, dep, depth) for dep, depth in unresolved_dependencies[:new_jobs]
+                    }
+                    unresolved_dependencies = unresolved_dependencies[new_jobs:]
+                    if futures:
+                        done, futures = wait(futures, return_when=FIRST_COMPLETED)
+                        for finished in done:
+                            t.update(1)
+                            result = finished.result()
+                            if isinstance(result, _PackageResult):
+                                process_updated_package(result.package, result.depth, result.was_updated)
+                            elif isinstance(result, _DependencyResult):
+                                process_resolution(result.dep, result.packages, result.depth)
+                            else:
+                                raise NotImplementedError(f"Unexpected future result: {result!r}")
 
     except KeyboardInterrupt:
         if sys.stderr.isatty() and sys.stdin.isatty():
