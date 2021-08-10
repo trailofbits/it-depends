@@ -603,18 +603,23 @@ def _process_dep(dep: Dependency, depth: int) -> _DependencyResult:
 
 
 class _PackageResult:
-    def __init__(self, package: Package, was_updated: bool, depth: int):
+    def __init__(self, package: Package, was_updated: bool, updated_in_resolvers: Iterable[str], depth: int):
         self.package: Package = package
         self.was_updated: bool = was_updated
+        self.updated_in_resolvers: Set[str] = set(updated_in_resolvers)
         self.depth: int = depth
 
 
 def _update_package(package: Package, depth: int) -> _PackageResult:
     old_deps = frozenset(package.dependencies)
+    uir: List[str] = []
     for resolver in resolvers():
         if resolver.can_update_dependencies(package):
             package = resolver.update_dependencies(package)
-    return _PackageResult(package=package, was_updated=package.dependencies != old_deps, depth=depth)
+            uir.append(resolver.name)
+    return _PackageResult(
+        package=package, was_updated=package.dependencies != old_deps, updated_in_resolvers=uir, depth=depth
+    )
 
 
 def resolve(
@@ -679,11 +684,14 @@ def resolve(
                 pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="it-depends-resolver")
 
             def process_updated_package(
-                    updated_package: Package, at_depth: int, was_updated: bool = True
+                    updated_package: Package, at_depth: int, updated_in_resolvers: Set[str], was_updated: bool = True
             ):
                 repo.add(updated_package)  # type: ignore
-                if not isinstance(Package, SourcePackage) and was_updated:
-                    cache.add(updated_package)  # type: ignore
+                if not isinstance(Package, SourcePackage):
+                    if was_updated:
+                        cache.add(updated_package)  # type: ignore
+                    for r in updated_in_resolvers:
+                        cache.set_updated(package, r)  # type: ignore
                 if depth_limit < 0 or at_depth < depth_limit:
                     new_deps = {d for d in updated_package.dependencies if d not in queued}
                     unresolved_dependencies.extend((d, at_depth + 1) for d in sorted(new_deps))
@@ -725,7 +733,7 @@ def resolve(
                                     package = next(iter(cache.match(package)))
                                 except StopIteration:
                                     pass
-                            process_updated_package(package, depth)
+                            process_updated_package(package, depth, updated_in_resolvers=set())
                             t.update(1)
 
                     unupdated_packages = not_updated
@@ -747,7 +755,12 @@ def resolve(
                         t.update(1)
                         pkg_result = _update_package(*unupdated_packages[0])
                         unupdated_packages = unupdated_packages[1:]
-                        process_updated_package(pkg_result.package, pkg_result.depth, pkg_result.was_updated)
+                        process_updated_package(
+                            pkg_result.package,
+                            pkg_result.depth,
+                            pkg_result.updated_in_resolvers,
+                            pkg_result.was_updated
+                        )
                     if unresolved_dependencies:
                         t.update(1)
                         dep_result = _process_dep(*unresolved_dependencies[0])
@@ -773,7 +786,9 @@ def resolve(
                             t.update(1)
                             result = finished.result()
                             if isinstance(result, _PackageResult):
-                                process_updated_package(result.package, result.depth, result.was_updated)
+                                process_updated_package(
+                                    result.package, result.depth, result.updated_in_resolvers, result.was_updated
+                                )
                             elif isinstance(result, _DependencyResult):
                                 process_resolution(result.dep, result.packages, result.depth)
                             else:
