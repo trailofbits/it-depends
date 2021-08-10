@@ -6,8 +6,11 @@ import sys
 from typing import Iterator, Optional, Sequence, TextIO
 import webbrowser
 
+from sqlalchemy.exc import OperationalError
+
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import resolvers, resolve, SourceRepository
+
 
 # TODO: felipe
 # Low quality / Low doc code follows...
@@ -219,24 +222,29 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             sys.stdout.flush()
         return 0
 
-    with no_stdout() as real_stdout:
-        with DBPackageCache(args.database) as cache:
-            # TODO: Add support for searching by package name
-            repo = SourceRepository(args.PATH)
+    try:
+        with no_stdout() as real_stdout:
+            with DBPackageCache(args.database) as cache:
+                # TODO: Add support for searching by package name
+                repo = SourceRepository(args.PATH)
 
-            package_list = resolve(repo, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
-            if not package_list:
-                sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH}\n")
-                sys.stderr.flush()
+                package_list = resolve(repo, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
+                if not package_list:
+                    sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH}\n")
+                    sys.stderr.flush()
 
-
-            if args.output_format == "dot":
-                real_stdout.write(cache.to_dot(package_list.source_packages).source)
-            if args.output_format == "html":
-                show_graph(package_list.to_obj())
-            elif args.output_format == "json":
-                real_stdout.write(json.dumps(package_list.to_obj(), indent=4))
-            else:
-                raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
+                if args.output_format == "dot":
+                    real_stdout.write(cache.to_dot(package_list.source_packages).source)
+                if args.output_format == "html":
+                    show_graph(package_list.to_obj())
+                elif args.output_format == "json":
+                    real_stdout.write(json.dumps(package_list.to_obj(), indent=4))
+                else:
+                    raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
+    except OperationalError as e:
+        sys.stderr.write(f"Database error: {e!r}\n\nThis can occur if your database was created with an older version "
+                         f"of it-depends and was unable to be updated. If you remove {args.database} and try again, "
+                         "the database will automatically be rebuilt from scratch.")
+        return 1
 
     return 0
