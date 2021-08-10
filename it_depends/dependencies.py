@@ -640,7 +640,6 @@ def resolve(
                         cache.extend(solutions)
                         cache.set_resolved(dep)
 
-
                 for package in cache.match(dep):
                     # this package may be added/cached by previous resolution
                     # For example cargo over a source repo solves it all to the cache but
