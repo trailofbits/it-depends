@@ -64,7 +64,7 @@ class CMakeResolver(DependencyResolver):
         return ResolverAvailability(True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return (repo.path / "CMakeLists.txt").exists()
+        return self.is_available and (repo.path / "CMakeLists.txt").exists()
 
     def _find_package(
             self, package: str, *args, file_to_package_cache: Optional[List[Tuple[str, str]]] = None
@@ -265,9 +265,10 @@ class CMakeResolver(DependencyResolver):
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
+        if not self.can_resolve_from_source(repo):
+            return None
+
         path = repo.path
-        # assert self.is_available()
-        # assert self.can_classify(path)
         logger.info(f"Getting dependencies for cmake repo {path}")
         apath = str(path.absolute())
         orig_dir = getcwd()

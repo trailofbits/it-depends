@@ -34,7 +34,7 @@ class TestResolvers(TestCase):
                                     dep)
 
         # Dependency match
-        solution = Package(source="pip", name="cvedb", version="0.0.1")
+        solution = Package(sources=("pip",), name="cvedb", version="0.0.1")
         self.assertTrue(dep.match(solution))
         dep2 = Dependency.from_string("pip:cvedb@<0.2.1")
         self.assertTrue(dep2.match(Package.from_string("pip:cvedb@0.2.0")))

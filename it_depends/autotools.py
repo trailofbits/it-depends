@@ -37,7 +37,7 @@ class AutotoolsResolver(DependencyResolver):
         return ResolverAvailability(True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return (repo.path / "configure.ac").exists()
+        return self.is_available() and (repo.path / "configure.ac").exists()
 
     @staticmethod
     def _ac_check_header(header_file, file_to_package_cache=None):
@@ -118,6 +118,8 @@ class AutotoolsResolver(DependencyResolver):
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
+        if not self.can_resolve_from_source(repo):
+            return None
         logger.info(f"Getting dependencies for autotool repo {repo.path.absolute()}")
         with tempfile.NamedTemporaryFile() as tmp:
             # builds a temporary copy of configure.ac containing aclocal env

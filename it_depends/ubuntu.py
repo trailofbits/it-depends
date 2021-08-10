@@ -111,7 +111,6 @@ class UbuntuResolver(DependencyResolver):
                         dep_version = dep_version.replace(" ", "")
                         SimpleSpec(dep_version.replace(" ", ""))
                     except Exception as e:
-                        print ("UBUNTU DEP VERSION SPEC FAIL", dep_version)
                         dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
 
                     deps.append((dep_package, dep_version))

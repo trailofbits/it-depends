@@ -135,7 +135,7 @@ class NativeResolver(DependencyResolver):
             if dep not in baseline:
                 yield dep
 
-    def expand(self, existing: PackageCache, max_workers: Optional[int] = None, use_baseline: bool = False,
+    def expand_deactivated(self, existing: PackageCache, max_workers: Optional[int] = None, use_baseline: bool = False,
                cache: Optional[PackageCache] = None):
         """Resolves the native dependencies for all packages in the cache"""
         sources: Set[DependencyResolver] = set()
@@ -195,3 +195,12 @@ class NativeResolver(DependencyResolver):
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
         return None
+
+    def can_update_dependencies(self, package: Package) -> bool:
+        return self.name not in package.source
+
+    def update_dependencies(self, package: Package) -> Package:
+        """ Update the dependencies in package """
+        native_deps = self.get_native_dependencies(package)
+        package.dependencies = package.dependencies.union(frozenset(native_deps))
+        return package
