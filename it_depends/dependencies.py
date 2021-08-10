@@ -506,6 +506,9 @@ class SourceRepository:
     def __repr__(self):
         return f"{self.__class__.__name__}({str(self.path)!r})"
 
+    def __str__(self):
+        return str(self.path)
+
 
 class SourcePackage(Package):
     """A package extracted from source code rather than a package repository
@@ -652,7 +655,7 @@ def resolve(
         cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
 
     try:
-        with cache, tqdm(desc=f"resolving {repo_or_spec!r}", leave=False, unit=" dependencies") as t:
+        with cache, tqdm(desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t:
             if isinstance(repo_or_spec, Dependency):
                 unresolved_dependencies: List[Tuple[Dependency, int]] = [(repo_or_spec, 0)]
                 unupdated_packages: List[Tuple[Package, int]] = []
