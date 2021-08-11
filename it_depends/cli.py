@@ -15,9 +15,9 @@ from .dependencies import resolvers, resolve, SourceRepository
 # TODO: felipe
 # Low quality / Low doc code follows...
 def get_graph(db, nodes, edges):
-    if nodes == None:
+    if nodes is None:
         nodes = {}
-    if edges == None:
+    if edges is None:
         edges = {}
 
     def add_node(node_label, **options):

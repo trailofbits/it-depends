@@ -1,25 +1,28 @@
-from multiprocessing import cpu_count
-from tqdm import tqdm
+import atexit
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-
 import functools
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 import json
+import logging
+from multiprocessing import cpu_count
 from pathlib import Path
+from shutil import rmtree
+from subprocess import check_call
+import sys
+from tempfile import mkdtemp
 from typing import (
     Dict, FrozenSet, Iterable, Iterator, List, Optional, Set, Tuple, Union
 )
-import sys
+
 from graphviz import Digraph
+import networkx as nx
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
-from tempfile import mkdtemp
-from shutil import rmtree
-from subprocess import check_call
-import atexit
-import logging
+from tqdm import tqdm
+
+from .graphs import RootedDiGraph
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,10 @@ class Dependency:
         self.source: str = source
         self.package: str = package
         self.semantic_version: SemanticVersion = semantic_version
+
+    @property
+    def package_full_name(self) -> str:
+        return f"{self.source}:{self.package}"
 
     @property
     def resolver(self) -> "DependencyResolver":
@@ -96,6 +103,10 @@ class Package:
             self.source: str = source.name
         else:
             self.source = source
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.source}:{self.name}"
 
     def update_dependencies(self, dependencies: FrozenSet[Dependency]):
         self.dependencies = self.dependencies.union(dependencies)
@@ -165,6 +176,108 @@ class Package:
 
     def __hash__(self):
         return hash((self.version, self.name, self.version))
+
+
+class SourceRepository:
+    """represents a repo that we are analyzing from source"""
+    def __init__(self, path: Union[Path, str]):
+        super().__init__()
+        if not isinstance(path, Path):
+            path = Path(path)
+        self.path: Path = path
+
+    @staticmethod
+    def from_git(git_url: str) -> "SourceRepository":
+        tmpdir = mkdtemp()
+
+        def cleanup():
+            rmtree(tmpdir, ignore_errors=True)
+
+        atexit.register(cleanup)
+
+        check_call(["git", "clone", git_url], cwd=tmpdir)
+        for file in Path(tmpdir).iterdir():
+            if file.is_dir():
+                return SourceRepository(file)
+        raise ValueError(f"Error cloning {git_url}")
+
+    @staticmethod
+    def from_filesystem(path: Union[str, Path]) -> "SourceRepository":
+        return SourceRepository(path)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({str(self.path)!r})"
+
+    def __str__(self):
+        return str(self.path)
+
+
+class SourcePackage(Package):
+    """A package extracted from source code rather than a package repository
+    It is a package that exists on disk, but not necessarily in a remote repository.
+    """
+
+    def __init__(
+            self,
+            name: str,
+            version: Version,
+            source_repo: SourceRepository,
+            source: str,
+            dependencies: Iterable[Dependency] = (),
+    ):
+        super().__init__(name=name, version=version, dependencies=dependencies, source=source)
+        self.source_repo: SourceRepository = source_repo
+
+    def __str__(self):
+        return f"{super().__str__()}:{self.source_repo.path.absolute()!s}"
+
+
+class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
+    key_type = SourcePackage
+
+    @property
+    def source_packages(self) -> Set[SourcePackage]:
+        return self.roots
+
+    def packages_by_name(self) -> Dict[Tuple[str, str], Set[Package]]:
+        ret: Dict[Tuple[str, str], Set[Package]] = {}
+        for node in self:
+            name = node.source, node.name
+            if name not in ret:
+                ret[name] = {node}
+            else:
+                ret[name].add(node)
+        return ret
+
+    def collapse_versions(self) -> "DependencyGraph":
+        """
+        Group all versions of a package into a single node.
+        All dependency edges will be grouped into a single edge with a wildcard semantic version.
+
+        """
+        graph = DependencyGraph()
+        package_instances = self.packages_by_name()
+        packages_by_name: Dict[str, Package] = {}
+        # choose the maximum version among all packages of the same name:
+        for (package_source, package_name), instances in package_instances.items():
+            # convert all of the dependencies to SimpleSpec("*") wildcard versions:
+            deps = {
+                Dependency(package=dep.package, source=dep.source)
+                for instance in instances for dep in instance.dependencies
+            }
+            pkg = Package(
+                name=package_name,
+                version=max(p.version for p in instances),
+                source=package_source,
+                dependencies=deps
+            )
+            packages_by_name[pkg.full_name] = pkg
+            graph.add_node(pkg)  # type: ignore
+        for pkg in graph:  # type: ignore
+            for dep in pkg.dependencies:
+                if dep.package_full_name in packages_by_name:
+                    graph.add_edge(pkg, packages_by_name[dep.package_full_name], dependency=dep)  # type: ignore
+        return graph
 
 
 class PackageCache(ABC):
@@ -264,17 +377,28 @@ class PackageCache(ABC):
         except StopIteration:
             return None
 
+    def to_graph(self) -> DependencyGraph:
+        graph = DependencyGraph()
+        for package in self:
+            graph.add_node(package)  # type: ignore
+            for dep in package.dependencies:
+                for p in self.match(dep):
+                    assert p in self
+                    graph.add_edge(package, p, dependency=dep)  # type: ignore
+        return graph
+
     def to_obj(self):
-        def package_to_dict(package):
-            dependencies = { f"{dep.source}:{dep.package}":str(dep.semantic_version)  for dep in package.dependencies }
+        def package_to_dict(package: Package):
             ret = {
-                "dependencies": dependencies,
+                "dependencies": {
+                    f"{dep.source}:{dep.package}": str(dep.semantic_version)
+                    for dep in package.dependencies
+                },
                 "source": package.source
             }
             if isinstance(package, SourcePackage):
-                ret["is_source_package"] = True
+                ret["is_source_package"] = True  # type: ignore
             return ret
-
 
         return {
             package_full_name: {
@@ -474,60 +598,6 @@ class DockerSetup:
     load_package_script: str
     baseline_script: str
     post_install: str = ""
-
-
-class SourceRepository:
-    """represents a repo that we are analyzing from source"""
-    def __init__(self, path: Union[Path, str]):
-        super().__init__()
-        if not isinstance(path, Path):
-            path = Path(path)
-        self.path: Path = path
-
-    @staticmethod
-    def from_git(git_url: str) -> "SourceRepository":
-        tmpdir = mkdtemp()
-
-        def cleanup():
-            rmtree(tmpdir, ignore_errors=True)
-
-        atexit.register(cleanup)
-
-        check_call(["git", "clone", git_url], cwd=tmpdir)
-        for file in Path(tmpdir).iterdir():
-            if file.is_dir():
-                return SourceRepository(file)
-        raise ValueError(f"Error cloning {git_url}")
-
-    @staticmethod
-    def from_filesystem(path: Union[str, Path]) -> "SourceRepository":
-        return SourceRepository(path)
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({str(self.path)!r})"
-
-    def __str__(self):
-        return str(self.path)
-
-
-class SourcePackage(Package):
-    """A package extracted from source code rather than a package repository
-    It is a package that exists on disk, but not necessarily in a remote repository.
-    """
-
-    def __init__(
-            self,
-            name: str,
-            version: Version,
-            source_repo: SourceRepository,
-            source: str,
-            dependencies: Iterable[Dependency] = (),
-    ):
-        super().__init__(name=name, version=version, dependencies=dependencies, source=source)
-        self.source_repo: SourceRepository = source_repo
-
-    def __str__(self):
-        return f"{super().__str__()}:{self.source_repo.path.absolute()!s}"
 
 
 class DependencyResolver:
