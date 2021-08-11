@@ -325,26 +325,20 @@ class DBPackageCache(PackageCache):
             Updated.package.like(package.name),
             Updated.version == str(package.version)))
 
-    def was_updated(self, package:Package, resolver:str) -> bool:
+    def was_updated(self, package: Package, resolver: str) -> bool:
         if package.source == resolver:
             return True
         return self.session.query(Updated).filter(
             Updated.source.like(package.source),
             Updated.package.like(package.name),
-            Updated.version == str(package.version),
+            Updated.version.like(str(package.version)),
             Updated.resolver.like(resolver)
         ).limit(1).count() > 0
 
-    def set_updated(self, package:Package, resolver:str):
+    def set_updated(self, package: Package, resolver: str):
         if self.was_updated(package, resolver):
             return
         self.session.add(
             Updated(package=package.name, version=str(package.version), source=package.source, resolver=resolver)
         )
         self.session.commit()
-
-        return self.session.query(Updated).filter(
-            Updated.package.like(package.name),
-            Updated.version == str(package.version),
-            Updated.resolver.like(resolver)
-        ).limit(1).count() > 0

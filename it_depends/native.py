@@ -4,7 +4,7 @@ import re
 import shutil
 import subprocess
 from tempfile import NamedTemporaryFile
-from typing import Iterator, Optional, Set, Tuple
+from typing import Dict, FrozenSet, Iterator, Optional, Tuple
 
 from tqdm import tqdm
 
@@ -45,6 +45,8 @@ RUN chmod +x *.sh
 
 
 STRACE_LIBRARY_REGEX = re.compile(r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
+CONTAINERS_BY_SOURCE: Dict[DependencyResolver, DockerContainer] = {}
+BASELINES_BY_SOURCE: Dict[DependencyResolver, FrozenSet[Dependency]] = {}
 
 
 class NativeResolver(DependencyResolver):
@@ -101,24 +103,39 @@ class NativeResolver(DependencyResolver):
         return package, NativeResolver.get_package_dependencies(container, package)
 
     @staticmethod
-    def configure_docker(
-            source: DependencyResolver, run_baseline: bool = True
-    ) -> Tuple[DockerContainer, Set[Dependency]]:
+    def container_for(source: DependencyResolver) -> DockerContainer:
+        if source in CONTAINERS_BY_SOURCE:
+            return CONTAINERS_BY_SOURCE[source]
         docker_setup = source.docker_setup()
         if docker_setup is None:
             raise ValueError(f"source {source.name} does not support native dependency resolution")
-        with tqdm(desc=f"configuring Docker for {source.name}", leave=False, unit=" steps", total=3, initial=1) as t:
+        with tqdm(desc=f"configuring Docker for {source.name}", leave=False, unit=" steps", total=2, initial=1) as t:
             with make_dockerfile(docker_setup) as dockerfile:
                 container = DockerContainer(f"trailofbits/it-depends-{source.name!s}", dockerfile,
                                             tag=it_depends_version())
                 t.update(1)
                 container.rebuild()
-                t.update(1)
-                if run_baseline:
-                    t.desc = f"running baseline for {source.name}"
-                    return container, set(NativeResolver.get_baseline_dependencies(container))
-                else:
-                    return container, set()
+                CONTAINERS_BY_SOURCE[source] = container
+                return container
+
+    @staticmethod
+    def baseline_for(source: DependencyResolver) -> FrozenSet[Dependency]:
+        if source not in BASELINES_BY_SOURCE:
+            baseline = frozenset(NativeResolver.get_baseline_dependencies(NativeResolver.container_for(source)))
+            BASELINES_BY_SOURCE[source] = baseline
+            return baseline
+        else:
+            return BASELINES_BY_SOURCE[source]
+
+    @staticmethod
+    def configure_docker(
+            source: DependencyResolver, run_baseline: bool = True
+    ) -> Tuple[DockerContainer, FrozenSet[Dependency]]:
+        if run_baseline:
+            baseline = NativeResolver.baseline_for(source)
+        else:
+            baseline = frozenset()
+        return NativeResolver.container_for(source), baseline
 
     @staticmethod
     def get_native_dependencies(package: Package, use_baseline: bool = False) -> Iterator[Dependency]:
@@ -129,6 +146,9 @@ class NativeResolver(DependencyResolver):
         for dep in NativeResolver.get_package_dependencies(container, package):
             if dep not in baseline:
                 yield dep
+
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
+        raise StopIteration()
 
     def __lt__(self, other):
         """Make sure that the Native Classifier runs second-to-last, before the Ubuntu Classifier"""
@@ -141,9 +161,6 @@ class NativeResolver(DependencyResolver):
         return ResolverAvailability(True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        for resolver in resolvers():  # type: ignore
-            if resolver.docker_setup() is not None and resolver.can_resolve_from_source(repo):
-                return True
         return False
 
     def resolve_from_source(

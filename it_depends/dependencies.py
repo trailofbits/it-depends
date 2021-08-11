@@ -589,6 +589,12 @@ class DependencyResolver:
     def update_dependencies(self, package: Package) -> Package:
         return package
 
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        return isinstance(other, DependencyResolver) and other.name == self.name
+
 
 class PackageRepository(InMemoryPackageCache):
     pass
