@@ -4,9 +4,10 @@ from pathlib import Path
 import re
 import logging
 from threading import Lock
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, Iterator, List, Optional, Set, Tuple
 from urllib import request
 
+from .dependencies import Version
 from .it_depends import APP_DIRS
 from .ubuntu import run_command
 

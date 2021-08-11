@@ -13,9 +13,10 @@ from . import version as it_depends_version
 from .apt import file_to_package
 from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 from .dependencies import (
-    Dependency, DependencyResolver, DockerSetup, Package, PackageCache, resolvers, ResolverAvailability,
+    Dependency, DependencyResolver, DockerSetup, Package, PackageCache, ResolverAvailability,
     SemanticVersion, SourcePackage, SourceRepository
 )
+from .ubuntu import UbuntuResolver
 
 logger = getLogger(__name__)
 
@@ -75,13 +76,11 @@ class NativeResolver(DependencyResolver):
                     if m:
                         path = m.group(2)
                         if path not in ("/etc/ld.so.cache",):
-                            name = m.group(4)
-                            try:
-                                # see if this path matches to an Ubuntu library:
-                                name = file_to_package(path)
-                            except (ValueError, subprocess.CalledProcessError):
-                                pass
-                            yield Dependency(package=name, source="ubuntu", semantic_version=SemanticVersion.parse('*'))
+                            yield Dependency(
+                                package=path,
+                                source=NativeResolver.name,
+                                semantic_version=SemanticVersion.parse('*')
+                            )
         finally:
             Path(stdout.name).unlink()
 
@@ -99,10 +98,6 @@ class NativeResolver(DependencyResolver):
             container=container,
             command="./baseline.sh"
         )
-
-    @staticmethod
-    def _expand(package: Package, container: DockerContainer):
-        return package, NativeResolver.get_package_dependencies(container, package)
 
     @staticmethod
     def container_for(source: DependencyResolver) -> DockerContainer:
@@ -153,7 +148,12 @@ class NativeResolver(DependencyResolver):
                 yield dep
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        raise StopIteration()
+        assert dependency.source == self.name
+        try:
+            # see if this path matches to an Ubuntu library:
+            yield from UbuntuResolver.ubuntu_packages(file_to_package(dependency.package))
+        except (ValueError, subprocess.CalledProcessError):
+            pass
 
     def __lt__(self, other):
         """Make sure that the Native Classifier runs second-to-last, before the Ubuntu Classifier"""
@@ -174,7 +174,7 @@ class NativeResolver(DependencyResolver):
         return None
 
     def can_update_dependencies(self, package: Package) -> bool:
-        return self.name not in package.source
+        return self.name != package.source and package.source != UbuntuResolver.name
 
     def update_dependencies(self, package: Package) -> Package:
         """ Update the dependencies in package """

@@ -5,7 +5,7 @@ import subprocess
 import logging
 import re
 from threading import Lock
-from typing import Iterator, Optional, Pattern
+from typing import Iterable, Iterator, Optional, Pattern
 
 from .dependencies import Version, SimpleSpec
 from .dependencies import (
@@ -86,29 +86,36 @@ class UbuntuResolver(DependencyResolver):
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
 
-    def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        if dependency.source != "ubuntu":
-            raise ValueError(f"{self} can not resolve dependencies from other sources ({dependency})")
-
+    @staticmethod
+    @lru_cache
+    def ubuntu_packages(package_name: str) -> Iterable[Package]:
+        """Iterates over all of the package versions available for a package name"""
         # Parses the dependencies of dependency.package out of the `apt show` command
-        logger.info(f"Running apt-cache depends {dependency.package}")
-        contents = run_command("apt", "show", dependency.package).decode("utf8")
+        logger.debug(f"Running `apt show -a {package_name}`")
+        contents = run_command("apt", "show", "-a", package_name).decode("utf8")
 
         # Possibly means that the package does not appear ubuntu with the exact name
         if not contents:
-            logger.info(f"Package {dependency.package} not found in ubuntu installed apt sources")
-            return
+            logger.info(f"Package {package_name} not found in ubuntu installed apt sources")
+            return ()
 
         # Example depends line:
         # Depends: libc6 (>= 2.29), libgcc-s1 (>= 3.4), libstdc++6 (>= 9)
-        version = None
-        deps = []
+        version: Optional[Version] = None
+        packages = []
         for line in contents.split("\n"):
-            if line.startswith("Depends: "):
+            if line.startswith("Version: "):
+                matched = UbuntuResolver._ubuntu_version.match(line[len("Version: "):])
+                if matched:
+                    version = Version.coerce(matched.group("version"))
+                else:
+                    logger.warning(f"Failed to parse package {package_name} {line}")
+            elif version is not None and line.startswith("Depends: "):
+                deps = []
                 for dep in line[9:].split(","):
-                    matched = self._pattern.match(dep)
+                    matched = UbuntuResolver._pattern.match(dep)
                     if not matched:
-                        raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
+                        raise ValueError(f"Invalid dependency line in apt output for {package_name}: {line!r}")
                     dep_package = matched.group('package')
                     dep_version = matched.group('version')
                     try:
@@ -118,29 +125,29 @@ class UbuntuResolver(DependencyResolver):
                         dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
 
                     deps.append((dep_package, dep_version))
-            if line.startswith("Version: "):
-                version = line[9:]
 
-        if version is None:
-            logger.info(f"Package {dependency.package} not found in ubuntu installed apt sources")
-            return
+                packages.append(Package(
+                    name=package_name, version=version,
+                    source=UbuntuResolver(),
+                    dependencies=(
+                        Dependency(
+                            package=pkg,
+                            semantic_version=SimpleSpec(ver),
+                            source=UbuntuResolver()
+                        )
+                        for pkg, ver in deps
+                    )
+                ))
+                version = None
+        return packages
 
-        matched = self._ubuntu_version.match(version)
-        if not matched:
-            logger.info(
-                f"Failed to parse package {dependency.package} version: {version}")
-            return
-        version = Version.coerce(matched.group("version"))
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
+        if dependency.source != "ubuntu":
+            raise ValueError(f"{self} can not resolve dependencies from other sources ({dependency})")
 
-        yield Package(name=dependency.package, version=version,
-                      source=UbuntuResolver(),
-                      dependencies=(
-                          Dependency(package=pkg,
-                                     semantic_version=SimpleSpec(ver),
-                                     source=UbuntuResolver()
-                                     )
-                          for pkg, ver in deps
-                      ))
+        for package in UbuntuResolver.ubuntu_packages(dependency.package):
+            if package.version in dependency.semantic_version:
+                yield package
 
     def __lt__(self, other):
         """Make sure that the Ubuntu Classifier runs last"""

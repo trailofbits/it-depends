@@ -552,7 +552,7 @@ class DependencyResolver:
     @abstractmethod
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the given dependency"""
-        logger.info (f"{self} does not implement `resolve()`")
+        logger.info(f"{self} does not implement `resolve()`")
         raise NotImplementedError
 
     @classmethod
