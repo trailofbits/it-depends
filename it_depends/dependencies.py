@@ -690,11 +690,11 @@ def resolve(
                     updated_package: Package, at_depth: int, updated_in_resolvers: Set[str], was_updated: bool = True
             ):
                 repo.add(updated_package)  # type: ignore
-                if not isinstance(Package, SourcePackage):
+                if not isinstance(updated_package, SourcePackage):
                     if was_updated:
                         cache.add(updated_package)  # type: ignore
                     for r in updated_in_resolvers:
-                        cache.set_updated(package, r)  # type: ignore
+                        cache.set_updated(updated_package, r)  # type: ignore
                 if depth_limit < 0 or at_depth < depth_limit:
                     new_deps = {d for d in updated_package.dependencies if d not in queued}
                     unresolved_dependencies.extend((d, at_depth + 1) for d in sorted(new_deps))
