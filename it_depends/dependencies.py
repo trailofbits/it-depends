@@ -700,6 +700,7 @@ def resolve(
                     if was_updated:
                         cache.add(updated_package)  # type: ignore
                     for r in updated_in_resolvers:
+                        repo.set_updated(updated_package, r)  # type: ignore
                         cache.set_updated(updated_package, r)  # type: ignore
                 if depth_limit < 0 or at_depth < depth_limit:
                     new_deps = {d for d in updated_package.dependencies if d not in queued}
@@ -723,7 +724,10 @@ def resolve(
                 # while there are more unresolved dependencies, unupdated packages,
                 # or concurrent jobs that are still running:
 
-                if cache is not None:
+                reached_fixed_point = cache is None
+                while not reached_fixed_point:
+                    reached_fixed_point = True
+
                     # loop through the unupdated packages and see if any are cached:
                     not_updated: List[Tuple[Package, int]] = []
                     was_updatable = False
@@ -745,7 +749,9 @@ def resolve(
                             process_updated_package(package, depth, updated_in_resolvers=set())
                             t.update(1)
 
-                    unupdated_packages = not_updated
+                    if unupdated_packages != not_updated:
+                        reached_fixed_point = False
+                        unupdated_packages = not_updated
 
                     # loop through the unresolved deps and see if any are cached:
                     not_cached: List[Tuple[Dependency, int]] = []
@@ -756,7 +762,9 @@ def resolve(
                             t.update(1)
                         else:
                             not_cached.append((dep, depth))
-                    unresolved_dependencies = not_cached
+                    if unresolved_dependencies != not_cached:
+                        reached_fixed_point = False
+                        unresolved_dependencies = not_cached
 
                 if max_workers <= 1:
                     # don't use concurrency
