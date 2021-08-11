@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 from tempfile import NamedTemporaryFile
+from threading import Lock
 from typing import Dict, FrozenSet, Iterator, Optional, Tuple
 
 from tqdm import tqdm
@@ -47,6 +48,7 @@ RUN chmod +x *.sh
 STRACE_LIBRARY_REGEX = re.compile(r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
 CONTAINERS_BY_SOURCE: Dict[DependencyResolver, DockerContainer] = {}
 BASELINES_BY_SOURCE: Dict[DependencyResolver, FrozenSet[Dependency]] = {}
+_CONTAINER_LOCK: Lock = Lock()
 
 
 class NativeResolver(DependencyResolver):
@@ -104,13 +106,15 @@ class NativeResolver(DependencyResolver):
 
     @staticmethod
     def container_for(source: DependencyResolver) -> DockerContainer:
-        if source in CONTAINERS_BY_SOURCE:
-            return CONTAINERS_BY_SOURCE[source]
-        docker_setup = source.docker_setup()
-        if docker_setup is None:
-            raise ValueError(f"source {source.name} does not support native dependency resolution")
-        with tqdm(desc=f"configuring Docker for {source.name}", leave=False, unit=" steps", total=2, initial=1) as t:
-            with make_dockerfile(docker_setup) as dockerfile:
+        with _CONTAINER_LOCK:
+            if source in CONTAINERS_BY_SOURCE:
+                return CONTAINERS_BY_SOURCE[source]
+            docker_setup = source.docker_setup()
+            if docker_setup is None:
+                raise ValueError(f"source {source.name} does not support native dependency resolution")
+            with tqdm(
+                    desc=f"configuring Docker for {source.name}", leave=False, unit=" steps", total=2, initial=1
+            ) as t, make_dockerfile(docker_setup) as dockerfile:
                 container = DockerContainer(f"trailofbits/it-depends-{source.name!s}", dockerfile,
                                             tag=it_depends_version())
                 t.update(1)
@@ -120,12 +124,13 @@ class NativeResolver(DependencyResolver):
 
     @staticmethod
     def baseline_for(source: DependencyResolver) -> FrozenSet[Dependency]:
-        if source not in BASELINES_BY_SOURCE:
-            baseline = frozenset(NativeResolver.get_baseline_dependencies(NativeResolver.container_for(source)))
-            BASELINES_BY_SOURCE[source] = baseline
-            return baseline
-        else:
-            return BASELINES_BY_SOURCE[source]
+        with _CONTAINER_LOCK:
+            if source not in BASELINES_BY_SOURCE:
+                baseline = frozenset(NativeResolver.get_baseline_dependencies(NativeResolver.container_for(source)))
+                BASELINES_BY_SOURCE[source] = baseline
+                return baseline
+            else:
+                return BASELINES_BY_SOURCE[source]
 
     @staticmethod
     def configure_docker(
