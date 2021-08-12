@@ -244,7 +244,6 @@ class DBPackageCache(PackageCache):
         for package in packages:
             for existing in self.match(package):
                 if len(existing.dependencies) > len(package.dependencies):
-                    breakpoint()
                     raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
                 elif existing.dependencies != package.dependencies:
                     existing.dependencies = package.dependencies
