@@ -121,6 +121,7 @@ class TestSmoke(TestCase):
     def test_cargo(self, package_list):
         pass
 
+    # @gh_smoke_test("brix", "crypto-js", "971c31f0c931f913d22a76ed488d9216ac04e306")
     @gh_smoke_test("bitcoin", "bitcoin", "4a267057617a8aa6dc9793c4d711725df5338025")
     def test_npm(self, package_list):
         pass
