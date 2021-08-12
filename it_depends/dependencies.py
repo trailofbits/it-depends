@@ -50,11 +50,10 @@ class Dependency:
     @classmethod
     def from_string(cls, description):
         try:
-            source, *remainder = description.split(":")
-            package = ":".join(remainder)
-            package, *remainder = package.split("@")
-            if remainder:
-                version_string = "@".join(remainder)
+            source, tail = description.split(":", 1)
+            package, *remainder = tail.split("@", 1)
+            version_string = "@".join(remainder)
+            if version_string:
                 version = SimpleSpec(version_string)
             else:
                 version = SimpleSpec("*")
@@ -559,8 +558,7 @@ class InMemoryPackageCache(PackageCache):
         return frozenset(ret)
 
     def package_versions(self, package_full_name: str) -> Iterator[Package]:
-        package_source, *remainder = package_full_name.split(":")
-        package_name = ":".join(remainder)
+        package_source, package_name = package_full_name.split(":", 1)
         packages = self._cache[package_source]
         if package_name in packages:
             yield from packages[package_name].values()
