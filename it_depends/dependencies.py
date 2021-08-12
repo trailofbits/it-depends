@@ -51,10 +51,13 @@ class Dependency:
     def from_string(cls, description):
         try:
             source, *remainder = description.split(":")
-            package_version = ":".join(remainder)
-            package, *remainder = package_version.split("@")
-            version_string = "@".join(remainder)
-            version = SimpleSpec(version_string)
+            package = ":".join(remainder)
+            package, *remainder = package.split("@")
+            if remainder:
+                version_string = "@".join(remainder)
+                version = SimpleSpec(version_string)
+            else:
+                version = SimpleSpec("*")
         except Exception as e:
             raise ValueError(f"Can not parse dependency description <{description}>") from e
         return cls(source=source, package=package, semantic_version=version)
