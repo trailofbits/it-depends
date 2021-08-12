@@ -174,6 +174,10 @@ class Package:
             return other.name == self.name and other.source == self.source and other.version == self.version
         return False
 
+    def __lt__(self, other):
+        return isinstance(other, Package) and \
+               (self.name, self.source, self.version) < (other.name, other.source, other.version)
+
     def __hash__(self):
         return hash((self.version, self.name, self.version))
 
