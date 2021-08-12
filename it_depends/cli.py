@@ -39,6 +39,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         help="how the output should be formatted (default is JSON)")
     parser.add_argument("--output-file", "-o", type=str, default=None, help="path to the output file; default is to "
                                                                             "write output to STDOUT")
+    parser.add_argument("--force", action="store_true", help="force overwriting the output file even if it already "
+                                                             "exists")
     parser.add_argument("--depth-limit", "-d", type=int, default=-1,
                         help="depth limit for recursively solving dependencies (default is -1 to resolve all "
                              "dependencies)")
@@ -74,6 +76,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         with no_stdout() as real_stdout:
             if args.output_file is None or args.output_file == "-":
                 output_file = real_stdout
+            elif not args.force and os.path.exists(args.output_file):
+                sys.stderr.write(f"{args.output_file} already exists!\nRe-run with `--force` to overwrite the file.\n")
+                return 1
             else:
                 output_file = open(args.output_file, "w")
             with DBPackageCache(args.database) as cache:
