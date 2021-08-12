@@ -57,7 +57,6 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv[1:])
 
     repo_path = Path(args.PATH_OR_NAME)
-    was_unknown_resolver: bool = False
     try:
         dependency: Optional[Dependency] = Dependency.from_string(args.PATH_OR_NAME)
     except ValueError as e:
