@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from it_depends.apt import file_to_package
+from it_depends.ubuntu.apt import file_to_package
 
 
 class TestAPT(TestCase):

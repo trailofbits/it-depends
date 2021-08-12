@@ -4,12 +4,11 @@ from pathlib import Path
 import re
 import logging
 from threading import Lock
-from typing import Dict, Iterator, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 from urllib import request
 
-from .dependencies import Version
-from .it_depends import APP_DIRS
-from .ubuntu import run_command
+from ..it_depends import APP_DIRS
+from .docker import run_command
 
 logger = logging.getLogger(__name__)
 all_packages: Optional[Tuple[str, ...]] = None
