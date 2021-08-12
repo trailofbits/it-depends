@@ -24,7 +24,7 @@ class UbuntuResolver(DependencyResolver):
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
 
     @staticmethod
-    @lru_cache
+    @lru_cache(maxsize=2048)
     def ubuntu_packages(package_name: str) -> Iterable[Package]:
         """Iterates over all of the package versions available for a package name"""
         # Parses the dependencies of dependency.package out of the `apt show` command
