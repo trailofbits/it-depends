@@ -58,6 +58,9 @@ function drawGraph() {
             color: {
                 inherit: false
             },
+            arrows: {
+                to: true,
+            },
         },
         layout: {
             improvedLayout: false
