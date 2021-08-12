@@ -1,0 +1,2333 @@
+{
+    "autotools:Bitcoin Core": {
+        "21.99.0": {
+            "dependencies": {
+                "ubuntu:acr": "*",
+                "ubuntu:calc-dev": "*",
+                "ubuntu:gcc-snapshot": "*",
+                "ubuntu:libbsd-dev": "*",
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:libevent-dev": ">=2.0.21",
+                "ubuntu:libminiupnpc17": "*",
+                "ubuntu:libnatpmp-dev": "*",
+                "ubuntu:libqrencode-dev": "*",
+                "ubuntu:libsqlite3-dev": ">=3.7.17",
+                "ubuntu:libunivalue-dev": ">=1.0.4",
+                "ubuntu:libzmq3-dev": ">=4",
+                "ubuntu:mes": "*",
+                "ubuntu:mingw-w64-i686-dev": "*",
+                "ubuntu:musl-dev": "*",
+                "ubuntu:qtbase5-dev": ">=5.9.5",
+                "ubuntu:zfs-dkms": "*"
+            },
+            "is_source_package": true,
+            "source": "autotools"
+        }
+    },
+    "ubuntu:binfmt-support": {
+        "2.2.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libpipeline1": ">=1.0.0",
+                "ubuntu:lsb-base": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:binutils": {
+        "2.34.0": {
+            "dependencies": {
+                "ubuntu:binutils-common": "*",
+                "ubuntu:binutils-x86-64-linux-gnu": "*",
+                "ubuntu:libbinutils": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:binutils-x86-64-linux-gnu": {
+        "2.34.0": {
+            "dependencies": {
+                "ubuntu:binutils-common": "*",
+                "ubuntu:libbinutils": "*",
+                "ubuntu:libc6": ">=2.27",
+                "ubuntu:libctf-nobfd0": ">=2.33.50",
+                "ubuntu:libctf0": ">=2.33.50",
+                "ubuntu:libgcc-s1": ">=3.0",
+                "ubuntu:libstdc++6": ">=5.2",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:bzip2": {
+        "1.0.8": {
+            "dependencies": {
+                "ubuntu:libbz2-1.0": "=1.0.8-2",
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:calc-dev": {
+        "2.12.7+2": {
+            "dependencies": {
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:sensible-utils": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:comerr-dev": {
+        "2.1.0": {
+            "dependencies": {
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:libcom-err2": "=1.45.5-2ubuntu1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:cpp": {
+        "9.3.0": {
+            "dependencies": {
+                "ubuntu:cpp-9": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:cpp-9": {
+        "9.3.0": {
+            "dependencies": {
+                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libgmp10": "*",
+                "ubuntu:libisl22": ">=0.15",
+                "ubuntu:libmpc3": "*",
+                "ubuntu:libmpfr6": ">=3.1.3",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:dctrl-tools": {
+        "2.24.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:dkms": {
+        "2.8.1": {
+            "dependencies": {
+                "ubuntu:coreutils": ">=7.4",
+                "ubuntu:dctrl-tools": "*",
+                "ubuntu:dpkg-dev": "*",
+                "ubuntu:gcc": "*",
+                "ubuntu:kmod": "*",
+                "ubuntu:make": "*",
+                "ubuntu:patch": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:dpkg": {
+        "1.19.7-ubuntu3": {
+            "dependencies": {
+                "ubuntu:tar": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:dpkg-dev": {
+        "1.19.7-ubuntu3": {
+            "dependencies": {
+                "ubuntu:binutils": "*",
+                "ubuntu:bzip2": "*",
+                "ubuntu:libdpkg-perl": "*",
+                "ubuntu:make": "*",
+                "ubuntu:patch": ">=2.7",
+                "ubuntu:perl:any": "*",
+                "ubuntu:tar": "*",
+                "ubuntu:xz-utils": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:file": {
+        "5.38.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libmagic1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:gcc": {
+        "9.3.0": {
+            "dependencies": {
+                "ubuntu:cpp": "*",
+                "ubuntu:gcc-9": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:gcc-9": {
+        "9.3.0": {
+            "dependencies": {
+                "ubuntu:binutils": ">=2.34",
+                "ubuntu:cpp-9": "=9.3.0-10ubuntu2",
+                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:libc6": ">=2.15",
+                "ubuntu:libcc1-0": "*",
+                "ubuntu:libgcc-9-dev": "*",
+                "ubuntu:libgcc-s1": ">=3.0",
+                "ubuntu:libgmp10": "*",
+                "ubuntu:libisl22": ">=0.15",
+                "ubuntu:libmpc3": "*",
+                "ubuntu:libmpfr6": ">=3.1.3",
+                "ubuntu:libstdc++6": ">=5",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:gcc-snapshot": {
+        "20200418.0.0": {
+            "dependencies": {
+                "ubuntu:binutils": ">=2.34",
+                "ubuntu:lib32quadmath0": ">=4.6",
+                "ubuntu:lib32stdc++6": ">=4.1.1",
+                "ubuntu:lib32z1": "*",
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:libc6-dev-i386": ">=2.11",
+                "ubuntu:libc6-dev-x32": ">=2.11",
+                "ubuntu:libc6-i386": ">=2.29",
+                "ubuntu:libc6-x32": ">=2.29",
+                "ubuntu:libgc1c2": "*",
+                "ubuntu:libgmp10": "*",
+                "ubuntu:libisl22": ">=0.15",
+                "ubuntu:libmpc3": "*",
+                "ubuntu:libmpfr6": ">=3.1.3",
+                "ubuntu:libquadmath0": ">=4.6",
+                "ubuntu:libstdc++6": ">=5.2",
+                "ubuntu:libx32quadmath0": ">=4.6",
+                "ubuntu:libx32stdc++6": ">=4.1.1",
+                "ubuntu:libx32z1": "*",
+                "ubuntu:libzstd1": ">=1.3.2",
+                "ubuntu:lld-10": "*",
+                "ubuntu:llvm-10": "*",
+                "ubuntu:python3": "*",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:guile-2.2": {
+        "2.2.7+1": {
+            "dependencies": {
+                "ubuntu:guile-2.2-libs": "=2.2.7+1-4"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:guile-bytestructures": {
+        "1.0.7": {
+            "dependencies": {
+                "ubuntu:guile-2.2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:kmod": {
+        "27.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:libkmod2": "*",
+                "ubuntu:liblzma5": "*",
+                "ubuntu:libssl1.1": ">=1.1.0",
+                "ubuntu:lsb-base": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:krb5-multidev": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:comerr-dev": "*",
+                "ubuntu:libgssapi-krb5-2": "*",
+                "ubuntu:libgssrpc4": "*",
+                "ubuntu:libk5crypto3": "*",
+                "ubuntu:libkadm5clnt-mit11": "*",
+                "ubuntu:libkadm5srv-mit11": "*",
+                "ubuntu:libkrb5-3": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:lib32gcc-s1": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-i386": ">=2.2.4"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-i386": ">=2.2.4"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:lib32gcc1": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:lib32gcc-s1": "*"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:lib32gcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:lib32quadmath0": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-i386": ">=2.23"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-i386": ">=2.23"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:lib32stdc++6": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:lib32gcc-s1": ">=4.2",
+                "ubuntu:lib32gcc1": "*",
+                "ubuntu:libc6-i386": ">=2.18"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:lib32gcc-s1": "*",
+                "ubuntu:libc6-i386": ">=2.18"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:lib32z1": {
+        "1.2.11+dfsg": {
+            "dependencies": {
+                "ubuntu:libc6-i386": ">=2.4"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libasan5": {
+        "9.3.0": {
+            "dependencies": {
+                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:libc6": ">=2.23",
+                "ubuntu:libgcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libatomic1": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libbinutils": {
+        "2.34.0": {
+            "dependencies": {
+                "ubuntu:binutils-common": "*",
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libbsd-dev": {
+        "0.10.0": {
+            "dependencies": {
+                "ubuntu:libbsd0": "=0.10.0-1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libbsd0": {
+        "0.10.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libbz2-1.0": {
+        "1.0.8": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libc-dev-bin": {
+        "2.31.0": {
+            "dependencies": {
+                "ubuntu:libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libc6": {
+        "2.31.0": {
+            "dependencies": {
+                "ubuntu:libcrypt1": "*",
+                "ubuntu:libgcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libc6-dev": {
+        "2.31.0": {
+            "dependencies": {
+                "ubuntu:libc-dev-bin": "*",
+                "ubuntu:libc6": "*",
+                "ubuntu:libcrypt-dev": "*",
+                "ubuntu:linux-libc-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libc6-dev-i386": {
+        "2.31.0": {
+            "dependencies": {
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:libc6-i386": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libc6-dev-x32": {
+        "2.31.0": {
+            "dependencies": {
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:libc6-dev-i386": "*",
+                "ubuntu:libc6-x32": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libc6-i386": {
+        "2.31.0": {
+            "dependencies": {
+                "ubuntu:libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libc6-x32": {
+        "2.31.0": {
+            "dependencies": {
+                "ubuntu:libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libcc1-0": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.15",
+                "ubuntu:libgcc-s1": ">=3.0",
+                "ubuntu:libstdc++6": ">=5.2"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.15",
+                "ubuntu:libgcc-s1": ">=3.0",
+                "ubuntu:libstdc++6": ">=5.2"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libcom-err2": {
+        "1.45.5": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libcrypt-dev": {
+        "4.4.10": {
+            "dependencies": {
+                "ubuntu:libcrypt1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libcrypt1": {
+        "4.4.10": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libctf-nobfd0": {
+        "2.34.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libctf0": {
+        "2.34.0": {
+            "dependencies": {
+                "ubuntu:libbinutils": "*",
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libdb5.3": {
+        "5.3.28+dfsg1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libdpkg-perl": {
+        "1.19.7-ubuntu3": {
+            "dependencies": {
+                "ubuntu:dpkg": ">=1.18.11",
+                "ubuntu:perl:any": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libdrm-amdgpu1": {
+        "2.4.101": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.28",
+                "ubuntu:libdrm2": ">=2.4.101"
+            },
+            "source": "ubuntu"
+        },
+        "2.4.102": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.28",
+                "ubuntu:libdrm2": ">=2.4.101"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libdrm-intel1": {
+        "2.4.101": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:libdrm2": ">=2.4.38",
+                "ubuntu:libpciaccess0": "*"
+            },
+            "source": "ubuntu"
+        },
+        "2.4.102": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:libdrm2": ">=2.4.38",
+                "ubuntu:libpciaccess0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libdrm-nouveau2": {
+        "2.4.101": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libdrm2": ">=2.4.38"
+            },
+            "source": "ubuntu"
+        },
+        "2.4.102": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libdrm2": ">=2.4.38"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libdrm-radeon1": {
+        "2.4.101": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libdrm2": ">=2.4.38"
+            },
+            "source": "ubuntu"
+        },
+        "2.4.102": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libdrm2": ">=2.4.38"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libdrm2": {
+        "2.4.101": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm-common": ">=2.4.101-2"
+            },
+            "source": "ubuntu"
+        },
+        "2.4.102": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm-common": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libedit2": {
+        "3.1.0": {
+            "dependencies": {
+                "ubuntu:libbsd0": ">=0.1.3",
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libtinfo6": ">=6"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libegl-dev": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libegl1": "=1.3.1-1",
+                "ubuntu:libgl-dev": "*",
+                "ubuntu:libx11-dev": "*"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libegl1": "*",
+                "ubuntu:libgl-dev": "*",
+                "ubuntu:libx11-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libegl-mesa0": {
+        "20.0.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm2": ">=2.4.81",
+                "ubuntu:libexpat1": ">=2.0.1",
+                "ubuntu:libgbm1": "=20.0.4-2ubuntu1",
+                "ubuntu:libglapi-mesa": "=20.0.4-2ubuntu1",
+                "ubuntu:libwayland-client0": ">=1.15.0",
+                "ubuntu:libwayland-server0": ">=1.15.0",
+                "ubuntu:libx11-xcb1": "*",
+                "ubuntu:libxcb-dri2-0": ">=1.8",
+                "ubuntu:libxcb-dri3-0": ">=1.13",
+                "ubuntu:libxcb-present0": "*",
+                "ubuntu:libxcb-sync1": "*",
+                "ubuntu:libxcb-xfixes0": "*",
+                "ubuntu:libxcb1": ">=1.9.2",
+                "ubuntu:libxshmfence1": "*"
+            },
+            "source": "ubuntu"
+        },
+        "20.2.6": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm2": ">=2.4.81",
+                "ubuntu:libexpat1": ">=2.0.1",
+                "ubuntu:libgbm1": "*",
+                "ubuntu:libglapi-mesa": "*",
+                "ubuntu:libwayland-client0": ">=1.15.0",
+                "ubuntu:libwayland-server0": ">=1.15.0",
+                "ubuntu:libx11-xcb1": "*",
+                "ubuntu:libxcb-dri2-0": ">=1.8",
+                "ubuntu:libxcb-dri3-0": ">=1.13",
+                "ubuntu:libxcb-present0": "*",
+                "ubuntu:libxcb-sync1": "*",
+                "ubuntu:libxcb-xfixes0": "*",
+                "ubuntu:libxcb1": ">=1.9.2",
+                "ubuntu:libxshmfence1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libegl1": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libegl-mesa0": "*",
+                "ubuntu:libglvnd0": "=1.3.1-1"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libegl-mesa0": "*",
+                "ubuntu:libglvnd0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libelf1": {
+        "0.176.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.16",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libevent-dev": {
+        "2.1.11": {
+            "dependencies": {
+                "ubuntu:libevent-2.1-7": "=2.1.11-stable-1",
+                "ubuntu:libevent-core-2.1-7": "=2.1.11-stable-1",
+                "ubuntu:libevent-extra-2.1-7": "=2.1.11-stable-1",
+                "ubuntu:libevent-openssl-2.1-7": "=2.1.11-stable-1",
+                "ubuntu:libevent-pthreads-2.1-7": "=2.1.11-stable-1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libexpat1": {
+        "2.2.9": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libffi7": {
+        "3.3.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgbm1": {
+        "20.0.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm2": ">=2.4.75",
+                "ubuntu:libexpat1": ">=2.0.1",
+                "ubuntu:libwayland-server0": ">=1.15.0"
+            },
+            "source": "ubuntu"
+        },
+        "20.2.6": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm2": ">=2.4.75",
+                "ubuntu:libexpat1": ">=2.0.1",
+                "ubuntu:libwayland-server0": ">=1.15.0"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgc1c2": {
+        "7.6.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libgcc-s1": ">=3.0",
+                "ubuntu:libstdc++6": ">=4.1.1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgcc-9-dev": {
+        "9.3.0": {
+            "dependencies": {
+                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:libasan5": "*",
+                "ubuntu:libatomic1": "*",
+                "ubuntu:libgcc-s1": "*",
+                "ubuntu:libgomp1": "*",
+                "ubuntu:libitm1": ">=9.3.0-10ubuntu2",
+                "ubuntu:liblsan0": "*",
+                "ubuntu:libquadmath0": "*",
+                "ubuntu:libtsan0": ">=9.3.0-10ubuntu2",
+                "ubuntu:libubsan1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgcc-s1": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgl-dev": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libgl1": "=1.3.1-1",
+                "ubuntu:libglx-dev": "*"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libgl1": "*",
+                "ubuntu:libglx-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgl1": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "=1.3.1-1",
+                "ubuntu:libglx0": "=1.3.1-1"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "*",
+                "ubuntu:libglx0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgl1-mesa-dev": {
+        "20.0.4": {
+            "dependencies": {
+                "ubuntu:libgl-dev": "*",
+                "ubuntu:libglvnd-dev": "*"
+            },
+            "source": "ubuntu"
+        },
+        "20.2.6": {
+            "dependencies": {
+                "ubuntu:libgl-dev": "*",
+                "ubuntu:libglvnd-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgl1-mesa-dri": {
+        "20.0.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm-amdgpu1": ">=2.4.100",
+                "ubuntu:libdrm-intel1": ">=2.4.38",
+                "ubuntu:libdrm-nouveau2": ">=2.4.66",
+                "ubuntu:libdrm-radeon1": ">=2.4.31",
+                "ubuntu:libdrm2": ">=2.4.75",
+                "ubuntu:libelf1": ">=0.142",
+                "ubuntu:libexpat1": ">=2.0.1",
+                "ubuntu:libgcc-s1": ">=3.4",
+                "ubuntu:libglapi-mesa": "=20.0.4-2ubuntu1",
+                "ubuntu:libllvm9": "*",
+                "ubuntu:libsensors5": "*",
+                "ubuntu:libstdc++6": ">=5.2",
+                "ubuntu:libvulkan1": "*",
+                "ubuntu:libzstd1": ">=1.3.2",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        },
+        "20.2.6": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm-amdgpu1": ">=2.4.100",
+                "ubuntu:libdrm-intel1": ">=2.4.38",
+                "ubuntu:libdrm-nouveau2": ">=2.4.66",
+                "ubuntu:libdrm-radeon1": ">=2.4.31",
+                "ubuntu:libdrm2": ">=2.4.75",
+                "ubuntu:libelf1": ">=0.142",
+                "ubuntu:libexpat1": ">=2.0.1",
+                "ubuntu:libgcc-s1": ">=3.4",
+                "ubuntu:libglapi-mesa": "*",
+                "ubuntu:libllvm11": "*",
+                "ubuntu:libsensors5": "*",
+                "ubuntu:libstdc++6": ">=5.2",
+                "ubuntu:libvulkan1": "*",
+                "ubuntu:libzstd1": ">=1.3.2",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libglapi-mesa": {
+        "20.0.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        },
+        "20.2.6": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgles-dev": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libegl-dev": "*",
+                "ubuntu:libgl-dev": "*",
+                "ubuntu:libgles1": "=1.3.1-1",
+                "ubuntu:libgles2": "=1.3.1-1"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libegl-dev": "*",
+                "ubuntu:libgl-dev": "*",
+                "ubuntu:libgles1": "*",
+                "ubuntu:libgles2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgles1": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "=1.3.1-1"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgles2": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "=1.3.1-1"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libglu1-mesa-dev": {
+        "9.0.1": {
+            "dependencies": {
+                "ubuntu:libgl1-mesa-dev": "*",
+                "ubuntu:libglu1-mesa": "=9.0.1-1build1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libglvnd-dev": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libegl-dev": ">=1.3.0-1",
+                "ubuntu:libgl-dev": ">=1.3.0-1",
+                "ubuntu:libgles-dev": ">=1.3.0-1",
+                "ubuntu:libglvnd0": "=1.3.1-1",
+                "ubuntu:libglx-dev": ">=1.3.0-1",
+                "ubuntu:libopengl-dev": ">=1.3.0-1"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libegl-dev": ">=1.3.0-1",
+                "ubuntu:libgl-dev": ">=1.3.0-1",
+                "ubuntu:libgles-dev": ">=1.3.0-1",
+                "ubuntu:libglvnd0": "*",
+                "ubuntu:libglx-dev": ">=1.3.0-1",
+                "ubuntu:libopengl-dev": ">=1.3.0-1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libglvnd0": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libglx-dev": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libglx0": "=1.3.1-1",
+                "ubuntu:libx11-dev": "*"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libglx0": "*",
+                "ubuntu:libx11-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libglx-mesa0": {
+        "20.0.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm2": ">=2.4.75",
+                "ubuntu:libexpat1": ">=2.0.1",
+                "ubuntu:libgl1-mesa-dri": "*",
+                "ubuntu:libglapi-mesa": "=20.0.4-2ubuntu1",
+                "ubuntu:libx11-6": "*",
+                "ubuntu:libx11-xcb1": "*",
+                "ubuntu:libxcb-dri2-0": ">=1.8",
+                "ubuntu:libxcb-dri3-0": ">=1.13",
+                "ubuntu:libxcb-glx0": ">=1.8",
+                "ubuntu:libxcb-present0": "*",
+                "ubuntu:libxcb-sync1": "*",
+                "ubuntu:libxcb1": ">=1.9.2",
+                "ubuntu:libxdamage1": "*",
+                "ubuntu:libxext6": "*",
+                "ubuntu:libxfixes3": "*",
+                "ubuntu:libxshmfence1": "*",
+                "ubuntu:libxxf86vm1": "*"
+            },
+            "source": "ubuntu"
+        },
+        "20.2.6": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libdrm2": ">=2.4.75",
+                "ubuntu:libexpat1": ">=2.0.1",
+                "ubuntu:libgl1-mesa-dri": "*",
+                "ubuntu:libglapi-mesa": "*",
+                "ubuntu:libx11-6": "*",
+                "ubuntu:libx11-xcb1": "*",
+                "ubuntu:libxcb-dri2-0": ">=1.8",
+                "ubuntu:libxcb-dri3-0": ">=1.13",
+                "ubuntu:libxcb-glx0": ">=1.8",
+                "ubuntu:libxcb-present0": "*",
+                "ubuntu:libxcb-sync1": "*",
+                "ubuntu:libxcb-xfixes0": "*",
+                "ubuntu:libxcb1": ">=1.9.2",
+                "ubuntu:libxdamage1": "*",
+                "ubuntu:libxext6": "*",
+                "ubuntu:libxfixes3": "*",
+                "ubuntu:libxshmfence1": "*",
+                "ubuntu:libxxf86vm1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libglx0": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "=1.3.1-1",
+                "ubuntu:libglx-mesa0": "*",
+                "ubuntu:libx11-6": "*"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "*",
+                "ubuntu:libglx-mesa0": "*",
+                "ubuntu:libx11-6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgmp10": {
+        "6.2.0+dfsg": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgomp1": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.17"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.17"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgssapi-krb5-2": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.27",
+                "ubuntu:libcom-err2": ">=1.43.9",
+                "ubuntu:libk5crypto3": ">=1.16",
+                "ubuntu:libkrb5-3": "*",
+                "ubuntu:libkrb5support0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgssrpc4": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.15",
+                "ubuntu:libgssapi-krb5-2": ">=1.17"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libisl22": {
+        "0.22.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libgmp10": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libitm1": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libk5crypto3": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libkrb5support0": ">=1.16"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libkadm5clnt-mit11": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libcom-err2": ">=1.43.9",
+                "ubuntu:libgssapi-krb5-2": ">=1.17",
+                "ubuntu:libgssrpc4": "*",
+                "ubuntu:libk5crypto3": "*",
+                "ubuntu:libkrb5-3": "*",
+                "ubuntu:libkrb5support0": ">=1.17"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libkadm5srv-mit11": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libcom-err2": ">=1.43.9",
+                "ubuntu:libgssapi-krb5-2": "*",
+                "ubuntu:libgssrpc4": "*",
+                "ubuntu:libk5crypto3": "*",
+                "ubuntu:libkdb5-9": "*",
+                "ubuntu:libkrb5-3": "*",
+                "ubuntu:libkrb5support0": ">=1.17"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libkdb5-9": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libcom-err2": ">=1.43.9",
+                "ubuntu:libgssrpc4": "*",
+                "ubuntu:libk5crypto3": "*",
+                "ubuntu:libkrb5-3": "*",
+                "ubuntu:libkrb5support0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libkeyutils1": {
+        "1.6.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libkmod2": {
+        "27.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:liblzma5": "*",
+                "ubuntu:libssl1.1": ">=1.1.0"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libkrb5-3": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.16",
+                "ubuntu:libcom-err2": ">=1.43.9",
+                "ubuntu:libk5crypto3": "*",
+                "ubuntu:libkeyutils1": ">=1.5.9",
+                "ubuntu:libkrb5support0": "*",
+                "ubuntu:libssl1.1": ">=1.1.0"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libkrb5-dev": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:krb5-multidev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libkrb5support0": {
+        "1.17.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libllvm10": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libedit2": "*",
+                "ubuntu:libffi7": "*",
+                "ubuntu:libgcc-s1": ">=3.3",
+                "ubuntu:libstdc++6": ">=9",
+                "ubuntu:libtinfo6": ">=6",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libllvm11": {
+        "11.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libedit2": "*",
+                "ubuntu:libffi7": "*",
+                "ubuntu:libgcc-s1": ">=3.3",
+                "ubuntu:libstdc++6": ">=9",
+                "ubuntu:libtinfo6": ">=6",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libllvm9": {
+        "9.0.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libedit2": "*",
+                "ubuntu:libffi7": "*",
+                "ubuntu:libgcc-s1": ">=3.3",
+                "ubuntu:libstdc++6": ">=9",
+                "ubuntu:libtinfo6": ">=6",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:liblsan0": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:libgcc-s1": ">=3.3"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:libgcc-s1": ">=3.3"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:liblzma5": {
+        "5.2.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libmagic1": {
+        "5.38.0": {
+            "dependencies": {
+                "ubuntu:libbz2-1.0": "*",
+                "ubuntu:libc6": ">=2.15",
+                "ubuntu:liblzma5": "*",
+                "ubuntu:libmagic-mgc": "*",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libminiupnpc17": {
+        "2.1.20190824": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.15"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libmpc3": {
+        "1.1.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libgmp10": "*",
+                "ubuntu:libmpfr6": ">=4.0.0"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libmpdec2": {
+        "2.4.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libmpfr6": {
+        "4.0.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libgmp10": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libnatpmp-dev": {
+        "20150609.0.0": {
+            "dependencies": {
+                "ubuntu:libnatpmp1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libnatpmp1": {
+        "20150609.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.7"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libncursesw6": {
+        "6.2.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libtinfo6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libnorm-dev": {
+        "1.5.8+dfsg2": {
+            "dependencies": {
+                "ubuntu:libnorm1": "=1.5.8+dfsg2-2build1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libopengl-dev": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libopengl0": "=1.3.1-1"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libopengl0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libopengl0": {
+        "1.3.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "=1.3.1-1"
+            },
+            "source": "ubuntu"
+        },
+        "1.3.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libglvnd0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libpciaccess0": {
+        "0.16.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.7",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libpfm4": {
+        "4.10.1+git20": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libpgm-5.2-0": {
+        "5.2.122-dfsg": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libpgm-dev": {
+        "5.2.122-dfsg": {
+            "dependencies": {
+                "ubuntu:libpgm-5.2-0": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libpipeline1": {
+        "1.5.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.15"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libpython3.8-minimal": {
+        "3.8.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libssl1.1": ">=1.1.1"
+            },
+            "source": "ubuntu"
+        },
+        "3.8.5": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libssl1.1": ">=1.1.1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libpython3.8-stdlib": {
+        "3.8.2": {
+            "dependencies": {
+                "ubuntu:libbz2-1.0": "*",
+                "ubuntu:libc6": ">=2.28",
+                "ubuntu:libcrypt1": "*",
+                "ubuntu:libdb5.3": "*",
+                "ubuntu:libffi7": "*",
+                "ubuntu:liblzma5": "*",
+                "ubuntu:libmpdec2": "*",
+                "ubuntu:libncursesw6": ">=6",
+                "ubuntu:libpython3.8-minimal": "=3.8.2-1ubuntu1",
+                "ubuntu:libreadline8": "*",
+                "ubuntu:libsqlite3-0": ">=3.7.15",
+                "ubuntu:libtinfo6": ">=6",
+                "ubuntu:libuuid1": ">=2.20.1",
+                "ubuntu:mime-support": "*"
+            },
+            "source": "ubuntu"
+        },
+        "3.8.5": {
+            "dependencies": {
+                "ubuntu:libbz2-1.0": "*",
+                "ubuntu:libc6": ">=2.28",
+                "ubuntu:libcrypt1": "*",
+                "ubuntu:libdb5.3": "*",
+                "ubuntu:libffi7": "*",
+                "ubuntu:liblzma5": "*",
+                "ubuntu:libmpdec2": "*",
+                "ubuntu:libncursesw6": ">=6",
+                "ubuntu:libpython3.8-minimal": "*",
+                "ubuntu:libreadline8": "*",
+                "ubuntu:libsqlite3-0": ">=3.7.15",
+                "ubuntu:libtinfo6": ">=6",
+                "ubuntu:libuuid1": ">=2.20.1",
+                "ubuntu:mime-support": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libqrencode-dev": {
+        "4.0.2": {
+            "dependencies": {
+                "ubuntu:libqrencode4": "=4.0.2-2"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libquadmath0": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.23"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.23"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libreadline8": {
+        "8.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.15",
+                "ubuntu:libtinfo6": ">=6",
+                "ubuntu:readline-common": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libsensors5": {
+        "3.6.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29",
+                "ubuntu:libsensors-config": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libsodium-dev": {
+        "1.0.18": {
+            "dependencies": {
+                "ubuntu:libsodium23": "=1.0.18-1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libsqlite3-0": {
+        "3.31.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libsqlite3-dev": {
+        "3.31.1": {
+            "dependencies": {
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:libsqlite3-0": "=3.31.1-4ubuntu0.2"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libssl1.1": {
+        "1.1.1-f": {
+            "dependencies": {
+                "ubuntu:debconf": ">=0.5",
+                "ubuntu:libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libstdc++6": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.18",
+                "ubuntu:libgcc-s1": ">=4.2"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.18",
+                "ubuntu:libgcc-s1": ">=4.2"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libtinfo6": {
+        "6.2.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.16"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libtsan0": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.23",
+                "ubuntu:libgcc-s1": ">=3.3"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.23",
+                "ubuntu:libgcc-s1": ">=3.3"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libubsan1": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:libgcc-s1": ">=3.3",
+                "ubuntu:libstdc++6": ">=4.1.1"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:libgcc-s1": ">=3.3",
+                "ubuntu:libstdc++6": ">=4.1.1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libunivalue-dev": {
+        "1.0.4": {
+            "dependencies": {
+                "ubuntu:libunivalue0": "=1.0.4-2build1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libuuid1": {
+        "2.34.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libvulkan-dev": {
+        "1.2.131+2": {
+            "dependencies": {
+                "ubuntu:libvulkan1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libvulkan1": {
+        "1.2.131+2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.29"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libwayland-client0": {
+        "1.18.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:libffi7": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libwayland-server0": {
+        "1.18.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:libffi7": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libx11-6": {
+        "1.6.9": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.26",
+                "ubuntu:libx11-data": "*",
+                "ubuntu:libxcb1": ">=1.11.1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libx11-dev": {
+        "1.6.9": {
+            "dependencies": {
+                "ubuntu:libx11-6": "*",
+                "ubuntu:libxau-dev": "*",
+                "ubuntu:libxcb1-dev": "*",
+                "ubuntu:libxdmcp-dev": "*",
+                "ubuntu:x11proto-dev": "*",
+                "ubuntu:xtrans-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libx32gcc-s1": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-x32": ">=2.16"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-x32": ">=2.16"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libx32gcc1": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libx32gcc-s1": "*"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libx32gcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libx32quadmath0": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-x32": ">=2.23"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-x32": ">=2.23"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libx32stdc++6": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-x32": ">=2.18",
+                "ubuntu:libx32gcc-s1": ">=4.2",
+                "ubuntu:libx32gcc1": "*"
+            },
+            "source": "ubuntu"
+        },
+        "10.2.0": {
+            "dependencies": {
+                "ubuntu:gcc-10-base": "*",
+                "ubuntu:libc6-x32": ">=2.18",
+                "ubuntu:libx32gcc-s1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libx32z1": {
+        "1.2.11+dfsg": {
+            "dependencies": {
+                "ubuntu:libc6-x32": ">=2.16"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxau-dev": {
+        "1.0.9": {
+            "dependencies": {
+                "ubuntu:libxau6": "*",
+                "ubuntu:x11proto-core-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxau6": {
+        "1.0.9": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxcb-dri2-0": {
+        "1.14.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxcb-dri3-0": {
+        "1.14.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libxcb1": ">=1.12"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxcb-glx0": {
+        "1.14.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxcb-present0": {
+        "1.14.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxcb-sync1": {
+        "1.14.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxcb-xfixes0": {
+        "1.14.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libxcb1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxcb1": {
+        "1.14.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libxau6": "*",
+                "ubuntu:libxdmcp6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxcb1-dev": {
+        "1.14.0": {
+            "dependencies": {
+                "ubuntu:libpthread-stubs0-dev": "*",
+                "ubuntu:libxau-dev": "*",
+                "ubuntu:libxcb1": "*",
+                "ubuntu:libxdmcp-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxdamage1": {
+        "1.1.5": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libx11-6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxdmcp-dev": {
+        "1.1.3": {
+            "dependencies": {
+                "ubuntu:libxdmcp6": "*",
+                "ubuntu:x11proto-core-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxdmcp6": {
+        "1.1.3": {
+            "dependencies": {
+                "ubuntu:libbsd0": ">=0.2.0",
+                "ubuntu:libc6": ">=2.4"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxext-dev": {
+        "1.3.4": {
+            "dependencies": {
+                "ubuntu:libx11-dev": "*",
+                "ubuntu:libxext6": "*",
+                "ubuntu:x11proto-core-dev": "*",
+                "ubuntu:x11proto-xext-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxext6": {
+        "1.3.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libx11-6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxfixes3": {
+        "5.0.3": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libx11-6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxshmfence1": {
+        "1.3.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.27"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libxxf86vm1": {
+        "1.1.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.4",
+                "ubuntu:libx11-6": "*",
+                "ubuntu:libxext6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libzmq3-dev": {
+        "4.3.2": {
+            "dependencies": {
+                "ubuntu:libkrb5-dev": "*",
+                "ubuntu:libnorm-dev": "*",
+                "ubuntu:libpgm-dev": "*",
+                "ubuntu:libsodium-dev": "*",
+                "ubuntu:libzmq5": "=4.3.2-2ubuntu1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libzstd1": {
+        "1.4.4+dfsg": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:lld-10": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libgcc-s1": ">=3.0",
+                "ubuntu:libllvm10": "*",
+                "ubuntu:libstdc++6": ">=6"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:llvm-10": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.15",
+                "ubuntu:libgcc-s1": ">=3.3",
+                "ubuntu:libllvm10": "*",
+                "ubuntu:libpfm4": "*",
+                "ubuntu:libstdc++6": ">=9",
+                "ubuntu:libtinfo6": ">=6",
+                "ubuntu:llvm-10-runtime": "*",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:llvm-10-runtime": {
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:binfmt-support": "*",
+                "ubuntu:libc6": ">=2.15",
+                "ubuntu:libgcc-s1": ">=3.3",
+                "ubuntu:libllvm10": "*",
+                "ubuntu:libstdc++6": ">=9",
+                "ubuntu:libtinfo6": ">=6",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:lsb-release": {
+        "11.1.0-ubuntu2": {
+            "dependencies": {
+                "ubuntu:distro-info-data": "*",
+                "ubuntu:python3:any": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:make": {
+        "4.2.1": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.27"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:mes": {
+        "0.22.0": {
+            "dependencies": {
+                "ubuntu:guile-2.2": "*",
+                "ubuntu:mescc-tools": "*",
+                "ubuntu:nyacc": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:mescc-tools": {
+        "0.7.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.2.5"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:mingw-w64-i686-dev": {
+        "7.0.0": {
+            "dependencies": {
+                "ubuntu:mingw-w64-common": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:musl-dev": {
+        "1.1.24": {
+            "dependencies": {
+                "ubuntu:musl": "=1.1.24-1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:nyacc": {
+        "1.0.2": {
+            "dependencies": {
+                "ubuntu:guile-bytestructures": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:patch": {
+        "2.7.6": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:perl-modules-5.30": {
+        "5.30.0": {
+            "dependencies": {
+                "ubuntu:perl-base": ">=5.30.0-1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:perl:any": {
+        "5.30.0": {
+            "dependencies": {
+                "ubuntu:libperl5.30": "=5.30.0-9build1",
+                "ubuntu:perl-base": "=5.30.0-9ubuntu0.2",
+                "ubuntu:perl-modules-5.30": ">=5.30.0-9build1"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:python3": {
+        "3.8.2": {
+            "dependencies": {
+                "ubuntu:libpython3-stdlib": "=3.8.2-0ubuntu2",
+                "ubuntu:python3.8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:python3-distutils": {
+        "3.8.10": {
+            "dependencies": {
+                "ubuntu:python3-lib2to3": "*",
+                "ubuntu:python3:any": "*"
+            },
+            "source": "ubuntu"
+        },
+        "3.8.2": {
+            "dependencies": {
+                "ubuntu:python3": "*",
+                "ubuntu:python3-lib2to3": ">=3.6.4"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:python3-lib2to3": {
+        "3.8.10": {
+            "dependencies": {
+                "ubuntu:python3:any": "*"
+            },
+            "source": "ubuntu"
+        },
+        "3.8.2": {
+            "dependencies": {
+                "ubuntu:python3": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:python3.8": {
+        "3.8.2": {
+            "dependencies": {
+                "ubuntu:libpython3.8-stdlib": "=3.8.2-1ubuntu1",
+                "ubuntu:mime-support": "*",
+                "ubuntu:python3.8-minimal": "=3.8.2-1ubuntu1"
+            },
+            "source": "ubuntu"
+        },
+        "3.8.5": {
+            "dependencies": {
+                "ubuntu:libpython3.8-stdlib": "*",
+                "ubuntu:mime-support": "*",
+                "ubuntu:python3.8-minimal": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:python3.8-minimal": {
+        "3.8.2": {
+            "dependencies": {
+                "ubuntu:libexpat1": "*",
+                "ubuntu:libpython3.8-minimal": "=3.8.2-1ubuntu1",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        },
+        "3.8.5": {
+            "dependencies": {
+                "ubuntu:libexpat1": "*",
+                "ubuntu:libpython3.8-minimal": "*",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:python3:any": {
+        "3.8.2": {
+            "dependencies": {
+                "ubuntu:libpython3-stdlib": "=3.8.2-0ubuntu2",
+                "ubuntu:python3.8": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:qtbase5-dev": {
+        "5.12.8+dfsg": {
+            "dependencies": {
+                "ubuntu:libegl-dev": "*",
+                "ubuntu:libgl-dev": "*",
+                "ubuntu:libglu1-mesa-dev": "*",
+                "ubuntu:libqt5concurrent5": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libqt5core5a": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libqt5dbus5": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libqt5gui5": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libqt5network5": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libqt5printsupport5": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libqt5sql5": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libqt5test5": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libqt5widgets5": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libqt5xml5": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:libvulkan-dev": "*",
+                "ubuntu:libxext-dev": "*",
+                "ubuntu:qt5-qmake": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:qtbase5-dev-tools": "=5.12.8+dfsg-0ubuntu1",
+                "ubuntu:qtchooser": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:qtchooser": {
+        "66.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libgcc-s1": ">=3.0",
+                "ubuntu:libstdc++6": ">=5.2"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:readline-common": {
+        "8.0.0": {
+            "dependencies": {
+                "ubuntu:dpkg": ">=1.15.4"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:x11proto-core-dev": {
+        "2019.2.0": {
+            "dependencies": {
+                "ubuntu:x11proto-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:x11proto-dev": {
+        "2019.2.0": {
+            "dependencies": {
+                "ubuntu:xorg-sgml-doctools": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:x11proto-xext-dev": {
+        "2019.2.0": {
+            "dependencies": {
+                "ubuntu:x11proto-dev": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:xz-utils": {
+        "5.2.4": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.17",
+                "ubuntu:liblzma5": ">=5.2.2"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:zfs-dkms": {
+        "0.8.3": {
+            "dependencies": {
+                "ubuntu:debconf": ">=0.5",
+                "ubuntu:dkms": "*",
+                "ubuntu:file": "*",
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:lsb-release": "*",
+                "ubuntu:perl:any": "*",
+                "ubuntu:python3-distutils": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:zlib1g": {
+        "1.2.11+dfsg": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
+            },
+            "source": "ubuntu"
+        }
+    }
+}

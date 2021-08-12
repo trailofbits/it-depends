@@ -5,7 +5,7 @@ from os import chdir, getcwd
 import shutil
 import subprocess
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
-from .apt import cached_file_to_package as file_to_package, search_package
+from it_depends.ubuntu.apt import cached_file_to_package as file_to_package, search_package
 import logging
 try:
     # Used to parse the cmake trace. If this is not installed the plugin will
@@ -18,7 +18,7 @@ from .dependencies import (
     Dependency, DependencyResolver, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage, SourceRepository,
     Version
 )
-from .ubuntu import run_command
+from .ubuntu.docker import run_command
 
 logger = logging.getLogger(__name__)
 

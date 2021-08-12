@@ -1,82 +1,19 @@
 from functools import lru_cache
-from pathlib import Path
 import shutil
 import subprocess
 import logging
 import re
-from threading import Lock
-from typing import Iterable, Iterator, Optional, Pattern
+from typing import Iterable, Iterator, Optional
 
-from .dependencies import Version, SimpleSpec
-from .dependencies import (
+from .apt import file_to_packages
+from .docker import is_running_ubuntu, run_command
+from ..dependencies import Version, SimpleSpec
+from ..dependencies import (
     Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SourcePackage, SourceRepository
 )
-from .docker import DockerContainer, InMemoryDockerfile
+from ..native import get_native_dependencies
 
 logger = logging.getLogger(__name__)
-
-
-_container: Optional[DockerContainer] = None
-_UBUNTU_LOCK: Lock = Lock()
-
-_UBUNTU_NAME_MATCH: Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
-_VERSION_ID_MATCH: Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
-
-
-@lru_cache(maxsize=4)
-def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
-    """
-    Tests whether the current system is running Ubuntu
-
-    If `check_version` is not None, the specific version of Ubuntu is also tested.
-    """
-    os_release_path = Path("/etc/os-release")
-    if not os_release_path.exists():
-        return False
-    is_ubuntu = False
-    version: Optional[str] = None
-    with open(os_release_path, "r") as f:
-        for line in f.readlines():
-            line = line.strip()
-            is_ubuntu = is_ubuntu or bool(_UBUNTU_NAME_MATCH.match(line))
-            if check_version is None:
-                if is_ubuntu:
-                    return True
-            elif version is None:
-                m = _VERSION_ID_MATCH.match(line)
-                if m:
-                    version = m.group(1)
-            else:
-                break
-    return is_ubuntu and (check_version is None or version == check_version)
-
-
-def run_command(*args: str) -> bytes:
-    """
-    Runs the given command in Ubuntu 20.04
-
-    If the host system is not running Ubuntu 20.04, the command is run in Docker.
-
-    """
-    if shutil.which(args[0]) is None or not is_running_ubuntu(check_version="20.04"):
-        # we do not have apt installed natively or are not running Ubuntu
-        with _UBUNTU_LOCK:
-            global _container
-            if _container is None:
-                with InMemoryDockerfile("""FROM ubuntu:20.04
-
-    RUN apt-get update && apt-get install -y apt-file && apt-file update
-    """) as dockerfile:
-                    _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
-                    _container.rebuild()
-        logger.debug(f"running {' '.join(args)} in Docker")
-        p = _container.run(*args, interactive=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, rebuild=False)
-    else:
-        logger.debug(f"running {' '.join(args)}")
-        p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-    if p.returncode != 0:
-        raise subprocess.CalledProcessError(p.returncode, cmd=f"{' '.join(args)}")
-    return p.stdout
 
 
 class UbuntuResolver(DependencyResolver):
@@ -87,7 +24,7 @@ class UbuntuResolver(DependencyResolver):
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
 
     @staticmethod
-    @lru_cache
+    @lru_cache(maxsize=2048)
     def ubuntu_packages(package_name: str) -> Iterable[Package]:
         """Iterates over all of the package versions available for a package name"""
         # Parses the dependencies of dependency.package out of the `apt show` command
@@ -145,9 +82,25 @@ class UbuntuResolver(DependencyResolver):
         if dependency.source != "ubuntu":
             raise ValueError(f"{self} can not resolve dependencies from other sources ({dependency})")
 
-        for package in UbuntuResolver.ubuntu_packages(dependency.package):
-            if package.version in dependency.semantic_version:
-                yield package
+        if dependency.package.startswith("/"):
+            # this is a file path, likely produced from native.py
+            try:
+                deps = []
+                for pkg_name in file_to_packages(dependency.package):
+                    deps.append(Dependency(package=pkg_name, source=UbuntuResolver.name))
+                if deps:
+                    yield Package(
+                        name=dependency.package,
+                        source=dependency.source,
+                        version=Version.coerce("0"),
+                        dependencies=deps
+                    )
+            except (ValueError, subprocess.CalledProcessError):
+                pass
+        else:
+            for package in UbuntuResolver.ubuntu_packages(dependency.package):
+                if package.version in dependency.semantic_version:
+                    yield package
 
     def __lt__(self, other):
         """Make sure that the Ubuntu Classifier runs last"""
@@ -167,3 +120,11 @@ class UbuntuResolver(DependencyResolver):
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
         return None
+
+    def can_update_dependencies(self, package: Package) -> bool:
+        return package.source != UbuntuResolver.name
+
+    def update_dependencies(self, package: Package) -> Package:
+        native_deps = get_native_dependencies(package)
+        package.dependencies = package.dependencies.union(frozenset(native_deps))
+        return package

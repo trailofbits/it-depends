@@ -23,6 +23,7 @@ setup(
         "docker>=4.4.0",
         "graphviz>=0.14.1",
         "johnnydep>=1.8",
+        "networkx>=2.4",
         "parse_cmake>=0.4.1",
         "semantic_version~=2.8.5",
         "sqlalchemy>=1.3",

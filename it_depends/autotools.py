@@ -8,7 +8,7 @@ import logging
 import tempfile
 from typing import List, Optional, Tuple
 
-from .apt import cached_file_to_package as file_to_package
+from it_depends.ubuntu.apt import cached_file_to_package as file_to_package
 
 from .dependencies import (
     Dependency, DependencyResolver, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage, SourceRepository,
