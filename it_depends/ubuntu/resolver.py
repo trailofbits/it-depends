@@ -5,7 +5,7 @@ import logging
 import re
 from typing import Iterable, Iterator, Optional
 
-from .apt import file_to_package
+from .apt import file_to_packages
 from .docker import is_running_ubuntu, run_command
 from ..dependencies import Version, SimpleSpec
 from ..dependencies import (
@@ -85,8 +85,16 @@ class UbuntuResolver(DependencyResolver):
         if dependency.package.startswith("/"):
             # this is a file path, likely produced from native.py
             try:
-                # see if this path matches to an Ubuntu library:
-                yield from UbuntuResolver.ubuntu_packages(file_to_package(dependency.package))
+                deps = []
+                for pkg_name in file_to_packages(dependency.package):
+                    deps.append(Dependency(package=pkg_name, source=UbuntuResolver.name))
+                if deps:
+                    yield Package(
+                        name=dependency.package,
+                        source=dependency.source,
+                        version=Version.coerce("0"),
+                        dependencies=deps
+                    )
             except (ValueError, subprocess.CalledProcessError):
                 pass
         else:

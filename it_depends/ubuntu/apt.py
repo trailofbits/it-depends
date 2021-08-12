@@ -87,32 +87,28 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
 
 
 @functools.lru_cache(maxsize=5242880)
-def _file_to_package_apt_file(filename: str, arch: str = "amd64") -> str:
+def file_to_packages(filename: str, arch: str = "amd64") -> List[str]:
     if arch not in ("amd64", "i386"):
         raise ValueError("Only amd64 and i386 supported")
     logger.debug(f'Running [{" ".join(["apt-file", "-x", "search", filename])}]')
     contents = run_command("apt-file", "-x", "search", filename).decode("utf-8")
-    db: Dict[str, str] = {}
-    selected = None
+    selected: List[str] = []
     for line in contents.split("\n"):
         if not line:
             continue
-        package_i, filename_i = line.split(": ")
-        db[filename_i] = package_i
-        if selected is None or len(selected[0]) > len(filename_i):
-            selected = filename_i, package_i
-
-    if selected:
-        logger.info(
-            f"Found {len(db)} matching packages for {filename}. Choosing {selected[1]}")
-    else:
-        raise ValueError(f"{filename} not found in apt-file")
-
-    return selected[1]
+        package_i, _ = line.split(": ")
+        selected.append(package_i)
+    return sorted(selected)
 
 
 def file_to_package(filename: str, arch: str = "amd64") -> str:
-    return _file_to_package_apt_file(filename, arch=arch)
+    packages = file_to_packages(filename, arch)
+    if packages:
+        _, result = min((len(pkg), pkg) for pkg in packages)
+        logger.info(f"Found {len(packages)} matching packages for {filename}. Choosing {result}")
+        return result
+    else:
+        raise ValueError(f"{filename} not found in apt-file")
 
 
 def cached_file_to_package(pattern: str, file_to_package_cache: Optional[List[Tuple[str, str]]] = None) -> str:
