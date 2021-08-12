@@ -41,6 +41,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                                                                             "write output to STDOUT")
     parser.add_argument("--force", action="store_true", help="force overwriting the output file even if it already "
                                                              "exists")
+    parser.add_argument("--all-versions", action="store_true",
+                        help="for `--output-format html`, this option will emit all package versions that satisfy each "
+                             "dependency")
     parser.add_argument("--depth-limit", "-d", type=int, default=-1,
                         help="depth limit for recursively solving dependencies (default is -1 to resolve all "
                              "dependencies)")
@@ -93,7 +96,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 if args.output_format == "dot":
                     output_file.write(cache.to_dot(package_list.source_packages).source)
                 if args.output_format == "html":
-                    output_file.write(graph_to_html(package_list))
+                    output_file.write(graph_to_html(package_list, collapse_versions=not args.all_versions))
                     if output_file is not real_stdout:
                         output_file.flush()
                         webbrowser.open(output_file.name)
