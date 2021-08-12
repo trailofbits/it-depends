@@ -11,5 +11,7 @@ class TestNative(TestCase):
             version=Version.coerce("1.19.4"),
             source="pip"
         ))}
-        self.assertIn("libc6", deps)
-        self.assertIn("libtinfo6", deps)
+        self.assertEqual({
+            '/lib/x86_64-linux-gnu/libtinfo.so.6', '/lib/x86_64-linux-gnu/libnss_files.so.2',
+            '/lib/x86_64-linux-gnu/libc.so.6', '/lib/x86_64-linux-gnu/libdl.so.2'
+        }, deps)
