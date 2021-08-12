@@ -269,12 +269,33 @@ class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
                 Dependency(package=dep.package, source=dep.source)
                 for instance in instances for dep in instance.dependencies
             }
-            pkg = Package(
-                name=package_name,
-                version=max(p.version for p in instances),
-                source=package_source,
-                dependencies=deps
-            )
+            if len(instances) == 1:
+                pkg = next(iter(instances))
+            else:
+                source_packages_in_instances = self.source_packages & instances
+                version = max(p.version for p in instances)
+                if source_packages_in_instances:
+                    # at least one of the instances is a source package, so make the collapsed package a source package
+                    source_repos = {s.source_repo for s in source_packages_in_instances}
+                    source_repo = next(iter(source_repos))
+                    if len(source_repos) > 1:
+                        logger.warning(f"package {package_source}:{package_name} is provided by multiple source "
+                                       f"repositories: {', '.join(map(str, source_repos))}. "
+                                       f"Collapsing to {source_repo}.")
+                    pkg = SourcePackage(
+                        name=package_name,
+                        version=version,
+                        source_repo=source_repo,
+                        source=package_source,
+                        dependencies=deps
+                    )
+                else:
+                    pkg = Package(
+                        name=package_name,
+                        version=version,
+                        source=package_source,
+                        dependencies=deps
+                    )
             packages_by_name[pkg.full_name] = pkg
             graph.add_node(pkg)  # type: ignore
         for pkg in graph:  # type: ignore
