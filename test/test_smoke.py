@@ -10,14 +10,16 @@ IT_DEPENDS_DIR: Path = Path(__file__).absolute().parent.parent
 TESTS_DIR: Path = Path(__file__).absolute().parent
 REPOS_FOLDER = TESTS_DIR / "repos"
 
+
 class TestResolvers(TestCase):
     maxDiff = None
+
     def test_resolvers(self):
         """We see all known resolvers
         caveat: Iff an unknown resolver was defined by another test it will appear here
         """
         resolver_names = {resolver.name for resolver in resolvers()}
-        self.assertSetEqual(resolver_names, {'cargo', 'ubuntu', 'native', 'autotools', 'go', 'cmake', 'npm', 'pip'})
+        self.assertSetEqual(resolver_names, {'cargo', 'ubuntu', 'autotools', 'go', 'cmake', 'npm', 'pip'})
         self.assertSetEqual(resolvers(), {resolver_by_name(name) for name in resolver_names})
 
     def test_objects(self):
@@ -34,12 +36,11 @@ class TestResolvers(TestCase):
                                     dep)
 
         # Dependency match
-        solution = Package(sources=("pip",), name="cvedb", version="0.0.1")
+        solution = Package(source="pip", name="cvedb", version="0.0.1")
         self.assertTrue(dep.match(solution))
         dep2 = Dependency.from_string("pip:cvedb@<0.2.1")
         self.assertTrue(dep2.match(Package.from_string("pip:cvedb@0.2.0")))
         self.assertFalse(dep2.match(Package.from_string("pip:cvedb@0.2.1")))
-
 
     def _test_resolver(self, resolver, dep):
         dep = Dependency.from_string(dep)
