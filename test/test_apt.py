@@ -1,8 +1,56 @@
 from unittest import TestCase
 
-from it_depends.ubuntu.apt import file_to_package
+from it_depends.ubuntu.apt import file_to_packages
 
 
 class TestAPT(TestCase):
     def test_file_to_package(self):
-        self.assertEqual(file_to_package("/usr/bin/python3"), "python3-minimal")
+        self.assertEqual(file_to_packages("/usr/bin/python3"), [
+            'python3-activipy',
+            'python3-breathe',
+            'python3-coverage',
+            'python3-coverage',
+            'python3-cymruwhois',
+            'python3-dbg',
+            'python3-dbg',
+            'python3-dbg',
+            'python3-dbg',
+            'python3-dev',
+            'python3-future',
+            'python3-future',
+            'python3-memory-profiler',
+            'python3-minimal',
+            'python3-pbr',
+            'python3-petname',
+            'python3-pyroute2',
+            'python3-pyroute2',
+            'python3-pysaml2',
+            'python3-pysaml2',
+            'python3-pysaml2',
+            'python3-pysaml2',
+            'python3-qrcode',
+            'python3-stem',
+            'python3-unidiff',
+            'python3-unittest2',
+            'python3-websocket',
+            'python3.8-dbg',
+            'python3.8-dbg',
+            'python3.8-dbg',
+            'python3.8-dbg',
+            'python3.8-dbg',
+            'python3.8-dbg',
+            'python3.8-dbg',
+            'python3.8-dbg',
+            'python3.8-dev',
+            'python3.8-minimal',
+            'python3.9-dbg',
+            'python3.9-dbg',
+            'python3.9-dbg',
+            'python3.9-dbg',
+            'python3.9-dbg',
+            'python3.9-dbg',
+            'python3.9-dbg',
+            'python3.9-dbg',
+            'python3.9-dev',
+            'python3.9-minimal'
+        ])
