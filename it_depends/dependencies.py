@@ -50,8 +50,10 @@ class Dependency:
     @classmethod
     def from_string(cls, description):
         try:
-            source, package_version = description.split(":")
-            package, version_string = package_version.split("@")
+            source, *remainder = description.split(":")
+            package_version = ":".join(remainder)
+            package, *remainder = package_version.split("@")
+            version_string = "@".join(remainder)
             version = SimpleSpec(version_string)
         except Exception as e:
             raise ValueError(f"Can not parse dependency description <{description}>") from e
@@ -554,7 +556,8 @@ class InMemoryPackageCache(PackageCache):
         return frozenset(ret)
 
     def package_versions(self, package_full_name: str) -> Iterator[Package]:
-        package_source, package_name = package_full_name.split(":")
+        package_source, *remainder = package_full_name.split(":")
+        package_name = ":".join(remainder)
         packages = self._cache[package_source]
         if package_name in packages:
             yield from packages[package_name].values()
