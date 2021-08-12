@@ -1,9 +1,10 @@
-from typing import Dict, Union
+from typing import Dict, Optional, Union
 
 from .dependencies import DependencyGraph, Package, PackageCache, SourcePackage
 
 TEMPLATE: str = """<html>
 <head>
+<title>It-Depends | $TITLE</title>
 <style type="text/css">
 mynetwork {
     width: 100%;
@@ -15,7 +16,7 @@ mynetwork {
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.16.1/vis.css" type="text/css" />
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.16.1/vis-network.min.js"> </script>
 <center>
-<h1>Dependency Graph</h1>
+<h1>$TITLE</h1>
 </center>
 </head>
 
@@ -82,7 +83,11 @@ drawGraph();
 """
 
 
-def graph_to_html(graph: Union[DependencyGraph, PackageCache], collapse_versions: bool = True) -> str:
+def graph_to_html(
+        graph: Union[DependencyGraph, PackageCache],
+        collapse_versions: bool = True,
+        title: Optional[str] = None
+) -> str:
     if not isinstance(graph, DependencyGraph):
         graph = graph.to_graph()
     if collapse_versions:
@@ -118,4 +123,11 @@ def graph_to_html(graph: Union[DependencyGraph, PackageCache], collapse_versions
             if dep_name != pkg2.full_name:
                 edges[-1]["label"] = dep_name
 
-    return TEMPLATE.replace("$NODES", repr(nodes)).replace("$EDGES", repr(edges))
+    if title is None:
+        source_packages = ", ".join(p.full_name for p in graph.source_packages)
+        if not source_packages:
+            title = "Dependency Graph"
+        else:
+            title = f"Dependency Graph for {source_packages}"
+
+    return TEMPLATE.replace("$NODES", repr(nodes)).replace("$EDGES", repr(edges)).replace("$TITLE", title)
