@@ -1,15 +1,15 @@
-import os
 import argparse
 from contextlib import contextmanager
 import json
+from pathlib import Path
 import sys
-from typing import Iterator, Optional, Sequence, TextIO
+from typing import Iterator, Optional, Sequence, TextIO, Union
 import webbrowser
 
 from sqlalchemy.exc import OperationalError
 
 from .db import DEFAULT_DB_PATH, DBPackageCache
-from .dependencies import resolvers, resolve, SourceRepository
+from .dependencies import Dependency, resolvers, resolver_by_name, resolve, SourceRepository
 from .html import graph_to_html
 
 
@@ -30,8 +30,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     parser = argparse.ArgumentParser(description="a source code dependency analyzer")
 
-    parser.add_argument("PATH", nargs="?", type=str, default=".", help="path to the directory to analyze")
-    parser.add_argument("--list", "-l", action="store_true", help="list available package classifiers")
+    parser.add_argument("PATH_OR_NAME", nargs="?", type=str, default=".",
+                        help="path to the directory to analyze, or a package name in the form of "
+                             "RESOLVER_NAME:PACKAGE_NAME[@OPTIONAL_VERSION], where RESOLVER_NAME is a resolver listed "
+                             "in `it-depends --list`. For example: \"pip:numpy\", \"apt:libc6@2.31\", or "
+                             "\"npm:lodash@>=4.17.0\".")
+    parser.add_argument("--list", "-l", action="store_true", help="list available package resolver")
     parser.add_argument("--database", "-db", type=str, nargs="?", default=DEFAULT_DB_PATH,
                         help="alternative path to load/store the database, or \":memory:\" to cache all results in "
                              f"memory rather than reading/writing to disk (default is {DEFAULT_DB_PATH!s})")
@@ -52,9 +56,23 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     args = parser.parse_args(argv[1:])
 
+    repo_path = Path(args.PATH_OR_NAME)
+    try:
+        dependency: Optional[Dependency] = Dependency.from_string(args.PATH_OR_NAME)
+    except ValueError as e:
+        if str(e).endswith("is not a known resolver") and not repo_path.exists():
+            sys.stderr.write(f"Unknown resolver: {args.PATH_OR_NAME}\n\n")
+            return 1
+        dependency = None
+    if dependency is None or repo_path.exists():
+        source_repo: Optional[SourceRepository] = SourceRepository(args.PATH_OR_NAME)
+        dependency = None
+    else:
+        source_repo = None
+
     if args.list:
         sys.stdout.flush()
-        sys.stderr.write(f"Available resolvers for {os.path.abspath(args.PATH)}:\n")
+        sys.stderr.write(f"Available resolvers for {repo_path.absolute()}:\n")
         sys.stderr.flush()
         for name, classifier in sorted((c.name, c) for c in resolvers()):
             sys.stdout.write(name + " "*(12-len(name)))
@@ -63,9 +81,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if not available:
                 sys.stderr.write(f"\tnot available: {available.reason}")
                 sys.stderr.flush()
-            elif not classifier.can_resolve_from_source(SourceRepository(args.PATH)):
+            elif source_repo is not None and \
+                    not classifier.can_resolve_from_source(SourceRepository(args.PATH_OR_NAME)):
                 sys.stderr.write("\tincompatible with this path")
                 sys.stderr.flush()
+            elif dependency is not None and dependency.source != classifier.name:
+                sys.stderr.write("\tincompatible with this package specifier")
             else:
                 sys.stderr.write("\tenabled")
                 sys.stderr.flush()
@@ -79,18 +100,20 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         with no_stdout() as real_stdout:
             if args.output_file is None or args.output_file == "-":
                 output_file = real_stdout
-            elif not args.force and os.path.exists(args.output_file):
+            elif not args.force and Path(args.output_file).exists():
                 sys.stderr.write(f"{args.output_file} already exists!\nRe-run with `--force` to overwrite the file.\n")
                 return 1
             else:
                 output_file = open(args.output_file, "w")
             with DBPackageCache(args.database) as cache:
                 # TODO: Add support for searching by package name
-                repo = SourceRepository(args.PATH)
-
+                if source_repo is None:
+                    repo: Union[SourceRepository, Dependency] = dependency  # type: ignore
+                else:
+                    repo = source_repo
                 package_list = resolve(repo, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
                 if not package_list:
-                    sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH}\n")
+                    sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n")
                     sys.stderr.flush()
 
                 if args.output_format == "dot":
