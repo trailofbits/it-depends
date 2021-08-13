@@ -1,6 +1,6 @@
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Set, Union
 
-from .dependencies import DependencyGraph, Package, PackageCache, SourcePackage
+from .dependencies import DependencyGraph, Package, PackageCache
 
 TEMPLATE: str = """<html>
 <head>
@@ -93,6 +93,11 @@ def graph_to_html(
     if collapse_versions:
         graph = graph.collapse_versions()
 
+    if graph.source_packages:
+        roots: Set[Package] = graph.source_packages  # type: ignore
+    else:
+        roots = graph.find_roots().roots
+
     if not graph.source_packages:
         layout = "improvedLayout: false"
     else:
@@ -107,7 +112,7 @@ def graph_to_html(
     edges = []
     for package, node_id in node_ids.items():
         nodes.append({"id": node_id, "label": package.full_name})
-        if isinstance(package, SourcePackage):
+        if package in roots:
             nodes[-1].update({
                 "shape": "square",
                 "color": "red",
