@@ -116,7 +116,7 @@
             },
             "source": "ubuntu"
         },
-        "10.2.0": {
+        "10.3.0": {
             "dependencies": {
                 "ubuntu:gcc-10-base": "*",
                 "ubuntu:libc6": ">=2.14"

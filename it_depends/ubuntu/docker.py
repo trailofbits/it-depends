@@ -53,22 +53,18 @@ def run_command(*args: str) -> bytes:
     If the host system is not running Ubuntu 20.04, the command is run in Docker.
 
     """
-    if shutil.which(args[0]) is None or not is_running_ubuntu(check_version="20.04"):
-        # we do not have apt installed natively or are not running Ubuntu
-        with _UBUNTU_LOCK:
-            global _container
-            if _container is None:
-                with InMemoryDockerfile("""FROM ubuntu:20.04
+    # we do not have apt installed natively or are not running Ubuntu
+    with _UBUNTU_LOCK:
+        global _container
+        if _container is None:
+            with InMemoryDockerfile("""FROM ubuntu:20.04
 
-    RUN apt-get update && apt-get install -y apt-file && apt-file update
-    """) as dockerfile:
-                    _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
-                    _container.rebuild()
+RUN apt-get update && apt-get install -y apt-file && apt-file update
+""") as dockerfile:
+                _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
+                _container.rebuild()
         logger.debug(f"running {' '.join(args)} in Docker")
         p = _container.run(*args, interactive=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, rebuild=False)
-    else:
-        logger.debug(f"running {' '.join(args)}")
-        p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     if p.returncode != 0:
         raise subprocess.CalledProcessError(p.returncode, cmd=f"{' '.join(args)}")
     return p.stdout

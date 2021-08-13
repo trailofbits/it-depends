@@ -38,7 +38,7 @@ class Dependency:
         self.source: str = source
         self.package: str = package
         self.semantic_version: SemanticVersion = semantic_version
-
+        assert isinstance(self.semantic_version,SemanticVersion)
     @property
     def package_full_name(self) -> str:
         return f"{self.source}:{self.package}"
