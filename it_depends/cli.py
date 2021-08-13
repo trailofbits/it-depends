@@ -11,6 +11,7 @@ from sqlalchemy.exc import OperationalError
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import Dependency, resolvers, resolver_by_name, resolve, SourceRepository
 from .html import graph_to_html
+from .sbom import package_to_spdx
 
 
 @contextmanager
@@ -39,7 +40,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--database", "-db", type=str, nargs="?", default=DEFAULT_DB_PATH,
                         help="alternative path to load/store the database, or \":memory:\" to cache all results in "
                              f"memory rather than reading/writing to disk (default is {DEFAULT_DB_PATH!s})")
-    parser.add_argument("--output-format", "-f", choices=("json", "dot", "html"), default="json",
+    parser.add_argument("--output-format", "-f", choices=("json", "dot", "html", "spdx"), default="json",
                         help="how the output should be formatted (default is JSON)")
     parser.add_argument("--output-file", "-o", type=str, default=None, help="path to the output file; default is to "
                                                                             "write output to STDOUT")
@@ -125,6 +126,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         webbrowser.open(output_file.name)
                 elif args.output_format == "json":
                     output_file.write(json.dumps(package_list.to_obj(), indent=4))
+                elif args.output_format == "spdx":
+                    from .dependencies import Package, Version
+                    output_file.write(package_to_spdx(
+                        Package(name="foo", source="pip", version=Version.coerce("1.2.3")),
+                        package_list
+                    ))
                 else:
                     raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
     except OperationalError as e:
