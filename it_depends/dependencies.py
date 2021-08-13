@@ -241,6 +241,7 @@ class SourcePackage(Package):
 
 class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
     root_type = SourcePackage
+    _collapsed: bool = False
 
     @property
     def source_packages(self) -> Set[SourcePackage]:
@@ -262,6 +263,8 @@ class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
         All dependency edges will be grouped into a single edge with a wildcard semantic version.
 
         """
+        if self._collapsed:
+            return self
         graph = DependencyGraph()
         package_instances = self.packages_by_name()
         packages_by_name: Dict[str, Package] = {}
@@ -305,13 +308,24 @@ class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
             for dep in pkg.dependencies:
                 if dep.package_full_name in packages_by_name:
                     graph.add_edge(pkg, packages_by_name[dep.package_full_name], dependency=dep)  # type: ignore
+        graph._collapsed = True
         return graph
 
     def distance_to(self, graph: RootedDiGraph[Package, SourcePackage]) -> float:
-        collapsed = self.collapse_versions()
+        if not self._collapsed:
+            return self.collapse_versions().distance_to(graph)
+        if not self.source_packages:
+            # use our roots instead:
+            compare_from: RootedDiGraph[Package, Package] = self.find_roots()
+        else:
+            compare_from = self  # type: ignore
         if isinstance(graph, DependencyGraph):
-            graph = graph.collapse_versions()
-        return collapsed.distance_to(graph)
+            compare_to: RootedDiGraph[Package, Package] = graph.collapse_versions()  # type: ignore
+        else:
+            compare_to = graph  # type: ignore
+        if not compare_to.roots:
+            compare_to = compare_to.find_roots()
+        return compare_from.distance_to(compare_to)
 
 
 class PackageCache(ABC):

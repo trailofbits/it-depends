@@ -83,6 +83,14 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
             nodes.append(node)
         return super().remove_nodes_from(nodes)
 
+    def find_roots(self) -> "RootedDiGraph[T, T]":
+        graph: RootedDiGraph[T, T] = RootedDiGraph()
+        graph.root_type = self.root_type  # type: ignore
+        graph.add_nodes_from(self.nodes)
+        graph.add_edges_from(self.edges)
+        graph.roots = {n for n, d in self.in_degree() if d == 0}  # type: ignore
+        return graph
+
     def __iter__(self) -> Iterator[T]:
         yield from super().__iter__()
 
@@ -91,6 +99,8 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
 
 
 def compare_rooted_graphs(graph1: RootedDiGraph[T, R], graph2: RootedDiGraph[T, R]) -> float:
+    if not graph1.roots or not graph2.roots:
+        raise ValueError("Both graphs must have at least one root")
     nodes1 = {node for node in graph1 if node not in graph1.roots}
     nodes2 = {node for node in graph2 if node not in graph2.roots}
     common_nodes = nodes1 & nodes2
@@ -101,9 +111,9 @@ def compare_rooted_graphs(graph1: RootedDiGraph[T, R], graph2: RootedDiGraph[T, 
         d1 = graph1.shortest_path_from_root(node)
         d2 = graph2.shortest_path_from_root(node)
         if d1 != d2:
-            distance += 1.0 / max(d1, d2) - 1.0 / min(d1, d2)
+            distance += 1.0 / min(d1, d2) - 1.0 / max(d1, d2)
     for node in not_in_2:
-        distance += 1.0 / graph1.shortest_path_from_root(node)
+        distance += 1.0 / max(graph1.shortest_path_from_root(node), 1)
     for node in not_in_1:
-        distance += 1.0 / graph2.shortest_path_from_root(node)
+        distance += 1.0 / max(graph2.shortest_path_from_root(node), 1)
     return distance
