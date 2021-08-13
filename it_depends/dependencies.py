@@ -17,7 +17,6 @@ from typing import (
 )
 
 from graphviz import Digraph
-import networkx as nx
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
 from tqdm import tqdm
@@ -241,7 +240,7 @@ class SourcePackage(Package):
 
 
 class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
-    key_type = SourcePackage
+    root_type = SourcePackage
 
     @property
     def source_packages(self) -> Set[SourcePackage]:
@@ -307,6 +306,12 @@ class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
                 if dep.package_full_name in packages_by_name:
                     graph.add_edge(pkg, packages_by_name[dep.package_full_name], dependency=dep)  # type: ignore
         return graph
+
+    def distance_to(self, graph: RootedDiGraph[Package, SourcePackage]) -> float:
+        collapsed = self.collapse_versions()
+        if isinstance(graph, DependencyGraph):
+            graph = graph.collapse_versions()
+        return collapsed.distance_to(graph)
 
 
 class PackageCache(ABC):
