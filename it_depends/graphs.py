@@ -94,11 +94,20 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
     def __iter__(self) -> Iterator[T]:
         yield from super().__iter__()
 
-    def distance_to(self, graph: "RootedDiGraph[T, R]") -> float:
-        return compare_rooted_graphs(self, graph)
+    def distance_to(self, graph: "RootedDiGraph[T, R]", normalize: bool = False) -> float:
+        return compare_rooted_graphs(self, graph, normalize)
 
 
-def compare_rooted_graphs(graph1: RootedDiGraph[T, R], graph2: RootedDiGraph[T, R]) -> float:
+def compare_rooted_graphs(graph1: RootedDiGraph[T, R], graph2: RootedDiGraph[T, R], normalize: bool = False) -> float:
+    """Calculates the edit distance between two rooted graphs.
+
+    If normalize == False (the default), a value of zero means the graphs are identical, with increasing values
+    corresponding to the difference between the graphs.
+
+    If normalize == True, the returned value equals 1.0 iff the graphs are identical and values closer to zero if the
+    graphs are less similar.
+
+    """
     if not graph1.roots or not graph2.roots:
         raise ValueError("Both graphs must have at least one root")
     nodes1 = {node for node in graph1 if node not in graph1.roots}
@@ -116,4 +125,12 @@ def compare_rooted_graphs(graph1: RootedDiGraph[T, R], graph2: RootedDiGraph[T, 
         distance += 1.0 / max(graph1.shortest_path_from_root(node), 1)
     for node in not_in_1:
         distance += 1.0 / max(graph2.shortest_path_from_root(node), 1)
+    if normalize:
+        if distance > 0.0:
+            # the graphs are not identical
+            max_distance = \
+                sum(max(graph1.shortest_path_from_root(node), 1) for node in graph1) + \
+                sum(max(graph2.shortest_path_from_root(node), 1) for node in graph2)
+            distance /= max_distance
+        distance = 1.0 - distance
     return distance

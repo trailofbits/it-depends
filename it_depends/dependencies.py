@@ -311,9 +311,9 @@ class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
         graph._collapsed = True
         return graph
 
-    def distance_to(self, graph: RootedDiGraph[Package, SourcePackage]) -> float:
+    def distance_to(self, graph: RootedDiGraph[Package, SourcePackage], normalize: bool = False) -> float:
         if not self._collapsed:
-            return self.collapse_versions().distance_to(graph)
+            return self.collapse_versions().distance_to(graph, normalize)
         if not self.source_packages:
             # use our roots instead:
             compare_from: RootedDiGraph[Package, Package] = self.find_roots()
@@ -325,7 +325,7 @@ class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
             compare_to = graph  # type: ignore
         if not compare_to.roots:
             compare_to = compare_to.find_roots()
-        return compare_from.distance_to(compare_to)
+        return compare_from.distance_to(compare_to, normalize)
 
 
 class PackageCache(ABC):

@@ -56,7 +56,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--compare", "-c", nargs="?", type=str,
                         help="compare PATH_OR_NAME to another package specified according to the same rules as "
                              "PATH_OR_NAME; this option will override the --output-format option and will instead "
-                             "output a floating point similarity metric")
+                             "output a floating point similarity metric. By default, the metric will be in the range"
+                             "[0, ∞), with zero meaning that the dependency graphs are identical. For a metric in the "
+                             "range [0, 1], see the `--normalize` option.")
+    parser.add_argument("--normalize", "-n", action="store_true",
+                        help="Used in conjunction with `--compare`, this will change the output metric to be in the "
+                             "range [0, 1] where 1 means the graphs are identical and 0 means the graphs are as "
+                             "different as possible.")
     parser.add_argument("--output-format", "-f", choices=("json", "dot", "html"), default="json",
                         help="how the output should be formatted (default is JSON)")
     parser.add_argument("--output-file", "-o", type=str, default=None, help="path to the output file; default is to "
@@ -134,7 +140,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 if to_compare is not None:
                     to_compare_list = \
                         resolve(to_compare, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
-                    output_file.write(str(package_list.to_graph().distance_to(to_compare_list.to_graph())))
+                    output_file.write(str(package_list.to_graph().distance_to(
+                        to_compare_list.to_graph(), normalize=args.normalize
+                    )))
                     output_file.write("\n")
                 elif args.output_format == "dot":
                     output_file.write(cache.to_dot(package_list.source_packages).source)
