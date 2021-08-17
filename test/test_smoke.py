@@ -85,7 +85,7 @@ def gh_smoke_test(user_name, repo_name, commit):
             expected_json = REPOS_FOLDER / f"{repo_name}.expected.json"
             actual_json = REPOS_FOLDER / f"{repo_name}.actual.json"
 
-            package_list = resolve(SourceRepository(snapshot_folder))
+            package_list = resolve(SourceRepository(snapshot_folder), max_workers=1 )
             result_it_depends = package_list.to_obj()
             with open(actual_json, "w") as f:
                 f.write(json.dumps(result_it_depends, indent=4, sort_keys=True))

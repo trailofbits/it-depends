@@ -82,7 +82,7 @@
     "ubuntu:cpp-9": {
         "9.3.0": {
             "dependencies": {
-                "ubuntu:gcc-9-base": "*",
+                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
                 "ubuntu:libc6": ">=2.14",
                 "ubuntu:libgmp10": "*",
                 "ubuntu:libisl22": ">=0.15",
@@ -161,10 +161,10 @@
             "dependencies": {
                 "ubuntu:binutils": ">=2.34",
                 "ubuntu:cpp-9": "*",
-                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:gcc-9-base": "*",
                 "ubuntu:libc6": ">=2.15",
-                "ubuntu:libcc1-0": "*",
-                "ubuntu:libgcc-9-dev": "=9.3.0-10ubuntu2",
+                "ubuntu:libcc1-0": ">=9.3.0-10ubuntu2",
+                "ubuntu:libgcc-9-dev": "*",
                 "ubuntu:libgcc-s1": ">=3.0",
                 "ubuntu:libgmp10": "*",
                 "ubuntu:libisl22": ">=0.15",
@@ -312,7 +312,7 @@
     "ubuntu:libasan5": {
         "9.3.0": {
             "dependencies": {
-                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:gcc-9-base": "*",
                 "ubuntu:libc6": ">=2.23",
                 "ubuntu:libgcc-s1": "*"
             },
@@ -745,16 +745,16 @@
     "ubuntu:libgcc-9-dev": {
         "9.3.0": {
             "dependencies": {
-                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
-                "ubuntu:libasan5": "*",
+                "ubuntu:gcc-9-base": "*",
+                "ubuntu:libasan5": ">=9.3.0-10ubuntu2",
                 "ubuntu:libatomic1": "*",
                 "ubuntu:libgcc-s1": "*",
-                "ubuntu:libgomp1": ">=9.3.0-10ubuntu2",
+                "ubuntu:libgomp1": "*",
                 "ubuntu:libitm1": "*",
-                "ubuntu:liblsan0": ">=9.3.0-10ubuntu2",
+                "ubuntu:liblsan0": "*",
                 "ubuntu:libquadmath0": ">=9.3.0-10ubuntu2",
                 "ubuntu:libtsan0": "*",
-                "ubuntu:libubsan1": ">=9.3.0-10ubuntu2"
+                "ubuntu:libubsan1": "*"
             },
             "source": "ubuntu"
         }
@@ -2080,7 +2080,7 @@
             "dependencies": {
                 "ubuntu:libperl5.30": "=5.30.0-9build1",
                 "ubuntu:perl-base": "=5.30.0-9ubuntu0.2",
-                "ubuntu:perl-modules-5.30": ">=5.30.0-9ubuntu0.2"
+                "ubuntu:perl-modules-5.30": ">=5.30.0-9build1"
             },
             "source": "ubuntu"
         }
