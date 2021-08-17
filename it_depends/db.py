@@ -142,7 +142,8 @@ class DBPackage(Base, Package):  # type: ignore
 
     def to_package(self) -> Package:
         return Package(source=self.source, name=self.name, version=self.version, dependencies=(
-            Dependency(package=dep.package, semantic_version=dep.semantic_version, source=dep.source) for dep in self.raw_dependencies
+            Dependency(package=dep.package, semantic_version=dep.semantic_version, source=dep.source)
+            for dep in self.raw_dependencies
         ))
 
     @property
@@ -279,6 +280,8 @@ class DBPackageCache(PackageCache):
                                                                                      distinct(DBPackage.name)).all())
 
     def _make_query(self, to_match: Union[str, Package], source: Optional[str] = None):
+        if source is None and isinstance(to_match, Package):
+            source = to_match.source
         if source is not None:
             filters: Tuple[Any, ...] = (DBPackage.source.like(source),)
         else:
@@ -292,12 +295,12 @@ class DBPackageCache(PackageCache):
 
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
         if isinstance(to_match, Dependency):
-            for package in self.match(to_match.package):
+            for package in self._make_query(to_match.package, source=to_match.source):
                 if package.version in to_match.semantic_version:
-                    yield package
+                    yield package.to_package()
         else:
             if isinstance(to_match, Package):
-                source:Optional[str] = to_match.source
+                source: Optional[str] = to_match.source
             else:
                 source = None
             # we intentionally build a list before yielding so that we don't keep the session query lingering
