@@ -98,45 +98,43 @@ class UbuntuResolver(DependencyResolver):
         # Example depends line:
         # Depends: libc6 (>= 2.29), libgcc-s1 (>= 3.4), libstdc++6 (>= 9)
         version = None
-        deps = []
+        deps = {}
         for line in contents.split("\n"):
             if line.startswith("Depends: "):
-                for dep in line[9:].split(","):
-                    matched = self._pattern.match(dep)
-                    if not matched:
-                        raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
-                    dep_package = matched.group('package')
-                    dep_version = matched.group('version')
-                    try:
-                        dep_version = dep_version.replace(" ", "")
-                        SimpleSpec(dep_version.replace(" ", ""))
-                    except Exception as e:
-                        print ("UBUNTU DEP VERSION SPEC FAIL", dep_version)
-                        dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                for dep_i in line[9:].split(","):
+                    for dep in dep_i.split("|"):
+                        matched = self._pattern.match(dep)
+                        if not matched:
+                            raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
+                        dep_package = matched.group('package')
+                        dep_version = matched.group('version')
+                        try:
+                            dep_version = dep_version.replace(" ", "")
+                            SimpleSpec(dep_version.replace(" ", ""))
+                        except Exception as e:
+                            dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                        deps.setdefault(dep_package, set()).add(dep_version)
 
-                    deps.append((dep_package, dep_version))
             if line.startswith("Version: "):
                 version = line[9:]
 
         if version is None:
             logger.info(f"Package {dependency.package} not found in ubuntu installed apt sources")
             return
-
         matched = self._ubuntu_version.match(version)
         if not matched:
             logger.info(
                 f"Failed to parse package {dependency.package} version: {version}")
             return
         version = Version.coerce(matched.group("version"))
-
         yield Package(name=dependency.package, version=version,
                       source=UbuntuResolver(),
                       dependencies=(
                           Dependency(package=pkg,
-                                     semantic_version=SimpleSpec(ver),
+                                     semantic_version=SimpleSpec("|".join(vers)),
                                      source=UbuntuResolver()
                                      )
-                          for pkg, ver in deps
+                          for pkg, vers in deps.items()
                       ))
 
     def __lt__(self, other):
