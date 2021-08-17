@@ -325,7 +325,10 @@ class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
             compare_to = graph  # type: ignore
         if not compare_to.roots:
             compare_to = compare_to.find_roots()
-        return compare_from.distance_to(compare_to, normalize)
+        if compare_from is self:
+            return super().distance_to(compare_to, normalize)
+        else:
+            return compare_from.distance_to(compare_to, normalize)
 
 
 class PackageCache(ABC):
