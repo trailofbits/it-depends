@@ -1,3 +1,4 @@
+from collections import defaultdict
 from functools import lru_cache
 import shutil
 import subprocess
@@ -9,7 +10,8 @@ from .apt import file_to_packages
 from .docker import is_running_ubuntu, run_command
 from ..dependencies import Version, SimpleSpec
 from ..dependencies import (
-    Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SourcePackage, SourceRepository
+    Dependency, DependencyResolver, Dict, List, Package, PackageCache, ResolverAvailability, SourcePackage,
+    SourceRepository, Tuple
 )
 from ..native import get_native_dependencies
 
@@ -39,7 +41,7 @@ class UbuntuResolver(DependencyResolver):
         # Example depends line:
         # Depends: libc6 (>= 2.29), libgcc-s1 (>= 3.4), libstdc++6 (>= 9)
         version: Optional[Version] = None
-        packages = []
+        packages: Dict[Tuple[str, Version], List[List[Dependency]]] = defaultdict(list)
         for line in contents.split("\n"):
             if line.startswith("Version: "):
                 matched = UbuntuResolver._ubuntu_version.match(line[len("Version: "):])
@@ -50,33 +52,45 @@ class UbuntuResolver(DependencyResolver):
             elif version is not None and line.startswith("Depends: "):
                 deps = []
                 for dep in line[9:].split(","):
-                    matched = UbuntuResolver._pattern.match(dep)
-                    if not matched:
-                        raise ValueError(f"Invalid dependency line in apt output for {package_name}: {line!r}")
-                    dep_package = matched.group('package')
-                    dep_version = matched.group('version')
-                    try:
-                        dep_version = dep_version.replace(" ", "")
-                        SimpleSpec(dep_version.replace(" ", ""))
-                    except Exception as e:
-                        dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                    for or_segment in dep.split("|"):
+                        # Fixme: For now, treat each ORed dependency as a separate ANDed dependency
+                        matched = UbuntuResolver._pattern.match(or_segment)
+                        if not matched:
+                            raise ValueError(f"Invalid dependency line in apt output for {package_name}: {line!r}")
+                        dep_package = matched.group('package')
+                        dep_version = matched.group('version')
+                        try:
+                            dep_version = dep_version.replace(" ", "")
+                            SimpleSpec(dep_version.replace(" ", ""))
+                        except Exception as e:
+                            dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
 
-                    deps.append((dep_package, dep_version))
+                        deps.append((dep_package, dep_version))
 
-                packages.append(Package(
-                    name=package_name, version=version,
-                    source=UbuntuResolver(),
-                    dependencies=(
+                packages[(package_name, version)].append([
                         Dependency(
                             package=pkg,
                             semantic_version=SimpleSpec(ver),
                             source=UbuntuResolver()
                         )
                         for pkg, ver in deps
-                    )
-                ))
+                    ]
+                )
                 version = None
-        return packages
+
+        # Sometimes `apt show` will return multiple packages with the same version but different dependencies.
+        # For example: `apt show -a dkms`
+        # Currently, we do a union over their dependencies
+        # TODO: Figure out a better way to handle this
+        return [
+            Package(
+                name=pkg_name,
+                version=version,
+                source=UbuntuResolver(),
+                dependencies=set().union(*duplicates)  # type: ignore
+            )
+            for (pkg_name, version), duplicates in packages.items()
+        ]
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         if dependency.source != "ubuntu":
