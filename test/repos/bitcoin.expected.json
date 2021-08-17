@@ -59,6 +59,30 @@
             "source": "ubuntu"
         }
     },
+    "ubuntu:build-essential": {
+        "12.8.0-ubuntu1": {
+            "dependencies": {
+                "ubuntu:dpkg-dev": ">=1.17.11",
+                "ubuntu:g++": "*",
+                "ubuntu:gcc": "*",
+                "ubuntu:libc-dev": "*",
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:make": "*"
+            },
+            "source": "ubuntu"
+        },
+        "12.8.0-ubuntu1.1": {
+            "dependencies": {
+                "ubuntu:dpkg-dev": ">=1.17.11",
+                "ubuntu:g++": "*",
+                "ubuntu:gcc": "*",
+                "ubuntu:libc-dev": "*",
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:make": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
     "ubuntu:bzip2": {
         "1.0.8": {
             "dependencies": {
@@ -80,6 +104,7 @@
     "ubuntu:comerr-dev": {
         "2.1.0": {
             "dependencies": {
+                "ubuntu:libc-dev": "*",
                 "ubuntu:libc6-dev": "*",
                 "ubuntu:libcom-err2": "=1.45.5-2ubuntu1"
             },
@@ -97,7 +122,7 @@
     "ubuntu:cpp-9": {
         "9.3.0": {
             "dependencies": {
-                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:gcc-9-base": "*",
                 "ubuntu:libc6": ">=2.14",
                 "ubuntu:libgmp10": "*",
                 "ubuntu:libisl22": ">=0.15",
@@ -119,10 +144,13 @@
     "ubuntu:dkms": {
         "2.8.1": {
             "dependencies": {
+                "ubuntu:build-essential": "*",
+                "ubuntu:c-compiler": "*",
                 "ubuntu:coreutils": ">=7.4",
                 "ubuntu:dctrl-tools": "*",
                 "ubuntu:dpkg-dev": "*",
                 "ubuntu:gcc": "*",
+                "ubuntu:kldutils": "*",
                 "ubuntu:kmod": "*",
                 "ubuntu:make": "*",
                 "ubuntu:patch": "*"
@@ -162,6 +190,33 @@
             "source": "ubuntu"
         }
     },
+    "ubuntu:g++": {
+        "9.3.0": {
+            "dependencies": {
+                "ubuntu:cpp": "*",
+                "ubuntu:g++-9": "*",
+                "ubuntu:gcc": "*",
+                "ubuntu:gcc-9": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:g++-9": {
+        "9.3.0": {
+            "dependencies": {
+                "ubuntu:gcc-9": "*",
+                "ubuntu:gcc-9-base": "*",
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:libgmp10": "*",
+                "ubuntu:libisl22": ">=0.15",
+                "ubuntu:libmpc3": "*",
+                "ubuntu:libmpfr6": ">=3.1.3",
+                "ubuntu:libstdc++-9-dev": "*",
+                "ubuntu:zlib1g": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
     "ubuntu:gcc": {
         "9.3.0": {
             "dependencies": {
@@ -175,11 +230,11 @@
         "9.3.0": {
             "dependencies": {
                 "ubuntu:binutils": ">=2.34",
-                "ubuntu:cpp-9": "=9.3.0-10ubuntu2",
-                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:cpp-9": "*",
+                "ubuntu:gcc-9-base": "*",
                 "ubuntu:libc6": ">=2.15",
                 "ubuntu:libcc1-0": "*",
-                "ubuntu:libgcc-9-dev": "*",
+                "ubuntu:libgcc-9-dev": "=9.3.0-10ubuntu2",
                 "ubuntu:libgcc-s1": ">=3.0",
                 "ubuntu:libgmp10": "*",
                 "ubuntu:libisl22": ">=0.15",
@@ -235,6 +290,14 @@
         "1.0.7": {
             "dependencies": {
                 "ubuntu:guile-2.2": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:install-info": {
+        "6.7.0+dfsg.2": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14"
             },
             "source": "ubuntu"
         }
@@ -343,7 +406,7 @@
     "ubuntu:libasan5": {
         "9.3.0": {
             "dependencies": {
-                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:gcc-9-base": "*",
                 "ubuntu:libc6": ">=2.23",
                 "ubuntu:libgcc-s1": "*"
             },
@@ -783,15 +846,15 @@
     "ubuntu:libgcc-9-dev": {
         "9.3.0": {
             "dependencies": {
-                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:gcc-9-base": "*",
                 "ubuntu:libasan5": "*",
                 "ubuntu:libatomic1": "*",
                 "ubuntu:libgcc-s1": "*",
                 "ubuntu:libgomp1": "*",
-                "ubuntu:libitm1": ">=9.3.0-10ubuntu2",
+                "ubuntu:libitm1": "*",
                 "ubuntu:liblsan0": "*",
-                "ubuntu:libquadmath0": "*",
-                "ubuntu:libtsan0": ">=9.3.0-10ubuntu2",
+                "ubuntu:libquadmath0": ">=9.3.0-10ubuntu2",
+                "ubuntu:libtsan0": "*",
                 "ubuntu:libubsan1": "*"
             },
             "source": "ubuntu"
@@ -976,6 +1039,7 @@
     "ubuntu:libglu1-mesa-dev": {
         "9.0.1": {
             "dependencies": {
+                "ubuntu:libgl-dev": "*",
                 "ubuntu:libgl1-mesa-dev": "*",
                 "ubuntu:libglu1-mesa": "=9.0.1-1build1"
             },
@@ -1492,6 +1556,14 @@
             "source": "ubuntu"
         }
     },
+    "ubuntu:libpython3-stdlib": {
+        "3.8.2": {
+            "dependencies": {
+                "ubuntu:libpython3.8-stdlib": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
     "ubuntu:libpython3.8-minimal": {
         "3.8.2": {
             "dependencies": {
@@ -1620,7 +1692,19 @@
         "1.1.1-f": {
             "dependencies": {
                 "ubuntu:debconf": ">=0.5",
+                "ubuntu:debconf-2.0": "*",
                 "ubuntu:libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libstdc++-9-dev": {
+        "9.3.0": {
+            "dependencies": {
+                "ubuntu:gcc-9-base": "=9.3.0-10ubuntu2",
+                "ubuntu:libc6-dev": "*",
+                "ubuntu:libgcc-9-dev": "*",
+                "ubuntu:libstdc++6": "*"
             },
             "source": "ubuntu"
         }
@@ -2143,7 +2227,7 @@
             "dependencies": {
                 "ubuntu:libperl5.30": "=5.30.0-9build1",
                 "ubuntu:perl-base": "=5.30.0-9ubuntu0.2",
-                "ubuntu:perl-modules-5.30": ">=5.30.0-9build1"
+                "ubuntu:perl-modules-5.30": ">=5.30.0-9ubuntu0.2"
             },
             "source": "ubuntu"
         }
@@ -2237,6 +2321,7 @@
             "dependencies": {
                 "ubuntu:libegl-dev": "*",
                 "ubuntu:libgl-dev": "*",
+                "ubuntu:libglu-dev": "*",
                 "ubuntu:libglu1-mesa-dev": "*",
                 "ubuntu:libqt5concurrent5": "=5.12.8+dfsg-0ubuntu1",
                 "ubuntu:libqt5core5a": "=5.12.8+dfsg-0ubuntu1",
@@ -2270,7 +2355,8 @@
     "ubuntu:readline-common": {
         "8.0.0": {
             "dependencies": {
-                "ubuntu:dpkg": ">=1.15.4"
+                "ubuntu:dpkg": ">=1.15.4",
+                "ubuntu:install-info": "*"
             },
             "source": "ubuntu"
         }
@@ -2312,9 +2398,12 @@
         "0.8.3": {
             "dependencies": {
                 "ubuntu:debconf": ">=0.5",
+                "ubuntu:debconf-2.0": "*",
                 "ubuntu:dkms": "*",
                 "ubuntu:file": "*",
+                "ubuntu:libc-dev": "*",
                 "ubuntu:libc6-dev": "*",
+                "ubuntu:libpython3-stdlib": "*",
                 "ubuntu:lsb-release": "*",
                 "ubuntu:perl:any": "*",
                 "ubuntu:python3-distutils": "*"
