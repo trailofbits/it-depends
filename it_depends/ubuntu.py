@@ -131,7 +131,7 @@ class UbuntuResolver(DependencyResolver):
                       source=UbuntuResolver(),
                       dependencies=(
                           Dependency(package=pkg,
-                                     semantic_version=SimpleSpec("|".join(vers)),
+                                     semantic_version=SimpleSpec(','.join(sorted(vers))),
                                      source=UbuntuResolver()
                                      )
                           for pkg, vers in deps.items()
