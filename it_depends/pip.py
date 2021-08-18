@@ -23,11 +23,13 @@ class PipResolver(DependencyResolver):
     description = "classifies the dependencies of Python packages using pip"
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return (repo.path / "setup.py").exists() or (repo.path / "requirements.txt").exists()
+        return self.is_available and (repo.path / "setup.py").exists() or (repo.path / "requirements.txt").exists()
 
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
+        if not self.can_resolve_from_source(repo):
+            return None
         return PipSourcePackage.from_repo(repo)
 
     def docker_setup(self) -> Optional[DockerSetup]:

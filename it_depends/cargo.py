@@ -99,11 +99,13 @@ class CargoResolver(DependencyResolver):
         return CargoSpec(spec)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return (repo.path / "Cargo.toml").exists()
+        return bool(self.is_available()) and (repo.path / "Cargo.toml").exists()
 
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
+        if not self.can_resolve_from_source(repo):
+            return None
         result = None
         for package in get_dependencies(repo, check_for_cargo=False):
             if isinstance(package, SourcePackage):
@@ -112,7 +114,8 @@ class CargoResolver(DependencyResolver):
                 if cache is not None:
                     cache.add(package)
                     for dep in package.dependencies:
-                        cache.set_resolved(dep)
+                        if not cache.was_resolved(dep):
+                            cache.set_resolved(dep)
         return result
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:

@@ -27,6 +27,19 @@ class Resolution(Base):  # type: ignore
         UniqueConstraint("package", "version", "source", name="resolution_unique_constraint"),
     )
 
+class Updated(Base):  # type: ignore
+    __tablename__ = "updated"
+
+    id = Column(Integer, primary_key=True)
+    package = Column(String, nullable=False)
+    version = Column(String, nullable=True)
+    source = Column(String, nullable=True)
+    resolver = Column(String, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("package", "version", "source", "resolver", name="updated_unique_constraint"),
+    )
+
 
 class DBDependency(Base, Dependency):  # type: ignore
     __tablename__ = "dependencies"
@@ -63,7 +76,7 @@ class DependencyMapping:
     def __init__(self, package: "DBPackage"):
         super().__init__()
         self._deps: Dict[str, Dependency] = {
-            dep.package: Dependency(dep.package, dep.semantic_version) for dep in package.raw_dependencies
+            dep.package: Dependency(package=dep.package, source=dep.source, semantic_version=dep.semantic_version) for dep in package.raw_dependencies
         }
 
     def items(self) -> Iterator[Tuple[str, Dependency]]:
@@ -129,14 +142,13 @@ class DBPackage(Base, Package):  # type: ignore
 
     def to_package(self) -> Package:
         return Package(source=self.source, name=self.name, version=self.version, dependencies=(
-            Dependency(package=dep.package, semantic_version=dep.semantic_version, source=self.source) for dep in self.raw_dependencies
+            Dependency(package=dep.package, semantic_version=dep.semantic_version, source=dep.source)
+            for dep in self.raw_dependencies
         ))
 
     @property
     def version(self) -> Version:
-        #resolver = resolver_by_name(self.source)
-        resolver = self.resolver
-        return resolver.parse_version(self.version_str)
+        return self.resolver.parse_version(self.version_str)
 
     @version.setter
     def version(self, new_version: Union[Version, str]):
@@ -174,7 +186,7 @@ class SourceFilteredPackageCache(PackageCache):
             DBPackage.name.like(package_name), DBPackage.source_name.like(self.source)
         ).all()]
 
-    def package_names(self) -> FrozenSet[str]:
+    def package_full_names(self) -> FrozenSet[str]:
         return frozenset(self.parent.session.query(distinct(DBPackage.name))
                          .filter(DBPackage.source_name.like(self.source)).all())
 
@@ -183,6 +195,15 @@ class SourceFilteredPackageCache(PackageCache):
 
     def add(self, package: Package):
         return self.parent.add(package)
+
+    def set_updated(self, package: Package, resolver: str):
+        return self.parent.set_updated(package, resolver)
+
+    def was_updated(self, package: Package, resolver: str) -> bool:
+        return self.parent.was_updated(package, resolver)
+
+    def updated_by(self, package: Package) -> FrozenSet[str]:
+        return self.parent.updated_by(package)
 
 
 class DBPackageCache(PackageCache):
@@ -224,7 +245,8 @@ class DBPackageCache(PackageCache):
         for package in packages:
             for existing in self.match(package):
                 if len(existing.dependencies) > len(package.dependencies):
-                    raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
+                    raise ValueError(f"Package {package!s} has already been resolved with more dependencies: "
+                                     f"{existing!s}")
                 elif existing.dependencies != package.dependencies:
                     existing.dependencies = package.dependencies
                     self.session.commit()
@@ -249,15 +271,18 @@ class DBPackageCache(PackageCache):
     def from_source(self, source: Optional[str]) -> SourceFilteredPackageCache:
         return SourceFilteredPackageCache(source, self)
 
-    def package_versions(self, package_name: str) -> Iterator[Package]:
+    def package_versions(self, package_full_name: str) -> Iterator[Package]:
         yield from [
-            p.to_package() for p in self.session.query(DBPackage).filter(DBPackage.name.like(package_name)).all()
+            p.to_package() for p in self.session.query(DBPackage).filter(DBPackage.name.like(package_full_name)).all()
         ]
 
-    def package_names(self) -> FrozenSet[str]:
-        return frozenset(result[0] for result in self.session.query(distinct(DBPackage.name)).all())
+    def package_full_names(self) -> FrozenSet[str]:
+        return frozenset(f"{result[0]}:{result[1]}" for result in self.session.query(distinct(DBPackage.source),
+                                                                                     distinct(DBPackage.name)).all())
 
     def _make_query(self, to_match: Union[str, Package], source: Optional[str] = None):
+        if source is None and isinstance(to_match, Package):
+            source = to_match.source
         if source is not None:
             filters: Tuple[Any, ...] = (DBPackage.source.like(source),)
         else:
@@ -271,28 +296,52 @@ class DBPackageCache(PackageCache):
 
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
         if isinstance(to_match, Dependency):
-            for package in self.match(to_match.package):
+            for package in self._make_query(to_match.package, source=to_match.source):
                 if package.version in to_match.semantic_version:
-                    yield package
+                    yield package.to_package()
         else:
             if isinstance(to_match, Package):
-                source:Optional[str] = to_match.source
+                source: Optional[str] = to_match.source
             else:
                 source = None
             # we intentionally build a list before yielding so that we don't keep the session query lingering
             yield from [package.to_package() for package in self._make_query(to_match, source=source).all()]
 
     def was_resolved(self, dependency: Dependency) -> bool:
-        source=dependency.source
-        filters: Tuple[Any, ...] = (Resolution.source.like(source),)
         return self.session.query(Resolution).filter(
             Resolution.package.like(dependency.package),
             Resolution.version == str(dependency.semantic_version),
-            *filters
+            Resolution.source.like(dependency.source),
         ).limit(1).count() > 0
 
     def set_resolved(self, dependency: Dependency):
+        if self.was_resolved(dependency):
+            return
         self.session.add(
             Resolution(package=dependency.package, version=str(dependency.semantic_version), source=dependency.source)
+        )
+        self.session.commit()
+
+    def updated_by(self, package:Package) -> FrozenSet[str]:
+        return frozenset(u.resolver for u in self.session.query(Updated).filter(
+            Updated.source.like(package.source),
+            Updated.package.like(package.name),
+            Updated.version == str(package.version)))
+
+    def was_updated(self, package: Package, resolver: str) -> bool:
+        if package.source == resolver:
+            return True
+        return self.session.query(Updated).filter(
+            Updated.source.like(package.source),
+            Updated.package.like(package.name),
+            Updated.version.like(str(package.version)),
+            Updated.resolver.like(resolver)
+        ).limit(1).count() > 0
+
+    def set_updated(self, package: Package, resolver: str):
+        if self.was_updated(package, resolver):
+            return
+        self.session.add(
+            Updated(package=package.name, version=str(package.version), source=package.source, resolver=resolver)
         )
         self.session.commit()

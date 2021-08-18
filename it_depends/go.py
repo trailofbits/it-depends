@@ -306,9 +306,12 @@ class GoResolver(DependencyResolver):
         return GoVersion(version_string)  # type: ignore
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return (repo.path / "go.mod").exists()
+        return bool(self.is_available()) and (repo.path / "go.mod").exists()
 
     def resolve_from_source(self, repo: SourceRepository, cache: Optional[PackageCache] = None):
+        if not self.can_resolve_from_source(repo):
+            return None
+
         with open(repo.path / "go.mod") as f:
             module = GoModule.parse_mod(f.read())
         git_hash = git_commit(str(repo.path))

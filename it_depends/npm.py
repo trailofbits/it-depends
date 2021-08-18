@@ -19,11 +19,13 @@ class NPMResolver(DependencyResolver):
     description = "classifies the dependencies of JavaScript packages using `npm`"
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return (repo.path / "package.json").exists()
+        return bool(self.is_available()) and (repo.path / "package.json").exists()
 
     def resolve_from_source(
             self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
+        if not self.can_resolve_from_source(repo):
+            return None
         return NPMResolver.from_package_json(repo)
 
     @staticmethod

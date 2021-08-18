@@ -1,24 +1,28 @@
+import atexit
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 import functools
 from abc import ABC, abstractmethod
 from collections import defaultdict
-import concurrent.futures
 from dataclasses import dataclass
 import json
+import logging
 from multiprocessing import cpu_count
 from pathlib import Path
+from shutil import rmtree
+from subprocess import check_call
+import sys
+from tempfile import mkdtemp
 from typing import (
     Dict, FrozenSet, Iterable, Iterator, List, Optional, Set, Tuple, Union
 )
-import sys
+
 from graphviz import Digraph
+import networkx as nx
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
 from tqdm import tqdm
-from tempfile import mkdtemp
-from shutil import rmtree
-from subprocess import check_call
-import atexit
-import logging
+
+from .graphs import RootedDiGraph
 
 logger = logging.getLogger(__name__)
 
@@ -36,15 +40,23 @@ class Dependency:
         self.semantic_version: SemanticVersion = semantic_version
 
     @property
-    def resolver(self):
+    def package_full_name(self) -> str:
+        return f"{self.source}:{self.package}"
+
+    @property
+    def resolver(self) -> "DependencyResolver":
         return resolver_by_name(self.source)
 
     @classmethod
     def from_string(cls, description):
         try:
-            source, package_version = description.split(":")
-            package, version_string = package_version.split("@")
-            version = SimpleSpec(version_string)
+            source, tail = description.split(":", 1)
+            package, *remainder = tail.split("@", 1)
+            version_string = "@".join(remainder)
+            if version_string:
+                version = SimpleSpec(version_string)
+            else:
+                version = SimpleSpec("*")
         except Exception as e:
             raise ValueError(f"Can not parse dependency description <{description}>") from e
         return cls(source=source, package=package, semantic_version=version)
@@ -88,17 +100,28 @@ class Package:
     ):
         if isinstance(version, str):
             version = Version(version)
-        if isinstance(source, DependencyResolver):
-            source = source.name
-        if not is_known_resolver(source):
-            raise ValueError(f"{source} is not a known resolver")
         self.name: str = name
         self.version: Version = version
         self.dependencies: FrozenSet[Dependency] = frozenset(dependencies)
-        self.source: str = source
+        if isinstance(source, DependencyResolver):
+            self.source: str = source.name
+        else:
+            self.source = source
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.source}:{self.name}"
+
+    def update_dependencies(self, dependencies: FrozenSet[Dependency]):
+        self.dependencies = self.dependencies.union(dependencies)
+        return self
 
     @property
     def resolver(self):
+        """
+        The initial main resolver for this package.
+        Other resolvers could have added dependencies and perform modifications over it
+        """
         return resolver_by_name(self.source)
 
     @classmethod
@@ -109,6 +132,8 @@ class Package:
                 ubuntu:libc6@2.31[]
                 ubuntu:libc6@2.31[ubuntu:somepkg@<0.1.0]
                 ubuntu:libc6@2.31[ubuntu:somepkg@<0.1.0, ubuntu:otherpkg@=2.1.0]
+                ubuntu,native:libc6@2.31[ubuntu:somepkg@<0.1.0, ubuntu:otherpkg@=2.1.0, ubuntu:libc@*]
+
         """
         source, tail = description.split(":", 1)
         name, version = tail.split("@", 1)
@@ -153,6 +178,136 @@ class Package:
             return other.name == self.name and other.source == self.source and other.version == self.version
         return False
 
+    def __lt__(self, other):
+        return isinstance(other, Package) and \
+               (self.name, self.source, self.version) < (other.name, other.source, other.version)
+
+    def __hash__(self):
+        return hash((self.version, self.name, self.version))
+
+
+class SourceRepository:
+    """represents a repo that we are analyzing from source"""
+    def __init__(self, path: Union[Path, str]):
+        super().__init__()
+        if not isinstance(path, Path):
+            path = Path(path)
+        self.path: Path = path
+
+    @staticmethod
+    def from_git(git_url: str) -> "SourceRepository":
+        tmpdir = mkdtemp()
+
+        def cleanup():
+            rmtree(tmpdir, ignore_errors=True)
+
+        atexit.register(cleanup)
+
+        check_call(["git", "clone", git_url], cwd=tmpdir)
+        for file in Path(tmpdir).iterdir():
+            if file.is_dir():
+                return SourceRepository(file)
+        raise ValueError(f"Error cloning {git_url}")
+
+    @staticmethod
+    def from_filesystem(path: Union[str, Path]) -> "SourceRepository":
+        return SourceRepository(path)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({str(self.path)!r})"
+
+    def __str__(self):
+        return str(self.path)
+
+
+class SourcePackage(Package):
+    """A package extracted from source code rather than a package repository
+    It is a package that exists on disk, but not necessarily in a remote repository.
+    """
+
+    def __init__(
+            self,
+            name: str,
+            version: Version,
+            source_repo: SourceRepository,
+            source: str,
+            dependencies: Iterable[Dependency] = (),
+    ):
+        super().__init__(name=name, version=version, dependencies=dependencies, source=source)
+        self.source_repo: SourceRepository = source_repo
+
+    def __str__(self):
+        return f"{super().__str__()}:{self.source_repo.path.absolute()!s}"
+
+
+class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
+    key_type = SourcePackage
+
+    @property
+    def source_packages(self) -> Set[SourcePackage]:
+        return self.roots
+
+    def packages_by_name(self) -> Dict[Tuple[str, str], Set[Package]]:
+        ret: Dict[Tuple[str, str], Set[Package]] = {}
+        for node in self:
+            name = node.source, node.name
+            if name not in ret:
+                ret[name] = {node}
+            else:
+                ret[name].add(node)
+        return ret
+
+    def collapse_versions(self) -> "DependencyGraph":
+        """
+        Group all versions of a package into a single node.
+        All dependency edges will be grouped into a single edge with a wildcard semantic version.
+
+        """
+        graph = DependencyGraph()
+        package_instances = self.packages_by_name()
+        packages_by_name: Dict[str, Package] = {}
+        # choose the maximum version among all packages of the same name:
+        for (package_source, package_name), instances in package_instances.items():
+            # convert all of the dependencies to SimpleSpec("*") wildcard versions:
+            deps = {
+                Dependency(package=dep.package, source=dep.source)
+                for instance in instances for dep in instance.dependencies
+            }
+            if len(instances) == 1:
+                pkg = next(iter(instances))
+            else:
+                source_packages_in_instances = self.source_packages & instances
+                version = max(p.version for p in instances)
+                if source_packages_in_instances:
+                    # at least one of the instances is a source package, so make the collapsed package a source package
+                    source_repos = {s.source_repo for s in source_packages_in_instances}
+                    source_repo = next(iter(source_repos))
+                    if len(source_repos) > 1:
+                        logger.warning(f"package {package_source}:{package_name} is provided by multiple source "
+                                       f"repositories: {', '.join(map(str, source_repos))}. "
+                                       f"Collapsing to {source_repo}.")
+                    pkg = SourcePackage(
+                        name=package_name,
+                        version=version,
+                        source_repo=source_repo,
+                        source=package_source,
+                        dependencies=deps
+                    )
+                else:
+                    pkg = Package(
+                        name=package_name,
+                        version=version,
+                        source=package_source,
+                        dependencies=deps
+                    )
+            packages_by_name[pkg.full_name] = pkg
+            graph.add_node(pkg)  # type: ignore
+        for pkg in graph:  # type: ignore
+            for dep in pkg.dependencies:
+                if dep.package_full_name in packages_by_name:
+                    graph.add_edge(pkg, packages_by_name[dep.package_full_name], dependency=dep)  # type: ignore
+        return graph
+
 
 class PackageCache(ABC):
     """ An abstract base class for a collection of packages """
@@ -195,28 +350,42 @@ class PackageCache(ABC):
 
     @abstractmethod
     def was_resolved(self, dependency: Dependency) -> bool:
+        """True if this particular dependency was set resolved"""
         raise NotImplementedError()
 
     @abstractmethod
     def set_resolved(self, dependency: Dependency):
+        """True if this particular dependency as resolved"""
         raise NotImplementedError()
 
     @abstractmethod
-    def from_source(self, source_name: str) -> "PackageCache":
+    def set_updated(self, package: Package, resolver: str):
+        """Update package for updates made by resolver"""
         raise NotImplementedError()
 
     @abstractmethod
-    def package_versions(self, package_name: str) -> Iterator[Package]:
+    def was_updated(self, package: Package, resolver: str) -> bool:
+        """True if package was updated by resolver"""
         raise NotImplementedError()
 
     @abstractmethod
-    def package_names(self) -> FrozenSet[str]:
+    def updated_by(self, package: Package) -> FrozenSet[str]:
+        """A set of resolver names that updated package"""
         raise NotImplementedError()
 
     @abstractmethod
-    def match(self, to_match: Dependency) -> Iterator[Package]:
+    def package_versions(self, package_full_name: str) -> Iterator[Package]:
+        """"""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def package_full_names(self) -> FrozenSet[str]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
         """
-        Yields all packages in this collection of packages that match the Dependncy.
+        Yields all packages in this collection of packages that match the Dependency.
 
         This function does not perform any dependency resolution;
         it only matches against existing packages in this cache.
@@ -224,28 +393,47 @@ class PackageCache(ABC):
         """
         raise NotImplementedError()
 
-    def to_obj(self):
-        def package_to_dict(package):
-            dependencies = {}
-            for dep in package.dependencies:
-                source = ""
-                if dep.source != package.source:
-                    source = f"{dep.source}:"
-                dependencies[f"{source}{dep.package}"] = str(dep.semantic_version)
+    def get(
+            self,
+            source: Union[str, "DependencyResolver"],
+            name: str,
+            version: Union[str, Version]
+    ) -> Optional[Package]:
+        pkg = Package(source=source, name=name, version=version)
+        it = self.match(pkg.to_dependency())
+        try:
+            return next(it)
+        except StopIteration:
+            return None
 
+    def to_graph(self) -> DependencyGraph:
+        graph = DependencyGraph()
+        for package in self:
+            graph.add_node(package)  # type: ignore
+            for dep in package.dependencies:
+                for p in self.match(dep):
+                    assert p in self
+                    graph.add_edge(package, p, dependency=dep)  # type: ignore
+        return graph
+
+    def to_obj(self):
+        def package_to_dict(package: Package):
             ret = {
-                "dependencies": dependencies,
+                "dependencies": {
+                    f"{dep.source}:{dep.package}": str(dep.semantic_version)
+                    for dep in package.dependencies
+                },
                 "source": package.source
             }
             if isinstance(package, SourcePackage):
-                ret["is_source_package"] = True
+                ret["is_source_package"] = True  # type: ignore
             return ret
 
         return {
-            package_name: {
-                str(package.version): package_to_dict(package) for package in self.package_versions(package_name)
+            package_full_name: {
+                str(package.version): package_to_dict(package) for package in self.package_versions(package_full_name)
             }
-            for package_name in self.package_names()
+            for package_full_name in self.package_full_names()
         }
 
     @property
@@ -315,7 +503,7 @@ class PackageCache(ABC):
             self.add(package)
 
     def unresolved_dependencies(self, packages: Optional[Iterable[Package]] = None) -> Iterable[Dependency]:
-        """List all unresolved dependencies of packages."""
+        """ List all unresolved dependencies of packages. """
         unresolved = set()
         if packages is None:
             packages = self
@@ -325,6 +513,7 @@ class PackageCache(ABC):
                     unresolved.add(dep)
                     yield dep
 
+
 class InMemoryPackageCache(PackageCache):
     def __init__(self, _cache: Optional[Dict[str, Dict[str, Dict[Version, Package]]]] = None):
         super().__init__()
@@ -333,6 +522,7 @@ class InMemoryPackageCache(PackageCache):
         else:
             self._cache = _cache
         self._resolved: Dict[str, Set[Dependency]] = defaultdict(set)  # source:package -> dep
+        self._updated: Dict[Package, Set[str]] = defaultdict(set)  # source:package -> dep
 
     def __len__(self):
         return sum(sum(map(len, source.values())) for source in self._cache.values())
@@ -340,20 +530,17 @@ class InMemoryPackageCache(PackageCache):
     def __iter__(self) -> Iterator[Package]:
         return (p for d in self._cache.values() for v in d.values() for p in v.values())
 
-    def was_resolved(self, dependency: Dependency) -> bool:
-        dependency_set = self._resolved[f"{dependency.source}:{dependency.package}"]
-        if dependency in dependency_set:
-            return True
-        """
-        # It could still be already resolved by composing a number of solver deps
-        # But....
-        hit = any(dep.includes(dependency) for dep in dependency_set)
-        if hit:
-            print (str(dependency), ", ".join(map(str, dependency_set)))
-            print("HIT")
-        """
-        return False
+    def updated_by(self, package: Package) -> FrozenSet[str]:
+        return frozenset(self._updated[package])
 
+    def was_updated(self, package: Package, resolver:str) -> bool:
+        return resolver in self._updated[package]
+
+    def set_updated(self, package: Package, resolver: str):
+        self._updated[package].add(resolver)
+
+    def was_resolved(self, dependency: Dependency) -> bool:
+        return dependency in self._resolved[f"{dependency.source}:{dependency.package}"]
 
     def set_resolved(self, dependency: Dependency):
         self._resolved[f"{dependency.source}:{dependency.package}"].add(dependency)
@@ -361,22 +548,24 @@ class InMemoryPackageCache(PackageCache):
     def from_source(self, source: Union[str, "DependencyResolver"]) -> "PackageCache":
         if isinstance(source, DependencyResolver):
             source = source.name
-        if not is_known_resolver(source):
-            raise ValueError(f"{source} is not a known resolver")
         return InMemoryPackageCache({source: self._cache.setdefault(source, {})})
 
-    def package_names(self) -> FrozenSet[str]:
+    def package_full_names(self) -> FrozenSet[str]:
         ret: Set[str] = set()
-        for source_values in self._cache.values():
-            ret |= source_values.keys()
+        for source, versions in self._cache.items():
+            for name, version in versions.items():
+                ret.add(f"{source}:{name}")
         return frozenset(ret)
 
-    def package_versions(self, package_name: str) -> Iterator[Package]:
-        for packages in self._cache.values():
-            if package_name in packages:
-                yield from packages[package_name].values()
+    def package_versions(self, package_full_name: str) -> Iterator[Package]:
+        package_source, package_name = package_full_name.split(":", 1)
+        packages = self._cache[package_source]
+        if package_name in packages:
+            yield from packages[package_name].values()
 
-    def match(self, to_match: Union[Package, Dependency]) -> Iterator[Package]:
+    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
+        if isinstance(to_match, str):
+            to_match = Package.from_string(to_match)
         if isinstance(to_match, Package):
             to_match = to_match.to_dependency()
         assert(isinstance(to_match, Dependency))
@@ -386,73 +575,39 @@ class InMemoryPackageCache(PackageCache):
                 yield package
 
     def add(self, package: Package):
-        if package in self:
-            if max(len(p.dependencies) for p in self.match(package)) > len(package.dependencies):
-                raise ValueError(f"Package {package!s} has already been resolved with more dependencies")
-        self._cache.setdefault(package.source, {}).setdefault(package.name, {})[package.version] = package
+        original_package = self._cache.setdefault(package.source, {}).setdefault(package.name, {}).get(package.version)
+        if original_package is not None:
+            package = original_package.update_dependencies(package.dependencies)
+        self._cache[package.source][package.name][package.version] = package
 
     def __str__(self):
-        return '[' + ",".join(self.package_names()) + ']'
-
-
-class _ResolutionCache:
-    def __init__(self, resolver: "DependencyResolver", results: PackageCache, cache: Optional[PackageCache] = None, t: Optional[tqdm] = None):
-        self.resolver: DependencyResolver = resolver
-        self.expanded_deps: Set[Dependency] = set()
-        self.results: PackageCache = results
-        self.existing_packages = set(results)
-        self.cache: Optional[PackageCache] = cache
-        self.t = t
-
-    def extend(self, new_packages: Iterable[Package]) -> Set[Tuple[Dependency, Package]]:
-        new_packages = set(new_packages)
-        new_deps: Set[Tuple[Dependency, Package]] = set()
-        while new_packages:
-            pkg_list = new_packages
-            new_packages = set()
-            for package in pkg_list:
-                for dep in package.dependencies:
-                    if dep in self.expanded_deps:
-                        continue
-                    if self.cache is not None and self.cache.was_resolved(dep):
-                        already_resolved = set(self.cache.match(dep))
-                        cached = already_resolved - self.existing_packages
-                        self.results.extend(cached)
-                        if self.t:
-                            self.t.total += len(cached)
-                            self.t.update(len(cached))
-                        new_packages |= cached
-                        self.existing_packages |= cached
-                    else:
-                        new_deps.add((dep, package))
-                        if self.t:
-                            self.t.total += 1
-                    self.expanded_deps.add(dep)
-        return new_deps
+        return '[' + ",".join(self.package_full_names()) + ']'
 
 
 @functools.lru_cache()
-def resolvers():
+def resolvers() -> FrozenSet["DependencyResolver"]:
     """ Collection of all the default instances of DependencyResolvers
     """
-    return frozenset(cls() for cls in DependencyResolver.__subclasses__())
+    return frozenset(cls() for cls in DependencyResolver.__subclasses__())  # type: ignore
 
 
 @functools.lru_cache()
-def resolver_by_name(name: str):
+def resolver_by_name(name: str) -> "DependencyResolver":
     """ Finds a resolver instance by name. The result is cached."""
     for instance in resolvers():
         if instance.name == name:
             return instance
     raise KeyError(name)
 
-def is_known_resolver(name: str):
+
+def is_known_resolver(name: str) -> bool:
     """Checks if name is a valid/known resolver name"""
     try:
         resolver_by_name(name)
         return True
     except KeyError:
         return False
+
 
 class ResolverAvailability:
     def __init__(self, is_available: bool, reason: str = ""):
@@ -472,54 +627,6 @@ class DockerSetup:
     load_package_script: str
     baseline_script: str
     post_install: str = ""
-
-
-class SourceRepository:
-    """represents a repo that we are analyzing from source"""
-    def __init__(self, path: Union[Path, str]):
-        super().__init__()
-        if not isinstance(path, Path):
-            path = Path(path)
-        self.path: Path = path
-
-    @staticmethod
-    def from_git(git_url: str) -> "SourceRepository":
-        tmpdir = mkdtemp()
-
-        def cleanup():
-            rmtree(tmpdir, ignore_errors=True)
-
-        atexit.register(cleanup)
-
-        check_call(["git", "clone", git_url], cwd=tmpdir)
-        for file in Path(tmpdir).iterdir():
-            if file.is_dir():
-                return SourceRepository(file)
-        raise ValueError(f"Error cloning {git_url}")
-
-    @staticmethod
-    def from_filesystem(path: Union[str, Path]) -> "SourceRepository":
-        return SourceRepository(path)
-
-
-class SourcePackage(Package):
-    """A package extracted from source code rather than a package repository
-    It is a package that exists on disk, but not necessarily in a remote repository.
-    """
-
-    def __init__(
-            self,
-            name: str,
-            version: Version,
-            source_repo: SourceRepository,
-            source: str,
-            dependencies: Iterable[Dependency] = (),
-    ):
-        super().__init__(name=name, version=version, dependencies=dependencies, source=source)
-        self.source_repo: SourceRepository = source_repo
-
-    def __str__(self):
-        return f"{super().__str__()}:{self.source_repo.path.absolute()!s}"
 
 
 class DependencyResolver:
@@ -544,11 +651,8 @@ class DependencyResolver:
     @abstractmethod
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the given dependency"""
-        logger.info (f"{self} does not implement `resolve()`")
+        logger.info(f"{self} does not implement `resolve()`")
         raise NotImplementedError
-
-    def _resolve_worker(self, dependency: Dependency, depth: int) -> Tuple[int, Dependency, List[Package]]:
-        return depth + 1, dependency, list(self.resolve(dependency))
 
     @classmethod
     def parse_spec(cls, spec: str) -> SemanticVersion:
@@ -578,90 +682,233 @@ class DependencyResolver:
         """Resolves any new `SourcePackage`s in this repo"""
         raise NotImplementedError()
 
+    def can_update_dependencies(self, package: Package) -> bool:
+        return False
+
+    def update_dependencies(self, package: Package) -> Package:
+        return package
+
+    def __hash__(self):
+        return hash(self.name)
+
+    def __eq__(self, other):
+        return isinstance(other, DependencyResolver) and other.name == self.name
+
 
 class PackageRepository(InMemoryPackageCache):
     pass
+
+
+class _DependencyResult:
+    def __init__(self, dep: Dependency, packages: List[Package], depth: int):
+        self.dep: Dependency = dep
+        self.packages: List[Package] = packages
+        self.depth: int = depth
+
+
+def _process_dep(dep: Dependency, depth: int) -> _DependencyResult:
+    return _DependencyResult(dep=dep, packages=list(dep.resolver.resolve(dep)), depth=depth)
+
+
+class _PackageResult:
+    def __init__(self, package: Package, was_updated: bool, updated_in_resolvers: Iterable[str], depth: int):
+        self.package: Package = package
+        self.was_updated: bool = was_updated
+        self.updated_in_resolvers: Set[str] = set(updated_in_resolvers)
+        self.depth: int = depth
+
+
+def _update_package(package: Package, depth: int) -> _PackageResult:
+    old_deps = frozenset(package.dependencies)
+    uir: List[str] = []
+    for resolver in resolvers():
+        if resolver.can_update_dependencies(package):
+            package = resolver.update_dependencies(package)
+            uir.append(resolver.name)
+    return _PackageResult(
+        package=package, was_updated=package.dependencies != old_deps, updated_in_resolvers=uir, depth=depth
+    )
 
 
 def resolve(
         repo_or_spec: Union[Package, Dependency, SourceRepository],
         cache: Optional[PackageCache] = None,
         depth_limit: int = -1,
-        max_workers: Optional[int] = None,
         repo: Optional[PackageRepository] = None,
-        queue: FrozenSet[Dependency] = frozenset()
+        max_workers: Optional[int] = None
 ) -> PackageRepository:
     """
     Resolves the dependencies for a package, dependency, or source repository.
 
     If depth_limit is negative (the default), recursively resolve all dependencies.
     If depth_limit is greater than zero, only recursively resolve dependencies to that depth.
-
+    max_workers controls the number of spawned threads, if None cpu_count is used.
     """
+    if depth_limit == 0:
+        return PackageRepository()
+
+    if max_workers is None:
+        try:
+            max_workers = cpu_count()
+        except NotImplementedError:
+            max_workers = 5
+
     if repo is None:
         repo = PackageRepository()
+
     if cache is None:
         cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
 
     try:
-        if isinstance(repo_or_spec, Dependency):
-            dep: Optional[Dependency] = repo_or_spec
-        elif isinstance(repo_or_spec, Package):
-            dep = repo_or_spec.to_dependency()
-        elif isinstance(repo_or_spec, SourceRepository):
-            dep = None
-        else:
-            raise ValueError(f"repo_or_spec must be either a Package, Dependency, or SourceRepository")
-
-        with cache:
-            if dep is None:
+        with cache, tqdm(desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t:
+            if isinstance(repo_or_spec, Dependency):
+                unresolved_dependencies: List[Tuple[Dependency, int]] = [(repo_or_spec, 0)]
+                unupdated_packages: List[Tuple[Package, int]] = []
+            elif isinstance(repo_or_spec, Package):
+                unresolved_dependencies = []
+                unupdated_packages = [(repo_or_spec, 0)]
+            elif isinstance(repo_or_spec, SourceRepository):
+                # repo_or_spec is a SourceRepository
+                unresolved_dependencies = []
+                unupdated_packages = []
+                found_source_package = False
                 for resolver in resolvers():
-                    if resolver.is_available():
-                        # repo_or_spec is a SourceRepository
-                        if resolver.can_resolve_from_source(repo_or_spec):
-                            source_package = resolver.resolve_from_source(repo_or_spec, cache=cache)
-                            if source_package is None:
-                                continue
-                            resolver_native = resolver_by_name("native")
-                            native_deps = resolver_native.get_native_dependencies(source_package)
-                            source_package.dependencies = source_package.dependencies.union(frozenset(native_deps))
-                            repo.add(source_package)
-                        else:
-                            logger.debug(f"{resolver.name} can not resolve {repo_or_spec}")
+                    if resolver.can_resolve_from_source(repo_or_spec):
+                        source_package = resolver.resolve_from_source(repo_or_spec, cache=cache)
+                        if source_package is None:
+                            continue
+                        found_source_package = True
+                        unupdated_packages.append((source_package, 0))
+                if not found_source_package:
+                    raise ValueError(f"Can not resolve {repo_or_spec}")
             else:
-                if cache and cache.was_resolved(dep):
-                    repo.extend(cache.match(dep))
-                    repo.set_resolved(dep)
-                elif not repo.was_resolved(dep):
-                    solutions = dep.resolver.resolve(dep)
-                    repo.extend(solutions)
-                    repo.set_resolved(dep)
-                    if cache:
-                        cache.extend(solutions)
-                        cache.set_resolved(dep)
+                raise ValueError(f"repo_or_spec must be either a Package, Dependency, or SourceRepository")
 
-                for package in cache.match(dep):
-                    # this package may be added/cached by previous resolution
-                    # For example cargo over a source repo solves it all to the cache but
-                    # none has native resolution done
-                    resolver_native = resolver_by_name("native")
-                    new_deps = resolver_native.get_native_dependencies(package)
-                    new_dependencies = package.dependencies.union(frozenset(new_deps))
-                    if package.dependencies != new_dependencies:
-                        package.dependencies = new_dependencies
-                        cache.add(package)
-                        repo.add(package)
-            while True:
-                if depth_limit != 0:
-                    unresolved_dependencies = tuple(x for x in repo.unresolved_dependencies() if x not in queue)
-                    if not unresolved_dependencies:
-                        return repo
-                    for dep in sorted(unresolved_dependencies):
-                        if cache is not None and cache.was_resolved(dep):
-                            repo.extend(cache.match(dep))
-                            repo.set_resolved(dep)
+            t.total = len(unupdated_packages) + len(unresolved_dependencies)
+
+            futures: Set[Future[Union[_DependencyResult, _PackageResult]]] = set()
+            queued: Set[Dependency] = {d for d, _ in unresolved_dependencies}
+            if max_workers > 1:
+                pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="it-depends-resolver")
+
+            def process_updated_package(
+                    updated_package: Package, at_depth: int, updated_in_resolvers: Set[str], was_updated: bool = True
+            ):
+                repo.add(updated_package)  # type: ignore
+                if not isinstance(updated_package, SourcePackage):
+                    if was_updated:
+                        cache.add(updated_package)  # type: ignore
+                    for r in updated_in_resolvers:
+                        repo.set_updated(updated_package, r)  # type: ignore
+                        cache.set_updated(updated_package, r)  # type: ignore
+                if depth_limit < 0 or at_depth < depth_limit:
+                    new_deps = {d for d in updated_package.dependencies if d not in queued}
+                    unresolved_dependencies.extend((d, at_depth + 1) for d in sorted(new_deps))
+                    t.total += len(new_deps)
+                    queued.update(new_deps)
+
+            def process_resolution(
+                    dep: Dependency, packages: Iterable[Package], at_depth: int, already_cached: bool = False
+            ):
+                """This gets called whenever we resolve a new package"""
+                repo.set_resolved(dep)  # type: ignore
+                packages = list(packages)
+                if not already_cached and cache is not None:
+                    cache.set_resolved(dep)
+                    cache.extend(packages)
+                unupdated_packages.extend((p, at_depth) for p in packages)
+                t.total += len(packages)
+
+            while unresolved_dependencies or unupdated_packages or futures:
+                # while there are more unresolved dependencies, unupdated packages,
+                # or concurrent jobs that are still running:
+
+                reached_fixed_point = cache is None
+                while not reached_fixed_point:
+                    reached_fixed_point = True
+
+                    # loop through the unupdated packages and see if any are cached:
+                    not_updated: List[Tuple[Package, int]] = []
+                    was_updatable = False
+                    for package, depth in unupdated_packages:
+                        for resolver in resolvers():
+                            if resolver.can_update_dependencies(package):
+                                was_updatable = True
+                                if not cache.was_updated(package, resolver.name):
+                                    not_updated.append((package, depth))
+                                    break
                         else:
-                            resolve(repo_or_spec=dep, cache=cache, depth_limit=depth_limit-1, max_workers=max_workers, repo=repo, queue=queue.union(unresolved_dependencies))
+                            if was_updatable:
+                                # every resolver that could have updated this package did update it in the cache
+                                try:
+                                    # retrieve the package from the cache
+                                    package = next(iter(cache.match(package)))
+                                except StopIteration:
+                                    pass
+                            process_updated_package(package, depth, updated_in_resolvers=set())
+                            t.update(1)
+
+                    if unupdated_packages != not_updated:
+                        reached_fixed_point = False
+                        unupdated_packages = not_updated
+
+                    # loop through the unresolved deps and see if any are cached:
+                    not_cached: List[Tuple[Dependency, int]] = []
+                    for dep, depth in unresolved_dependencies:
+                        if cache.was_resolved(dep):
+                            matches = cache.match(dep)
+                            process_resolution(dep, matches, depth, already_cached=True)
+                            t.update(1)
+                        else:
+                            not_cached.append((dep, depth))
+                    if unresolved_dependencies != not_cached:
+                        reached_fixed_point = False
+                        unresolved_dependencies = not_cached
+
+                if max_workers <= 1:
+                    # don't use concurrency
+                    if unupdated_packages:
+                        t.update(1)
+                        pkg_result = _update_package(*unupdated_packages[0])
+                        unupdated_packages = unupdated_packages[1:]
+                        process_updated_package(
+                            pkg_result.package,
+                            pkg_result.depth,
+                            pkg_result.updated_in_resolvers,
+                            pkg_result.was_updated
+                        )
+                    if unresolved_dependencies:
+                        t.update(1)
+                        dep_result = _process_dep(*unresolved_dependencies[0])
+                        unresolved_dependencies = unresolved_dependencies[1:]
+                        process_resolution(dep_result.dep, dep_result.packages, dep_result.depth)
+                else:
+                    # new_jobs is the number of new concurrent resolutions we can start without exceeding max_workers
+                    new_jobs = max_workers - len(futures)
+                    # create `new_jobs` package update jobs:
+                    futures |= {  # type: ignore
+                        pool.submit(_update_package, package, depth) for package, depth in unupdated_packages[:new_jobs]
+                    }
+                    unupdated_packages = unupdated_packages[new_jobs:]
+                    new_jobs = max_workers - len(futures)
+                    # create `new_jobs` new resolution jobs:
+                    futures |= {  # type: ignore
+                        pool.submit(_process_dep, dep, depth) for dep, depth in unresolved_dependencies[:new_jobs]
+                    }
+                    unresolved_dependencies = unresolved_dependencies[new_jobs:]
+                    if futures:
+                        done, futures = wait(futures, return_when=FIRST_COMPLETED)
+                        for finished in done:
+                            t.update(1)
+                            result = finished.result()
+                            if isinstance(result, _PackageResult):
+                                process_updated_package(
+                                    result.package, result.depth, result.updated_in_resolvers, result.was_updated
+                                )
+                            elif isinstance(result, _DependencyResult):
+                                process_resolution(result.dep, result.packages, result.depth)
+                            else:
+                                raise NotImplementedError(f"Unexpected future result: {result!r}")
 
     except KeyboardInterrupt:
         if sys.stderr.isatty() and sys.stdin.isatty():
