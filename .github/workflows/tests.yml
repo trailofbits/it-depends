@@ -26,7 +26,7 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt-get update -y
-        sudo apt-get install -y apt-file
+        sudo apt-get install -y apt-file cmake autoconf golang cargo npm clang
         sudo apt-file update
         python -m pip install --upgrade pip
         pip install setuptools
