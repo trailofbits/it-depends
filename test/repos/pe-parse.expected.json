@@ -1,0 +1,28 @@
+{
+    "ubuntu:libboost-filesystem1.71-dev": {
+        "1.71.0": {
+            "dependencies": {
+                "ubuntu:libboost-filesystem1.71.0": "=1.71.0-6ubuntu6",
+                "ubuntu:libboost1.71-dev": "=1.71.0-6ubuntu6",
+                "ubuntu:libboost-system1.71-dev": "=1.71.0-6ubuntu6"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "pip:pepy": {
+        "1.3.0": {
+            "dependencies": {},
+            "source": "pip",
+            "is_source_package": true
+        }
+    },
+    "cmake:dump-pe": {
+        "0.0.0": {
+            "dependencies": {
+                "ubuntu:libboost-filesystem1.71-dev": "*"
+            },
+            "source": "cmake",
+            "is_source_package": true
+        }
+    }
+}

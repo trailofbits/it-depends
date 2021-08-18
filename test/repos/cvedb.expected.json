@@ -1,10 +1,121 @@
 {
+    "ubuntu:/lib/x86_64-linux-gnu/libnss_files.so.2": {
+        "0.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libc6": {
+        "2.31.0": {
+            "dependencies": {
+                "ubuntu:libgcc-s1": "*",
+                "ubuntu:libcrypt1": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "pip:cvss": {
+        "2.2.0": {
+            "dependencies": {
+                "ubuntu:/lib/x86_64-linux-gnu/libdl.so.2": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libnss_files.so.2": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libc.so.6": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libtinfo.so.6": "*"
+            },
+            "source": "pip"
+        }
+    },
+    "ubuntu:/lib/x86_64-linux-gnu/libdl.so.2": {
+        "0.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libtinfo6": {
+        "6.2.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.16"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "pip:six": {
+        "1.5.0": {
+            "dependencies": {
+                "ubuntu:/lib/x86_64-linux-gnu/libdl.so.2": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libnss_files.so.2": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libc.so.6": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libtinfo.so.6": "*"
+            },
+            "source": "pip"
+        }
+    },
+    "ubuntu:libcrypt1": {
+        "4.4.10": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.25"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:/lib/x86_64-linux-gnu/libc.so.6": {
+        "0.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:libgcc-s1": {
+        "10.3.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:gcc-10-base": "*"
+            },
+            "source": "ubuntu"
+        },
+        "10.0.0": {
+            "dependencies": {
+                "ubuntu:libc6": ">=2.14",
+                "ubuntu:gcc-10-base": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "ubuntu:/lib/x86_64-linux-gnu/libtinfo.so.6": {
+        "0.0.0": {
+            "dependencies": {
+                "ubuntu:libtinfo6": "*"
+            },
+            "source": "ubuntu"
+        }
+    },
+    "pip:python-dateutil": {
+        "2.8.1": {
+            "dependencies": {
+                "ubuntu:/lib/x86_64-linux-gnu/libdl.so.2": "*",
+                "pip:six": ">=1.5",
+                "ubuntu:/lib/x86_64-linux-gnu/libtinfo.so.6": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libnss_files.so.2": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libc.so.6": "*"
+            },
+            "source": "pip"
+        }
+    },
     "pip:cvedb": {
         "0.0.4": {
             "dependencies": {
-                "pip:python-dateutil": "~=2.8.1",
+                "ubuntu:/lib/x86_64-linux-gnu/libdl.so.2": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libc.so.6": "*",
                 "pip:cvss": "~=2.2",
-                "pip:tqdm": "~=4.48.0"
+                "ubuntu:/lib/x86_64-linux-gnu/libtinfo.so.6": "*",
+                "pip:tqdm": "~=4.48.0",
+                "ubuntu:/lib/x86_64-linux-gnu/libnss_files.so.2": "*",
+                "pip:python-dateutil": "~=2.8.1"
             },
             "source": "pip",
             "is_source_package": true
@@ -12,27 +123,12 @@
     },
     "pip:tqdm": {
         "4.48.0": {
-            "dependencies": {},
-            "source": "pip"
-        }
-    },
-    "pip:python-dateutil": {
-        "2.8.1": {
             "dependencies": {
-                "pip:six": ">=1.5"
+                "ubuntu:/lib/x86_64-linux-gnu/libdl.so.2": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libnss_files.so.2": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libc.so.6": "*",
+                "ubuntu:/lib/x86_64-linux-gnu/libtinfo.so.6": "*"
             },
-            "source": "pip"
-        }
-    },
-    "pip:six": {
-        "1.5.0": {
-            "dependencies": {},
-            "source": "pip"
-        }
-    },
-    "pip:cvss": {
-        "2.2.0": {
-            "dependencies": {},
             "source": "pip"
         }
     }

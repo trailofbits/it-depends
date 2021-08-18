@@ -41,8 +41,8 @@ def get_container() -> DockerContainer:
                     f.write(f"""FROM {container_type()}
 
                     RUN DEBIAN_FRONTEND=noninteractive apt-get update && \\
-                        DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-dev python3-pip docker \\
-                        cmake autoconf golang cargo npm clang libz3-dev \\
+                        DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-dev python3-pip docker.io \\
+                        cmake autoconf golang cargo npm clang \\
                         && mkdir -p /it-depends
                     # this is required for cargo:
                     ENV USER=root
