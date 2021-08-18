@@ -52,10 +52,10 @@ Description: Dynamic Kernel Module Support Framework
  you upgrade kernels.
 
 """
-        with patch('it_depends.ubuntu.run_command') as mock:
+        with patch('it_depends.ubuntu.docker.run_command') as mock:
             mock.return_value = contents.encode()
             deps = tuple(UbuntuResolver().resolve(dependency=Dependency(package="dkms", source="ubuntu")))
             self.assertEqual(len(deps), 1)
-            self.assertEqual(str(deps[0]), "ubuntu:dkms@2.8.1[ubuntu:build-essential@*,ubuntu:c-compiler@*,"
-                                           "ubuntu:coreutils@>=7.3,>=7.5,ubuntu:dctrl-tools@*,ubuntu:dpkg-dev@*,"
-                                           "ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]")
+            self.assertEqual(str(deps[0]), 'ubuntu:dkms@2.8.1[ubuntu:build-essential@*,ubuntu:c-compiler@*,'
+                                           'ubuntu:coreutils@>=7.4,ubuntu:dctrl-tools@*,ubuntu:dpkg-dev@*,'
+                                           'ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]')
