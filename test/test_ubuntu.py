@@ -1,7 +1,8 @@
 from unittest import TestCase
 from unittest.mock import patch
-from it_depends.dependencies import Dependency, Package, Version
-from it_depends.ubuntu import UbuntuResolver
+from it_depends.dependencies import Dependency
+from it_depends.ubuntu.resolver import UbuntuResolver
+
 
 class TestUbuntu(TestCase):
     def test_ubuntu(self):
@@ -55,4 +56,6 @@ Description: Dynamic Kernel Module Support Framework
             mock.return_value = contents.encode()
             deps = tuple(UbuntuResolver().resolve(dependency=Dependency(package="dkms", source="ubuntu")))
             self.assertEqual(len(deps), 1)
-            self.assertEqual(str(deps[0]), "ubuntu:dkms@2.8.1[ubuntu:build-essential@*,ubuntu:c-compiler@*,ubuntu:coreutils@>=7.3,>=7.5,ubuntu:dctrl-tools@*,ubuntu:dpkg-dev@*,ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]")
+            self.assertEqual(str(deps[0]), "ubuntu:dkms@2.8.1[ubuntu:build-essential@*,ubuntu:c-compiler@*,"
+                                           "ubuntu:coreutils@>=7.3,>=7.5,ubuntu:dctrl-tools@*,ubuntu:dpkg-dev@*,"
+                                           "ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]")
