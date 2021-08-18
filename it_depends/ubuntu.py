@@ -10,7 +10,7 @@ from .dependencies import (
     Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SourcePackage, SourceRepository
 )
 from .docker import DockerContainer, InMemoryDockerfile
-from typing import Pattern
+from typing import Pattern, Dict, Set
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ class UbuntuResolver(DependencyResolver):
         # Example depends line:
         # Depends: libc6 (>= 2.29), libgcc-s1 (>= 3.4), libstdc++6 (>= 9)
         version = None
-        deps = {}
+        deps: Dict[str, Set[str]]  = {}
         for line in contents.split("\n"):
             if line.startswith("Depends: "):
                 for dep_i in line[9:].split(","):
