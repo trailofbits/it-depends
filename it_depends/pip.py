@@ -173,7 +173,7 @@ class PipSourcePackage(SourcePackage):
         if (repo.path / "setup.py").exists():
             with TemporaryDirectory() as tmp_dir:
                 subprocess.check_call([
-                    sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", tmp_dir, str(repo.path)
+                    sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", tmp_dir, str(repo.path.absolute())
                 ], stdout=sys.stderr)
                 wheel = None
                 for whl in Path(tmp_dir).glob("*.whl"):
