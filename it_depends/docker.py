@@ -140,6 +140,7 @@ class DockerContainer:
             remove: bool = True,
             interactive: bool = True,
             mounts: Optional[Iterable[Tuple[Union[str, Path], Union[str, Path]]]] = None,
+            privileged: bool = False,
             env: Optional[Dict[str, str]] = None,
             stdin=None,
             stdout=None,
@@ -180,6 +181,9 @@ class DockerContainer:
         if mounts is not None:
             for source, target in mounts:
                 cmd_args.append("-v")
+                if not isinstance(source, Path):
+                    source = Path(source)
+                source = source.absolute()
                 cmd_args.append(f"{source!s}:{target!s}:cached")
 
         if env is not None:
@@ -187,6 +191,9 @@ class DockerContainer:
                 cmd_args.append("-e")
                 escaped_value = v.replace('"', '\\"')
                 cmd_args.append(f"{k}={escaped_value}")
+
+        if privileged:
+            cmd_args.append("--privileged=true")
 
         cmd_args.append(self.name)
 

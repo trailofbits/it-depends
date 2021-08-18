@@ -148,7 +148,7 @@ class Package:
     def __str__(self):
         if self.dependencies:
             # TODO(felipe) Strip dependency strings starting with self.source
-            dependencies = "[" + ",".join(sorted(map(str, self.dependencies))) + "]"
+            dependencies = "[" + ",".join(map(str, sorted(self.dependencies))) + "]"
         else:
             dependencies = ""
         return f"{self.source}:{self.name}@{self.version}" + dependencies

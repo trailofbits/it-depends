@@ -60,6 +60,8 @@ class UbuntuResolver(DependencyResolver):
                         dep_package = matched.group('package')
                         dep_version = matched.group('version')
                         try:
+                            # remove trailing ubuntu versions like "-10ubuntu4":
+                            dep_version = dep_version.split("-", maxsplit=1)[0]
                             dep_version = dep_version.replace(" ", "")
                             SimpleSpec(dep_version.replace(" ", ""))
                         except Exception as e:
