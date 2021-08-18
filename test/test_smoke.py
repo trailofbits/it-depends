@@ -8,7 +8,8 @@ import urllib
 import zipfile
 
 from it_depends.dependencies import (
-    SimpleSpec, Package, Dependency, PackageRepository, resolve, resolver_by_name, resolvers, SourceRepository
+    Dependency, InMemoryPackageCache, Optional, Package, PackageRepository, resolve, resolver_by_name, resolvers,
+    SimpleSpec, SourceRepository
 )
 
 IT_DEPENDS_DIR: Path = Path(__file__).absolute().parent.parent
@@ -59,6 +60,29 @@ class TestResolvers(TestCase):
             self.assertEqual(package.name, dep.package)
             self.assertTrue(dep.semantic_version.match(package.version))
             self.assertTrue(dep.match(package))
+        return solutions
+
+    def test_determinism(self):
+        """Test if a resolver gives the same solution multiple times in a row.
+
+        Half of the attempts will be without a cache, and the second half will use the same cache.
+
+        """
+        num_attempts = 5
+        cache = InMemoryPackageCache()
+        for package in ("pip:cvedb@*", "ubuntu:libc6@*", "cargo:rand_core@0.6.2", "npm:crypto-js@4.0.0"):
+            first_result: Set[Package] = set()
+            for i in range(num_attempts):
+                if i < num_attempts // 2:
+                    attempt_cache: Optional[InMemoryPackageCache] = None
+                else:
+                    attempt_cache = cache
+                result = set(resolve(Dependency.from_string(package), cache=attempt_cache))
+                if i == 0:
+                    first_result = result
+                else:
+                    self.assertEqual(first_result, result,
+                                     msg=f"Results differed on attempt {i + 1} at resolving {package}")
 
     def test_pip(self):
         self._test_resolver("pip", "pip:cvedb@*")
@@ -146,22 +170,22 @@ class TestSmoke(TestCase):
             os.makedirs(REPOS_FOLDER)
 
     @gh_smoke_test("trailofbits", "cvedb", "7441dc0e238e31829891f85fd840d9e65cb629d8")
-    def test_pip(self, package_list):
+    def __test_pip(self, package_list):
         pass
 
     @gh_smoke_test("trailofbits", "siderophile", "7bca0f5a73da98550c29032f6a2a170f472ea241")
-    def test_cargo(self, package_list):
+    def __test_cargo(self, package_list):
         pass
 
     @gh_smoke_test("bitcoin", "bitcoin", "4a267057617a8aa6dc9793c4d711725df5338025")
-    def test_autotools(self, package_list):
+    def __test_autotools(self, package_list):
         pass
 
     @gh_smoke_test("brix", "crypto-js", "971c31f0c931f913d22a76ed488d9216ac04e306")
-    def test_npm(self, package_list):
+    def __test_npm(self, package_list):
         pass
 
     # @gh_smoke_test("lifting-bits", "rellic", "9cf73b288a3d0c51d5de7e1060cba8656538596f")
     @gh_smoke_test("trailofbits", "pe-parse", "94bd12ac539382c303896f175a1ab16352e65a8f")
-    def test_cmake(self, package_list):
+    def __test_cmake(self, package_list):
         pass
