@@ -10,7 +10,7 @@ from .dependencies import (
     Dependency, DependencyResolver, Package, PackageCache, ResolverAvailability, SourcePackage, SourceRepository
 )
 from .docker import DockerContainer, InMemoryDockerfile
-from typing import Pattern
+from typing import Pattern, Dict, Set
 
 logger = logging.getLogger(__name__)
 
@@ -55,21 +55,17 @@ def run_command(*args: str) -> bytes:
     If the host system is not runnign Ubuntu 20.04, the command is run in Docker.
 
     """
-    if shutil.which(args[0]) is None or not is_running_ubuntu(check_version="20.04"):
-        # we do not have apt installed natively or are not running Ubuntu
-        global _container
-        if _container is None:
-            with InMemoryDockerfile("""FROM ubuntu:20.04
+    # we do not have apt installed natively or are not running Ubuntu
+    global _container
+    if _container is None:
+        with InMemoryDockerfile("""FROM ubuntu:20.04
 
 RUN apt-get update && apt-get install -y apt-file && apt-file update
 """) as dockerfile:
-                _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
-                _container.rebuild()
-        logger.debug(f"running {' '.join(args)} in Docker")
-        p = _container.run(*args, interactive=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, rebuild=False)
-    else:
-        logger.debug(f"running {' '.join(args)}")
-        p = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
+            _container.rebuild()
+    logger.debug(f"running {' '.join(args)} in Docker")
+    p = _container.run(*args, interactive=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, rebuild=False)
     if p.returncode != 0:
         raise subprocess.CalledProcessError(p.returncode, cmd=f"{' '.join(args)}")
     return p.stdout
@@ -98,45 +94,43 @@ class UbuntuResolver(DependencyResolver):
         # Example depends line:
         # Depends: libc6 (>= 2.29), libgcc-s1 (>= 3.4), libstdc++6 (>= 9)
         version = None
-        deps = []
+        deps: Dict[str, Set[str]]  = {}
         for line in contents.split("\n"):
             if line.startswith("Depends: "):
-                for dep in line[9:].split(","):
-                    matched = self._pattern.match(dep)
-                    if not matched:
-                        raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
-                    dep_package = matched.group('package')
-                    dep_version = matched.group('version')
-                    try:
-                        dep_version = dep_version.replace(" ", "")
-                        SimpleSpec(dep_version.replace(" ", ""))
-                    except Exception as e:
-                        print ("UBUNTU DEP VERSION SPEC FAIL", dep_version)
-                        dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                for dep_i in line[9:].split(","):
+                    for dep in dep_i.split("|"):
+                        matched = self._pattern.match(dep)
+                        if not matched:
+                            raise ValueError(f"Invalid dependency line in apt output for {dependency.package}: {line!r}")
+                        dep_package = matched.group('package')
+                        dep_version = matched.group('version')
+                        try:
+                            dep_version = dep_version.replace(" ", "")
+                            SimpleSpec(dep_version.replace(" ", ""))
+                        except Exception as e:
+                            dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                        deps.setdefault(dep_package, set()).add(dep_version)
 
-                    deps.append((dep_package, dep_version))
             if line.startswith("Version: "):
                 version = line[9:]
 
         if version is None:
             logger.info(f"Package {dependency.package} not found in ubuntu installed apt sources")
             return
-
         matched = self._ubuntu_version.match(version)
         if not matched:
             logger.info(
                 f"Failed to parse package {dependency.package} version: {version}")
             return
         version = Version.coerce(matched.group("version"))
-
         yield Package(name=dependency.package, version=version,
                       source=UbuntuResolver(),
                       dependencies=(
                           Dependency(package=pkg,
-                                     semantic_version=SimpleSpec(ver),
+                                     semantic_version=SimpleSpec(','.join(sorted(vers))),
                                      source=UbuntuResolver()
                                      )
-                          for pkg, ver in deps
+                          for pkg, vers in deps.items()
                       ))
 
     def __lt__(self, other):
