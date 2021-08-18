@@ -24,6 +24,20 @@ def no_stdout() -> Iterator[TextIO]:
         sys.stdout = saved_stdout
 
 
+def parse_path_or_package_name(path_or_name: str) -> Union[SourceRepository, Dependency]:
+    repo_path = Path(path_or_name)
+    try:
+        dependency: Optional[Dependency] = Dependency.from_string(path_or_name)
+    except ValueError as e:
+        if str(e).endswith("is not a known resolver") and not repo_path.exists():
+            raise ValueError(f"Unknown resolver: {path_or_name}")
+        dependency = None
+    if dependency is None or repo_path.exists():
+        return SourceRepository(path_or_name)
+    else:
+        return dependency
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     if argv is None:
         argv = sys.argv
@@ -39,6 +53,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--database", "-db", type=str, nargs="?", default=DEFAULT_DB_PATH,
                         help="alternative path to load/store the database, or \":memory:\" to cache all results in "
                              f"memory rather than reading/writing to disk (default is {DEFAULT_DB_PATH!s})")
+    parser.add_argument("--compare", "-c", nargs="?", type=str,
+                        help="compare PATH_OR_NAME to another package specified according to the same rules as "
+                             "PATH_OR_NAME; this option will override the --output-format option and will instead "
+                             "output a floating point similarity metric. By default, the metric will be in the range"
+                             "[0, ∞), with zero meaning that the dependency graphs are identical. For a metric in the "
+                             "range [0, 1], see the `--normalize` option.")
+    parser.add_argument("--normalize", "-n", action="store_true",
+                        help="Used in conjunction with `--compare`, this will change the output metric to be in the "
+                             "range [0, 1] where 1 means the graphs are identical and 0 means the graphs are as "
+                             "different as possible.")
     parser.add_argument("--output-format", "-f", choices=("json", "dot", "html"), default="json",
                         help="how the output should be formatted (default is JSON)")
     parser.add_argument("--output-file", "-o", type=str, default=None, help="path to the output file; default is to "
@@ -56,23 +80,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     args = parser.parse_args(argv[1:])
 
-    repo_path = Path(args.PATH_OR_NAME)
     try:
-        dependency: Optional[Dependency] = Dependency.from_string(args.PATH_OR_NAME)
+        repo = parse_path_or_package_name(args.PATH_OR_NAME)
+
+        if args.compare is not None:
+            to_compare: Optional[Union[SourceRepository, Dependency]] = parse_path_or_package_name(args.compare)
+        else:
+            to_compare = None
     except ValueError as e:
-        if str(e).endswith("is not a known resolver") and not repo_path.exists():
-            sys.stderr.write(f"Unknown resolver: {args.PATH_OR_NAME}\n\n")
-            return 1
-        dependency = None
-    if dependency is None or repo_path.exists():
-        source_repo: Optional[SourceRepository] = SourceRepository(args.PATH_OR_NAME)
-        dependency = None
-    else:
-        source_repo = None
+        sys.stderr.write(str(e))
+        sys.stderr.write("\n\n")
+        return 1
 
     if args.list:
         sys.stdout.flush()
-        sys.stderr.write(f"Available resolvers for {repo_path.absolute()}:\n")
+        if isinstance(repo, SourceRepository):
+            path = repo.path.absolute()
+        else:
+            path = args.PATH_OR_NAME
+        sys.stderr.write(f"Available resolvers for {path}:\n")
         sys.stderr.flush()
         for name, classifier in sorted((c.name, c) for c in resolvers()):
             sys.stdout.write(name + " "*(12-len(name)))
@@ -81,11 +107,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if not available:
                 sys.stderr.write(f"\tnot available: {available.reason}")
                 sys.stderr.flush()
-            elif source_repo is not None and \
-                    not classifier.can_resolve_from_source(SourceRepository(args.PATH_OR_NAME)):
+            elif isinstance(repo, SourceRepository) and \
+                    not classifier.can_resolve_from_source(repo):
                 sys.stderr.write("\tincompatible with this path")
                 sys.stderr.flush()
-            elif dependency is not None and dependency.source != classifier.name:
+            elif isinstance(repo, Dependency) and repo.source != classifier.name:
                 sys.stderr.write("\tincompatible with this package specifier")
             else:
                 sys.stderr.write("\tenabled")
@@ -106,19 +132,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             else:
                 output_file = open(args.output_file, "w")
             with DBPackageCache(args.database) as cache:
-                # TODO: Add support for searching by package name
-                if source_repo is None:
-                    repo: Union[SourceRepository, Dependency] = dependency  # type: ignore
-                else:
-                    repo = source_repo
                 package_list = resolve(repo, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
                 if not package_list:
                     sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n")
                     sys.stderr.flush()
 
-                if args.output_format == "dot":
+                if to_compare is not None:
+                    to_compare_list = \
+                        resolve(to_compare, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
+                    output_file.write(str(package_list.to_graph().distance_to(
+                        to_compare_list.to_graph(), normalize=args.normalize
+                    )))
+                    output_file.write("\n")
+                elif args.output_format == "dot":
                     output_file.write(cache.to_dot(package_list.source_packages).source)
-                if args.output_format == "html":
+                elif args.output_format == "html":
                     output_file.write(graph_to_html(package_list, collapse_versions=not args.all_versions))
                     if output_file is not real_stdout:
                         output_file.flush()
