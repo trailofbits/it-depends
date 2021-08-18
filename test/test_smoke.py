@@ -111,8 +111,8 @@ class TestSmoke(TestCase):
             "source": "pip"
         }
     },
-    "gcc-11-base": {
-        "11.1.0": {
+    "gcc-10-base": {
+        "10.3.0": {
             "dependencies": {},
             "source": "ubuntu"
         }
@@ -135,9 +135,9 @@ class TestSmoke(TestCase):
         }
     },
     "libgcc-s1": {
-        "11.1.0": {
+        "10.3.0": {
             "dependencies": {
-                "gcc-11-base": "*",
+                "gcc-10-base": "*",
                 "libc6": ">=2.14"
             },
             "source": "ubuntu"
@@ -830,9 +830,11 @@ class TestSmoke(TestCase):
             },
             "source": "cargo"
         },
-        "2.4.0": {
+        "2.4.1": {
             "dependencies": {
-                "libc": "^0.2.18"
+                "compiler_builtins": "^0.1.2",
+                "libc": "^0.2.18",
+                "rustc-std-workspace-core": "^1.0.0"
             },
             "source": "cargo"
         }
@@ -1491,8 +1493,8 @@ class TestSmoke(TestCase):
             "source": "npm"
         }
     },
-    "gcc-11-base": {
-        "11.1.0": {
+    "gcc-10-base": {
+        "10.3.0": {
             "dependencies": {},
             "source": "ubuntu"
         }
@@ -1515,9 +1517,9 @@ class TestSmoke(TestCase):
         }
     },
     "libgcc-s1": {
-        "11.1.0": {
+        "10.3.0": {
             "dependencies": {
-                "gcc-11-base": "*",
+                "gcc-10-base": "*",
                 "libc6": ">=2.14"
             },
             "source": "ubuntu"
