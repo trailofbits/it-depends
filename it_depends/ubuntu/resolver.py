@@ -7,10 +7,9 @@ from typing import Iterable, Iterator, Optional
 
 from .apt import file_to_packages
 from .docker import is_running_ubuntu, run_command
-from ..dependencies import Version, SimpleSpec
 from ..dependencies import (
-    Dependency, DependencyResolver, Dict, List, Package, PackageCache, ResolverAvailability, SourcePackage,
-    SourceRepository, Tuple
+    Dependency, DependencyResolver, Dict, List, Package, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage,
+    SourceRepository, Tuple, Version
 )
 from ..native import get_native_dependencies
 
@@ -45,7 +44,10 @@ class UbuntuResolver(DependencyResolver):
             if line.startswith("Version: "):
                 matched = UbuntuResolver._ubuntu_version.match(line[len("Version: "):])
                 if matched:
-                    version = Version.coerce(matched.group("version"))
+                    # FIXME: Ubuntu versions can include "~", which the semantic_version library does not like
+                    #        So hack a fix by simply dropping everything after the tilde:
+                    raw_version = matched.group("version").split("~", maxsplit=1)[0]
+                    version = Version.coerce(raw_version)
                     if (package_name, version) not in packages:
                         packages[(package_name, version)] = []
                 else:
