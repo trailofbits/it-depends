@@ -9,7 +9,7 @@ from tqdm import tqdm
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import docker
-from docker.errors import NotFound as ImageNotFound
+from docker.errors import NotFound as ImageNotFound, DockerException
 from docker.models.images import Image
 
 from . import version as it_depends_version
@@ -245,7 +245,10 @@ class DockerContainer:
         elif not self.dockerfile.exists():
             raise ValueError("Could not find the Dockerfile.")
         # use the low-level APIClient so we can get streaming build status
-        cli = docker.APIClient()
+        try:
+            cli = docker.APIClient()
+        except DockerException as e:
+            raise ValueError("Docker not installed. Try `sudo apt install docker`.")  from e
         with tqdm(desc="Archiving the build directory", unit=" steps", leave=False) as t:
             last_line = 0
             last_step = None
