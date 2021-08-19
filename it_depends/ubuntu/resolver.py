@@ -1,4 +1,3 @@
-from collections import defaultdict
 from functools import lru_cache
 import shutil
 import subprocess
@@ -41,12 +40,14 @@ class UbuntuResolver(DependencyResolver):
         # Example depends line:
         # Depends: libc6 (>= 2.29), libgcc-s1 (>= 3.4), libstdc++6 (>= 9)
         version: Optional[Version] = None
-        packages: Dict[Tuple[str, Version], List[List[Dependency]]] = defaultdict(list)
+        packages: Dict[Tuple[str, Version], List[List[Dependency]]] = {}
         for line in contents.split("\n"):
             if line.startswith("Version: "):
                 matched = UbuntuResolver._ubuntu_version.match(line[len("Version: "):])
                 if matched:
                     version = Version.coerce(matched.group("version"))
+                    if (package_name, version) not in packages:
+                        packages[(package_name, version)] = []
                 else:
                     logger.warning(f"Failed to parse package {package_name} {line}")
             elif version is not None and line.startswith("Depends: "):
