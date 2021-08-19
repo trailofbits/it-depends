@@ -8,8 +8,8 @@ import urllib
 import zipfile
 
 from it_depends.dependencies import (
-    Dependency, InMemoryPackageCache, Optional, Package, PackageRepository, resolve, resolver_by_name, resolvers,
-    SimpleSpec, SourceRepository
+    Dependency, InMemoryPackageCache, List, Optional, Package, PackageRepository, resolve, resolver_by_name, resolvers,
+    SimpleSpec, SourceRepository, Tuple, Union
 )
 
 IT_DEPENDS_DIR: Path = Path(__file__).absolute().parent.parent
@@ -68,21 +68,32 @@ class TestResolvers(TestCase):
         Half of the attempts will be without a cache, and the second half will use the same cache.
 
         """
-        num_attempts = 5
         cache = InMemoryPackageCache()
-        for package in ("pip:cvedb@*", "ubuntu:libc6@*", "cargo:rand_core@0.6.2", "npm:crypto-js@4.0.0"):
-            first_result: Set[Package] = set()
-            for i in range(num_attempts):
-                if i < num_attempts // 2:
-                    attempt_cache: Optional[InMemoryPackageCache] = None
-                else:
-                    attempt_cache = cache
-                result = set(resolve(Dependency.from_string(package), cache=attempt_cache))
-                if i == 0:
-                    first_result = result
-                else:
-                    self.assertEqual(first_result, result,
-                                     msg=f"Results differed on attempt {i + 1} at resolving {package}")
+        to_test: List[Tuple[Union[Dependency, SourceRepository], int]] = [
+            (Dependency.from_string(dep_name), 5) for dep_name in (
+                "pip:cvedb@*", "ubuntu:libc6@*", "cargo:rand_core@0.6.2", "npm:crypto-js@4.0.0"
+            )
+        ]
+        to_test.extend([
+            (smoke_test.source_repo, 3) for smoke_test in SMOKE_TESTS if smoke_test.repo_name in (
+                "bitcoin",
+                "pe-parse"
+            )
+        ])
+        for dep, num_attempts in to_test:
+            with self.subTest(msg=f"Testing the determinism of dep", dep=dep):
+                first_result: Set[Package] = set()
+                for i in range(num_attempts):
+                    if i < num_attempts // 2:
+                        attempt_cache: Optional[InMemoryPackageCache] = None
+                    else:
+                        attempt_cache = cache
+                    result = set(resolve(dep, cache=attempt_cache))
+                    if i == 0:
+                        first_result = result
+                    else:
+                        self.assertEqual(first_result, result,
+                                         msg=f"Results differed on attempt {i + 1} at resolving {dep}")
 
     def test_pip(self):
         self._test_resolver("pip", "pip:cvedb@*")
@@ -118,8 +129,12 @@ class SmokeTest:
                 zip_ref.extractall(REPOS_FOLDER)
         return self._snapshot_folder
 
+    @property
+    def source_repo(self) -> SourceRepository:
+        return SourceRepository(self.snapshot_folder)
+
     def run(self) -> PackageRepository:
-        return resolve(SourceRepository(self.snapshot_folder))
+        return resolve(self.source_repo)
 
     def __hash__(self):
         return hash((self.user_name, self.repo_name, self.commit))
