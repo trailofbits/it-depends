@@ -326,7 +326,7 @@ class CMakeResolver(DependencyResolver):
                 try:
                     parsed = cmake_parsing.parse(line)
                 except Exception as e:
-                    logger.debug("Parsing error", e)
+                    logger.debug(f"Parsing error: {e}")
                     pass  # ignore parsing exceptions for now
 
                 for token in parsed:
