@@ -29,7 +29,8 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
         if not self.roots:
             return -1
         if len(self.roots) > 1:
-            return min(self.shortest_path_length(root, node) for root in self.roots)
+            path_lengths = [self.shortest_path_length(root, node) for root in self.roots]
+            return min(length for length in path_lengths if length >= 0)
         elif self._shortest_path_from_root is None:
             self._shortest_path_from_root = \
                 nx.single_source_shortest_path_length(self, next(iter(self.roots)))  # type: ignore
@@ -37,7 +38,10 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
 
     def shortest_path_length(self, from_node: Union[T, R], to_node: T) -> int:
         if self._all_pairs_shortest_paths is None:
-            self._all_pairs_shortest_paths = nx.all_pairs_shortest_path_length(self)  # type: ignore
+            self._all_pairs_shortest_paths = dict(nx.all_pairs_shortest_path_length(self))  # type: ignore
+        if from_node not in self._all_pairs_shortest_paths \
+                or to_node not in self._all_pairs_shortest_paths[from_node]:  # type: ignore
+            return -1
         return self._all_pairs_shortest_paths[from_node][to_node]  # type: ignore
 
     def _handle_new_node(self, node: T):
