@@ -1,3 +1,4 @@
+from it_depends.audit import vulnerabilities
 from pathlib import Path
 import json
 import tempfile
@@ -80,6 +81,7 @@ def get_dependencies(repo: SourceRepository, check_for_cargo: bool = True, cache
             version=Version.coerce(package["version"]),
             source="cargo",
             dependencies=dependencies.values(),
+            vulnerabilities=(),
             **kwargs
         )
 

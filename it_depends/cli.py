@@ -8,6 +8,7 @@ import webbrowser
 
 from sqlalchemy.exc import OperationalError
 
+from .audit import vulnerabilities
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import Dependency, resolvers, resolver_by_name, resolve, SourceRepository
 from .html import graph_to_html
@@ -49,6 +50,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                              "RESOLVER_NAME:PACKAGE_NAME[@OPTIONAL_VERSION], where RESOLVER_NAME is a resolver listed "
                              "in `it-depends --list`. For example: \"pip:numpy\", \"apt:libc6@2.31\", or "
                              "\"npm:lodash@>=4.17.0\".")
+
+    parser.add_argument("--audit", "-a", action="store_true", help="Audit packages for known vulnerabilities using Google OSV")
     parser.add_argument("--list", "-l", action="store_true", help="list available package resolver")
     parser.add_argument("--database", "-db", type=str, nargs="?", default=DEFAULT_DB_PATH,
                         help="alternative path to load/store the database, or \":memory:\" to cache all results in "
@@ -136,6 +139,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 if not package_list:
                     sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n")
                     sys.stderr.flush()
+
+                # TODO: Should the cache be updated instead????
+                if args.audit:
+                    package_list = vulnerabilities(package_list)
 
                 if to_compare is not None:
                     to_compare_list = \
