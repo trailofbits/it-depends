@@ -5,7 +5,7 @@ from requests import post
 from tqdm import tqdm
 from typing import Dict, FrozenSet, Iterable, List, Union, Tuple
 
-from .dependencies import Package, PackageRepository, Vulnerability, VulnerabilityProvider
+from .dependencies import Package, PackageRepository, Vulnerability
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class OSVVulnerability(Vulnerability):
         summary = osv_dict.get("summary", "") or osv_dict.get("details", "")\
             or "N/A"
         super().__init__(
-            osv_dict["id"], osv_dict["aliases"], summary)
+            osv_dict["id"], osv_dict.get("aliases", []), summary)
 
         # Inherit all other attributes
         for k in OSVVulnerability.EXTRA_KEYS:
@@ -35,14 +35,22 @@ class OSVVulnerability(Vulnerability):
         return OSVVulnerability(d)
 
 
+class VulnerabilityProvider(ABC):
+    """Interface of a vulnerability provider."""
+    def query(self, pkg: Package) ->\
+            Iterable[Vulnerability]:
+        """Queries the vulnerability providor for vulnerabilities in pkg"""
+        raise NotImplementedError()
+
+
 class OSVProject(VulnerabilityProvider):
     """OSV project vulnerability provider"""
     QUERY_URL = "https://api.osv.dev/v1/query"
 
-    def query(self, package_name: str, package_version: str) ->\
+    def query(self, pkg: Package) ->\
             Iterable[OSVVulnerability]:
         """Queries the OSV project for vulnerabilities in Package pkg"""
-        q = {"version": str(package_version), "package": {"name": package_name}}
+        q = {"version": str(pkg.version), "package": {"name": pkg.name}}
         r = post(OSVProject.QUERY_URL, json=q).json()
         return map(OSVVulnerability.from_osv_dict, r.get("vulns", []))
 
@@ -53,8 +61,7 @@ def vulnerabilities(repo: PackageRepository, nworkers=None) -> \
 
     def _get_vulninfo(pkg: Package) -> Tuple[Package, FrozenSet[Vulnerability]]:
         """Enrich a Package with vulnerability information"""
-        ret = OSVProject().query(pkg.name, pkg.version)
-
+        ret = OSVProject().query(pkg)
         # Do not modify pkg here to ensure no concurrent
         # modifications, instead return and let the main
         # thread handle the updates.
