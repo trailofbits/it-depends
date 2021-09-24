@@ -1,4 +1,3 @@
-from it_depends.audit import vulnerabilities
 from pathlib import Path
 import json
 import tempfile

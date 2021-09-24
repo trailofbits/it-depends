@@ -43,14 +43,18 @@ class Vulnerability:
             "summary": self.summary
         }
 
+    def __eq__(self, other):
+        if issubclass(other.__class__, Vulnerability):
+            return self.id == other.id
+        return False
 
-class VulnerabilityProvider(ABC):
-    """Interface of a vulnerability provider."""
-    def query(self, package_name: str, package_version: str) ->\
-            Iterable[Vulnerability]:
-        """Queries the vulnerability providor for vulnerabilities in pkg"""
-        raise NotImplementedError()
+    def __hash__(self):
+        return hash((self.id, ''.join(self.aliases), self.summary))
 
+    def __lt__(self, other):
+        if not issubclass(other.__class__, Vulnerability):
+            raise ValueError("Need a Vulnerability")
+        return self.id < other.id
 
 class Dependency:
     def __init__(self, package: str, source: Union[str, "DependencyResolver"],
