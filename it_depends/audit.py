@@ -57,7 +57,6 @@ class OSVProject(VulnerabilityProvider):
 
 def vulnerabilities(repo: PackageRepository, nworkers=None) -> \
         PackageRepository:
-    # providers = [OSVProject()]
 
     def _get_vulninfo(pkg: Package) -> Tuple[Package, FrozenSet[Vulnerability]]:
         """Enrich a Package with vulnerability information"""
