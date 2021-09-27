@@ -39,7 +39,7 @@ class VulnerabilityProvider(ABC):
     """Interface of a vulnerability provider."""
     def query(self, pkg: Package) ->\
             Iterable[Vulnerability]:
-        """Queries the vulnerability providor for vulnerabilities in pkg"""
+        """Queries the vulnerability provider for vulnerabilities in pkg"""
         raise NotImplementedError()
 
 
