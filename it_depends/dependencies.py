@@ -26,6 +26,36 @@ from .graphs import RootedDiGraph
 logger = logging.getLogger(__name__)
 
 
+class Vulnerability:
+    """Represents a specific vulnerability"""
+    def __init__(self, id: str, aliases: Iterable[str], summary: str) -> None:
+        self.id = id
+        self.aliases = list(aliases)
+        self.summary = summary
+
+    def to_compact_str(self) -> str:
+        return f"{self.id} ({', '.join(self.aliases)})"
+
+    def to_obj(self) -> Dict[str, Union[str, List[str]]]:
+        return {
+            "id": self.id,
+            "aliases": self.aliases,
+            "summary": self.summary
+        }
+
+    def __eq__(self, other):
+        if issubclass(other.__class__, Vulnerability):
+            return self.id == other.id
+        return False
+
+    def __hash__(self):
+        return hash((self.id, ''.join(self.aliases), self.summary))
+
+    def __lt__(self, other):
+        if not issubclass(other.__class__, Vulnerability):
+            raise ValueError("Need a Vulnerability")
+        return self.id < other.id
+
 class Dependency:
     def __init__(self, package: str, source: Union[str, "DependencyResolver"],
                  semantic_version: SemanticVersion = SimpleSpec("*")):
@@ -96,6 +126,7 @@ class Package:
             version: Union[str, Version],
             source: Union[str, "DependencyResolver"],
             dependencies: Iterable[Dependency] = (),
+            vulnerabilities: Iterable[Vulnerability] = ()
     ):
         if isinstance(version, str):
             version = Version(version)
@@ -106,6 +137,8 @@ class Package:
             self.source: str = source.name
         else:
             self.source = source
+        self.vulnerabilities: FrozenSet[Vulnerability] = \
+            frozenset(vulnerabilities)
 
     @property
     def full_name(self) -> str:
@@ -113,6 +146,11 @@ class Package:
 
     def update_dependencies(self, dependencies: FrozenSet[Dependency]):
         self.dependencies = self.dependencies.union(dependencies)
+        return self
+
+    def update_vulnerabilities(self, vulnerabilities:
+                               FrozenSet[Vulnerability]):
+        self.vulnerabilities = self.vulnerabilities.union(vulnerabilities)
         return self
 
     @property
@@ -165,7 +203,8 @@ class Package:
             "version": str(self.version),
             "dependencies": {
                 f"{dep.source}:{dep.package}": str(dep.semantic_version) for dep in self.dependencies
-            }
+            },
+            "vulnerabilities": [vuln.to_obj() for vuln in self.vulnerabilities]
         }
         return ret  # type: ignore
 
@@ -231,8 +270,10 @@ class SourcePackage(Package):
             source_repo: SourceRepository,
             source: str,
             dependencies: Iterable[Dependency] = (),
+            vulnerabilities: Iterable[Vulnerability] = ()
     ):
-        super().__init__(name=name, version=version, dependencies=dependencies, source=source)
+        super().__init__(name=name, version=version, dependencies=dependencies,
+                         source=source, vulnerabilities=vulnerabilities)
         self.source_repo: SourceRepository = source_repo
 
     def __str__(self):
@@ -445,6 +486,7 @@ class PackageCache(ABC):
                     f"{dep.source}:{dep.package}": str(dep.semantic_version)
                     for dep in package.dependencies
                 },
+                "vulnerabilities": [v.to_compact_str() for v in package.vulnerabilities],
                 "source": package.source
             }
             if isinstance(package, SourcePackage):
@@ -486,7 +528,8 @@ class PackageCache(ABC):
             if pkg not in package_ids:
                 pkg_id = f"package{len(package_ids)}"
                 package_ids[pkg] = pkg_id
-                dot.node(pkg_id, label=str(pkg), shape="rectangle")
+                shape = "triangle" if pkg.vulnerabilities else "rectangle"
+                dot.node(pkg_id, label=str(pkg), shape=shape)
                 return pkg_id
             else:
                 return package_ids[pkg]

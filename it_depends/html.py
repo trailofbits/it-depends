@@ -118,6 +118,8 @@ def graph_to_html(
                 "color": "red",
                 "borderWidth": 4,
             })
+        if package.vulnerabilities:
+            nodes[-1].update({"color": "red"})
         if graph.source_packages:
             nodes[-1]["level"] = max(graph.shortest_path_from_root(package), 0)
         for pkg1, pkg2, *_ in graph.out_edges(package):  # type: ignore
