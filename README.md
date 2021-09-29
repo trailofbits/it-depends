@@ -57,11 +57,13 @@ $ git config core.hooksPath ./hooks  # Optionally enable git commit hooks for li
 
 ## License and Acknowledgements
 
-This research was developed by [Trail of Bits](https://www.trailofbits.com/).
+This research was developed by [Trail of Bits](https://www.trailofbits.com/) based upon work supported by DARPA under Contract No. HR001120C0084 (Distribution Statement **A**, Approved for Public Release: Distribution Unlimited).  Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the United States Government or DARPA.
+
 [Felipe Manzano](https://github.com/feliam) and [Evan Sultanik](https://github.com/ESultanik) are
 the active maintainers, but [Alessandro Gario](https://github.com/alessandrogario),
-[Eric Kilmer](https://github.com/ekilmer), and [Alexander Remie](https://github.com/rmi7) all made significant
-contributions to the tool’s inception.
-It-Depends is licensed under the [GNU Lesser General Public License v3.0](LICENSE).
-[Contact us](mailto:opensource@trailofbits.com) if you’re looking for an exception to the terms.
+[Eric Kilmer](https://github.com/ekilmer), [Alexander Remie](https://github.com/rmi7), and [Henrik Brodin](https://github.com/hbrodin) all made significant
+contributions to the tool’s inception and development.
+
+It-Depends is licensed under the [GNU Lesser General Public License v3.0](LICENSE). [Contact us](mailto:opensource@trailofbits.com) if you’re looking for an exception to the terms.
+
 © 2021, Trail of Bits.
