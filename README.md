@@ -2,7 +2,8 @@
 # It-Depends
 [![](https://github.com/trailofbits/it-depends/workflows/tests/badge.svg?branch=master)](https://github.com/trailofbits/it-depends/actions)
 
-`it-depends` recursively builds a project’s dependency graph starting from either a source code repository or a package specification.
+`it-depends` recursively builds a project’s dependency graph starting from either a source code repository or a package
+specification.
 
 ## Features ⭐
  * Supports Go, JavaScript, Rust, Python, and C/C++ projects.
@@ -12,9 +13,8 @@
  * Provides visualization based on vis.js or dot
  * Matches dependencies and CVEs
 
-### It does not 🍋
- * It does not detect vendored or copy&pasted dependencies
-
+### Can It-Depends Do It? It Depends. 🍋
+ * It-Depends does not detect vendored or copy/pasted dependencies
 
 ## Quickstart 🚀
 ```commandline
