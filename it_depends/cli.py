@@ -10,7 +10,7 @@ from sqlalchemy.exc import OperationalError
 
 from .audit import vulnerabilities
 from .db import DEFAULT_DB_PATH, DBPackageCache
-from .dependencies import Dependency, resolvers, resolver_by_name, resolve, SourceRepository
+from .dependencies import Dependency, resolvers, resolve, SourceRepository
 from .html import graph_to_html
 
 
@@ -51,11 +51,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                              "in `it-depends --list`. For example: \"pip:numpy\", \"apt:libc6@2.31\", or "
                              "\"npm:lodash@>=4.17.0\".")
 
-    parser.add_argument("--audit", "-a", action="store_true", help="Audit packages for known vulnerabilities using Google OSV")
+    parser.add_argument("--audit", "-a", action="store_true", help="audit packages for known vulnerabilities using "
+                                                                   "Google OSV")
     parser.add_argument("--list", "-l", action="store_true", help="list available package resolver")
     parser.add_argument("--database", "-db", type=str, nargs="?", default=DEFAULT_DB_PATH,
                         help="alternative path to load/store the database, or \":memory:\" to cache all results in "
                              f"memory rather than reading/writing to disk (default is {DEFAULT_DB_PATH!s})")
+    parser.add_argument("--clear-cache", action="store_true", help="clears the database specified by `--database` "
+                                                                   "(equivalent to deleting the database file)")
     parser.add_argument("--compare", "-c", nargs="?", type=str,
                         help="compare PATH_OR_NAME to another package specified according to the same rules as "
                              "PATH_OR_NAME; this option will override the --output-format option and will instead "
@@ -94,6 +97,29 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         sys.stderr.write(str(e))
         sys.stderr.write("\n\n")
         return 1
+
+    if args.clear_cache:
+        db_path = Path(args.database)
+        if db_path.exists():
+            if sys.stderr.isatty() and sys.stdin.isatty():
+                while True:
+                    if args.database != DEFAULT_DB_PATH:
+                        sys.stderr.write(f"Cache file: {db_path.absolute()}\n")
+                    sys.stderr.write("Deleting the cache will require all past resoltuions to be recalculated, which "
+                                     "can be slow.\nAre you sure? [yN] ")
+                    try:
+                        choice = input("").lower().strip()
+                    except KeyboardInterrupt:
+                        return 1
+                    if choice == "y":
+                        db_path.unlink()
+                        sys.stderr.write("Cache cleared.\n")
+                        break
+                    elif choice == "n" or choice == "":
+                        break
+            else:
+                db_path.unlink()
+                sys.stderr.write("Cache cleared.\n")
 
     if args.list:
         sys.stdout.flush()
@@ -164,8 +190,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
     except OperationalError as e:
         sys.stderr.write(f"Database error: {e!r}\n\nThis can occur if your database was created with an older version "
-                         f"of it-depends and was unable to be updated. If you remove {args.database} and try again, "
-                         "the database will automatically be rebuilt from scratch.")
+                         f"of it-depends and was unable to be updated. If you remove {args.database} or run "
+                         "`it-depends --clear-cache` and try again, the database will automatically be rebuilt from "
+                         "scratch.")
         return 1
     finally:
         if output_file is not None and output_file != sys.stdout:
