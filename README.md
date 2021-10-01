@@ -31,6 +31,9 @@ specification.
    * The `--audit` feature may discover vulnerabilities in upstream dependencies that are either not exploitable in the 
      target package or are in a package version that cannot exist in any valid dependency resolution of the target
      package
+ * It-Depends caches data that it expects to be immutable in a local database
+   * If a package is ever deleted or yanked from a package repository after it was already cached, It-Depends will 
+     continue to use the cached data unless the cache is cleared with `--clear-cache`
 
 
 ## Quickstart 🚀
