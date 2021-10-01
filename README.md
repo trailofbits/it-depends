@@ -28,6 +28,9 @@ specification.
    * It-Depends *does not* find a single satisfying dependency resolution
    * The list of resolved dependencies is intended to be a superset of the dependencies required by the installation of
      a package on any system
+   * The `--audit` feature may discover vulnerabilities in upstream dependencies that are either not exploitable in the 
+     target package or are in a package version that cannot exist in any valid dependency resolution of the target
+     package
 
 
 ## Quickstart 🚀
