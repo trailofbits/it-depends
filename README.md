@@ -12,9 +12,19 @@ specification.
  * Finds native dependencies for high level languages like python or javascript
  * Provides visualization based on vis.js or dot
  * Matches dependencies and CVEs
+ * Export Software Bills of Materials (SBOMs)
+   * Machine-intelligible JSON output
+   * Support for the SPDX standard is [in active development](https://github.com/trailofbits/it-depends/tree/dev/spdx)
 
 ### Can It-Depends Do It? It Depends. 🍋
  * It-Depends does not detect vendored or copy/pasted dependencies
+ * Results from build systems like autotools and cmake that entail arbitrary computation and install time are 
+   best-effort
+ * Resolution of native dependencies is best-effort
+   * Some native dependencies are resolved through dynamic analysis
+   * Native dependencies are inferred by cross-referencing file requirements against paths provided by the Ubuntu 
+     package repository; dependencies may be different across other Linux distributions or Ubuntu versions
+
 
 ## Quickstart 🚀
 ```commandline
