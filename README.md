@@ -42,7 +42,12 @@ $ pip3 install it-depends
 ```
 
 ### Running it 🏃
-Point it to a repository:
+Run `it-depends` in the root of the source repository you would like to analyze:
+```console
+$ cd /path/to/project
+$ it-depends
+```
+or alternatively point it to the path directly:
 ```console
 $ it-depends /path/to/project
 ```
@@ -60,6 +65,18 @@ It-Depends can automatically try to match packages against the [OSV vulnerabilit
 `--audit` option. This is a best-effort matching as it is based on package names, which might not always consistent.
 Any discovered vulnerabilities are added to the JSON output.
 
+It-Depends attempts to parallelize as much of its effort as possible. To limit the maximum number of parallel tasks, use
+the `--max-workers` option.
+
+By default, It-Depends recursively resolves all packages' dependencies to construct a complete dependency graph. The
+depth of the recursion can be limited using the `--depth-limit` option. For example,
+```console
+$ it-depends pip:graphtage --depth-limit 1
+```
+will only enumerate the direct dependencies of Graphtage.
+
+### Examples 🧑‍🏫
+
 Here is an example of running It-Depends on its own source repository:
 ![](https://gist.githubusercontent.com/feliam/e906ce723333b2b55237a71c4028559e/raw/e60f46c35b215a73a37a1d1ce3bb43eaead76af4/it-depends-demo.svg?sanitize=1)
 
@@ -67,10 +84,10 @@ This is the resulting [json](https://gist.github.com/feliam/2bdec76f7aa506028690
 with all the discovered dependencies.
 This is the resulting [Graphviz dot file](https://gist.github.com/feliam/275951f5788c23a477bc7cf758a32cc2)
 producing this
-![dependency graph](https://user-images.githubusercontent.com/1017522/116887041-33903b80-ac00-11eb-9288-f3d286231e47.png).
+![dependency graph](https://user-images.githubusercontent.com/1017522/116887041-33903b80-ac00-11eb-9288-f3d286231e47.png)
 
-And this is the [vis-network](https://github.com/visjs/vis-network) resulting graph.
-![dependency graph](https://user-images.githubusercontent.com/1017522/126380710-0bf4fd66-0d2f-4cb1-a0ff-96fe715c4981.png).
+This is the resulting dependency graph:
+![dependency graph](https://user-images.githubusercontent.com/1017522/126380710-0bf4fd66-0d2f-4cb1-a0ff-96fe715c4981.png)
 
 ### It-Depends’ Dependencies 🎭
 
@@ -88,11 +105,11 @@ $ git clone https://github.com/trailofbits/it-depends
 $ cd it-depends
 $ python3 -m venv venv  # Optional virtualenv
 $ ./venv/bin/activate   # Optional virtualenv
-$ pip3 install -e .[dev]
+$ pip3 install -e '.[dev]'
 $ git config core.hooksPath ./hooks  # Optionally enable git commit hooks for linting
 ```
 
-## License and Acknowledgements
+## License and Acknowledgements 📃️
 
 This research was developed by [Trail of Bits](https://www.trailofbits.com/) based upon work supported by DARPA under Contract No. HR001120C0084 (Distribution Statement **A**, Approved for Public Release: Distribution Unlimited).  Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the United States Government or DARPA.
 
