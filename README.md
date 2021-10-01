@@ -1,10 +1,22 @@
-# It-Depends
 
-`it-depends` produces the list of dependencies from a source code repository.
-It-Depends currently supports Go, JavaScript, Rust, Python, and C/C++ projects.
+# It-Depends
+[![](https://github.com/trailofbits/it-depends/workflows/tests/badge.svg?branch=master)](https://github.com/trailofbits/it-depends/actions)
+
+`it-depends` recursively builds a project’s dependency graph starting from either a source code repository or a package specification.
+
+## Features ⭐
+ * Supports Go, JavaScript, Rust, Python, and C/C++ projects.
+ * Accepts source code repositories or package specifications like `pip:it-depends`
+ * Extracts dependencies of cmake/autotool repostories without building it
+ * Finds native dependencies for high level languages like python or javascript
+ * Provides visualization based on vis.js or dot
+ * Matches dependencies and CVEs
+
+### It does not 🍋
+ * It does not detect vendored or copy&pasted dependencies
+
 
 ## Quickstart 🚀
-
 ```commandline
 $ pip3 install it-depends
 ```
