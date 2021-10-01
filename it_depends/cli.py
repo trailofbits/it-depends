@@ -10,7 +10,7 @@ from sqlalchemy.exc import OperationalError
 
 from .audit import vulnerabilities
 from .db import DEFAULT_DB_PATH, DBPackageCache
-from .dependencies import Dependency, resolvers, resolver_by_name, resolve, SourceRepository
+from .dependencies import Dependency, resolvers, resolve, SourceRepository
 from .html import graph_to_html
 
 
