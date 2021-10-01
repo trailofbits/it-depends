@@ -24,9 +24,9 @@ specification.
    * Some native dependencies are resolved through dynamic analysis
    * Native dependencies are inferred by cross-referencing file requirements against paths provided by the Ubuntu 
      package repository; dependencies may be different across other Linux distributions or Ubuntu versions
- * It-Depends attempts to resolve *all* possible dependency versions that satisfy a single package
-   * It-Depends *does not* find a single satisfying dependency resolution
-   * The list of resolved dependencies is intended to be a superset of the dependencies required by the installation of
+ * It-Depends attempts to resolve *all* possible package versions that satisfy a dependency
+   * It-Depends *does not* find a single satisfying package resolution
+   * The list of resolved packages is intended to be a superset of the packages required by the installation of
      a package on any system
    * The `--audit` feature may discover vulnerabilities in upstream dependencies that are either not exploitable in the 
      target package or are in a package version that cannot exist in any valid dependency resolution of the target
