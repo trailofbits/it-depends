@@ -36,11 +36,11 @@ $ pip3 install it-depends
 ```
 
 ### Running it 🏃
-You simply point it to a repository:
+Point it to a repository:
 ```console
 $ it-depends /path/to/project
 ```
-You can alternatively specify a package from a public package repository:
+or alternatively specify a package from a public package repository:
 ```console
 $ it-depends pip:numpy
 $ it-depends apt:libc6@2.31
@@ -49,6 +49,10 @@ $ it-depends npm:lodash@>=4.17.0
 
 It-Depends will output the full dependency hierarchy in JSON format. Additional output formats such
 as Graphviz/Dot are available via the `--output-format` option.
+
+It-Depends can automatically try to match packages against the [OSV vulnerability database](https://osv.dev/) with the
+`--audit` option. This is a best-effort matching as it is based on package names, which might not always consistent.
+Any discovered vulnerabilities are added to the JSON output.
 
 Here is an example of running It-Depends on its own source repository:
 ![](https://gist.githubusercontent.com/feliam/e906ce723333b2b55237a71c4028559e/raw/e60f46c35b215a73a37a1d1ce3bb43eaead76af4/it-depends-demo.svg?sanitize=1)
@@ -68,7 +72,8 @@ JavaScript requires `npm`\
 Rust requires `cargo`\
 Python requires `pip`\
 C/C++ requires `autotools` and/or `cmake`\
-Several native dependencies are resolved using Ubuntu’s file to path database `apt-file`\
+Several native dependencies are resolved using Ubuntu’s file to path database `apt-file`, but this is seamlessly
+handled through an Ubuntu `docker` container on other distributions and operating systems\
 Currently `docker` is used to resolve native dependencies
 
 ## Development 👷
