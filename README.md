@@ -24,6 +24,10 @@ specification.
    * Some native dependencies are resolved through dynamic analysis
    * Native dependencies are inferred by cross-referencing file requirements against paths provided by the Ubuntu 
      package repository; dependencies may be different across other Linux distributions or Ubuntu versions
+ * It-Depends attempts to resolve *all* possible dependency versions that satisfy a single package
+   * It-Depends *does not* find a single satisfying dependency resolution
+   * The list of resolved dependencies is intended to be a superset of the dependencies required by the installation of
+     a package on any system
 
 
 ## Quickstart 🚀
