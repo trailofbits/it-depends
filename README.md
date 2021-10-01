@@ -18,7 +18,7 @@ specification.
 
 ### Can It-Depends Do It? It Depends. 🍋
  * It-Depends does not detect vendored or copy/pasted dependencies
- * Results from build systems like autotools and cmake that entail arbitrary computation and install time are 
+ * Results from build systems like autotools and cmake that entail arbitrary computation at install time are 
    best-effort
  * Resolution of native dependencies is best-effort
    * Some native dependencies are resolved through dynamic analysis
