@@ -1,3 +1,9 @@
+# LEGACY VERSION
+
+This is an initial proof-of-concept version of It-Depends using [Dependabot](https://dependabot.com/)
+as a dependency oracle. It works, but was deprecated due to (1) speed; and (2) limitations scanning 
+C/C++ codebases.
+
 # Dependency Info
 
 To run this, simply execute the following after creating and pasting your GitHub access token:
