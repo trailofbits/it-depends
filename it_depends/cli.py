@@ -2,6 +2,7 @@ import argparse
 from contextlib import contextmanager
 import json
 from pathlib import Path
+import pkg_resources
 import sys
 from typing import Iterator, Optional, Sequence, TextIO, Union
 import webbrowser
@@ -83,8 +84,18 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                              "dependencies)")
     parser.add_argument("--max-workers", "-j", type=int, default=None, help="maximum number of jobs to run concurrently"
                                                                             " (default is # of CPUs)")
+    parser.add_argument("--version", "-v", action="store_true", help="print it-depends' version and exit")
 
     args = parser.parse_args(argv[1:])
+
+    if args.version:
+        sys.stderr.write("it-depends version ")
+        sys.stderr.flush()
+        version = pkg_resources.require("it-depends")[0].version
+        sys.stdout.write(str(version))
+        sys.stdout.flush()
+        sys.stderr.write("\n")
+        return 0
 
     try:
         repo = parse_path_or_package_name(args.PATH_OR_NAME)

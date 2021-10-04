@@ -15,7 +15,7 @@ setup(
     license="LGPL-3.0-or-later",
     url="https://github.com/trailofbits/it-depends",
     author="Trail of Bits",
-    version="0.0.1",
+    version="0.1.0",
     packages=find_packages(exclude=["test"]),
     python_requires=">=3.7",
     install_requires=[
