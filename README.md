@@ -1,15 +1,22 @@
 
 # It-Depends
-[![](https://github.com/trailofbits/it-depends/workflows/tests/badge.svg?branch=master)](https://github.com/trailofbits/it-depends/actions)
+[![PyPI version](https://badge.fury.io/py/it-depends.svg)](https://badge.fury.io/py/it-depends)
+[![Tests](https://github.com/trailofbits/it-depends/workflows/tests/badge.svg?branch=master)](https://github.com/trailofbits/it-depends/actions)
+[![Slack Status](https://empireslacking.herokuapp.com/badge.svg)](https://empireslacking.herokuapp.com)
 
-`it-depends` recursively builds a project’s dependency graph starting from either a source code repository or a package
-specification.
+It-Depends is a tool to automatically build a dependency graph and Software Bill of Materials (SBOM) for packages and arbitrary source code repositories. You can use it to enumerate all third party dependencies for a software package, map those dependencies to known security vulnerabilities, as well as compare the similarity between two packages based on their dependencies.
+
+To the best of our knowledge, It-Depends is the only such tool with the following features:
+  * Support for C/C++ projects (both autootools and cmake)
+  * Automated resolution of native library dependencies partially based on dynamic analysis (_e.g._, the Python package `pytz` depends on the native library `libtinfo.so.6`)
+  * Enumeration of _all possible_ dependency resolutions, not just a _single feasible_ resolution
+  * A comparison metric for the similarity between two packages based on their dependency graph
 
 ## Features ⭐
  * Supports Go, JavaScript, Rust, Python, and C/C++ projects.
  * Accepts source code repositories or package specifications like `pip:it-depends`
  * Extracts dependencies of cmake/autotool repostories without building it
- * Finds native dependencies for high level languages like python or javascript
+ * Finds native dependencies for high level languages like Python or JavaScript
  * Provides visualization based on vis.js or dot
  * Matches dependencies and CVEs
  * Export Software Bills of Materials (SBOMs)
