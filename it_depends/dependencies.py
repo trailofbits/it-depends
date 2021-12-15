@@ -862,7 +862,7 @@ def resolve(
                     updated_package: Package, at_depth: int, updated_in_resolvers: Set[str], was_updated: bool = True
             ):
                 repo.add(updated_package)  # type: ignore
-                if not isinstance(updated_package, SourcePackage):
+                if not isinstance(updated_package, SourcePackage) and updated_package is not repo_or_spec:
                     if was_updated:
                         cache.add(updated_package)  # type: ignore
                     for r in updated_in_resolvers:
@@ -880,7 +880,7 @@ def resolve(
                 """This gets called whenever we resolve a new package"""
                 repo.set_resolved(dep)  # type: ignore
                 packages = list(packages)
-                if not already_cached and cache is not None:
+                if not already_cached and cache is not None and dep is not repo_or_spec:
                     cache.set_resolved(dep)
                     cache.extend(packages)
                 unupdated_packages.extend((p, at_depth) for p in packages)
@@ -922,7 +922,7 @@ def resolve(
                     # loop through the unresolved deps and see if any are cached:
                     not_cached: List[Tuple[Dependency, int]] = []
                     for dep, depth in unresolved_dependencies:
-                        if cache.was_resolved(dep):
+                        if dep is not repo_or_spec and cache.was_resolved(dep):
                             matches = cache.match(dep)
                             process_resolution(dep, matches, depth, already_cached=True)
                             t.update(1)
