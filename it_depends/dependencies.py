@@ -56,6 +56,7 @@ class Vulnerability:
             raise ValueError("Need a Vulnerability")
         return self.id < other.id
 
+
 class Dependency:
     def __init__(self, package: str, source: Union[str, "DependencyResolver"],
                  semantic_version: SemanticVersion = SimpleSpec("*")):
@@ -83,7 +84,8 @@ class Dependency:
             package, *remainder = tail.split("@", 1)
             version_string = "@".join(remainder)
             if version_string:
-                version = SimpleSpec(version_string)
+                resolver = resolver_by_name(source)
+                version = resolver.parse_spec(version_string)
             else:
                 version = SimpleSpec("*")
         except Exception as e:
