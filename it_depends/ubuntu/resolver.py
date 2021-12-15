@@ -29,11 +29,17 @@ class UbuntuResolver(DependencyResolver):
         """Iterates over all of the package versions available for a package name"""
         # Parses the dependencies of dependency.package out of the `apt show` command
         logger.debug(f"Running `apt show -a {package_name}`")
-        contents = run_command("apt", "show", "-a", package_name).decode("utf8")
+        try:
+            contents = run_command("apt", "show", "-a", package_name).decode("utf8")
+        except subprocess.CalledProcessError as e:
+            if e.returncode == 100:
+                contents = ""
+            else:
+                raise
 
         # Possibly means that the package does not appear ubuntu with the exact name
         if not contents:
-            logger.info(f"Package {package_name} not found in ubuntu installed apt sources")
+            logger.warning(f"Package {package_name} not found in ubuntu installed apt sources")
             return ()
 
         # Example depends line:
