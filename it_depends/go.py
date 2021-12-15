@@ -145,37 +145,57 @@ class GoModule:
                 return GoModule.parse_mod(response.read())
         except HTTPError as e:
             if e.code == 404:
-                # If there is no `go.mod`, it likely means the package has no dependencies:
-                return GoModule(f"github.com/{github_org}/{github_repo}")
+                # Revert to cloning the repo
+                return GoModule.from_git(
+                    import_path=f"github.com/{github_org}/{github_repo}",
+                    git_url=f"https://github.com/{github_org}/{github_repo}",
+                    tag=tag,
+                    check_for_github=False
+                )
             raise
 
     @staticmethod
-    def from_git(import_path: str, git_url: str, tag: str):
-        m = GITHUB_URL_MATCH.fullmatch(git_url)
-        if m:
-            return GoModule.from_github(m.group(2), m.group(3), tag)
+    def from_git(import_path: str, git_url: str, tag: str, check_for_github: bool = True, force_clone: bool = False):
+        if check_for_github:
+            m = GITHUB_URL_MATCH.fullmatch(git_url)
+            if m:
+                return GoModule.from_github(m.group(2), m.group(3), tag)
         log.info(f"Attempting to clone {git_url}")
         with TemporaryDirectory() as tempdir:
-            check_call(["git", "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
-            check_call(["git", "remote", "add", "origin", git_url], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
-            git_hash = GoModule.tag_to_git_hash(tag)
             env = {
                 "GIT_TERMINAL_PROMPT": "0"
             }
             if os.environ.get("GIT_SSH", "") == "" and os.environ.get("GIT_SSH_COMMAND", "") == "":
                 # disable any ssh connection pooling by git
                 env["GIT_SSH_COMMAND"] = "ssh -o ControlMaster=no"
-            try:
-                check_call(["git", "fetch", "--depth", "1", "origin", git_hash], cwd=tempdir, stderr=DEVNULL,
-                           stdout=DEVNULL, env=env)
-            except CalledProcessError:
-                # not all git servers support `git fetch --depth 1` on a hash
+            if tag == "*" or force_clone:
+                # this will happen if we are resolving a wildcard, typically if the user called something like
+                # `it-depends go:github.com/ethereum/go-ethereum`
+                td = Path(tempdir)
+                check_call(["git", "clone", "--depth", "1", git_url, td.name],
+                           cwd=td.parent, stderr=DEVNULL, stdout=DEVNULL, env=env)
+            else:
+                check_call(["git", "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
+                check_call(["git", "remote", "add", "origin", git_url], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
+                git_hash = GoModule.tag_to_git_hash(tag)
                 try:
-                    check_call(["git", "fetch", "origin"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env)
-                    check_call(["git", "checkout", git_hash], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env)
+                    check_call(["git", "fetch", "--depth", "1", "origin", git_hash], cwd=tempdir, stderr=DEVNULL,
+                               stdout=DEVNULL, env=env)
                 except CalledProcessError:
-                    log.error(f"Could not clone {git_url} for {import_path!r}")
-                    return GoModule(import_path)
+                    # not all git servers support `git fetch --depth 1` on a hash
+                    try:
+                        check_call(["git", "fetch", "origin"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env)
+                    except CalledProcessError:
+                        log.error(f"Could not clone {git_url} for {import_path!r}")
+                        return GoModule(import_path)
+                    try:
+                        check_call(["git", "checkout", git_hash], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env)
+                    except CalledProcessError:
+                        if tag.startswith("="):
+                            return GoModule.from_git(import_path, git_url, tag[1:])
+                        log.warning(f"Could not checkout tag {tag} of {git_url} for {import_path!r}; "
+                                    "reverting to the main branch")
+                        return GoModule.from_git(import_path, git_url, tag, check_for_github=False, force_clone=True)
             go_mod_path = Path(tempdir) / "go.mod"
             if not go_mod_path.exists():
                 # the package likely doesn't have any dependencies
@@ -284,7 +304,7 @@ class GoResolver(DependencyResolver):
     description = "classifies the dependencies of JavaScript packages using `npm`"
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        assert isinstance(dependency.semantic_version, GoSpec)
+        # assert isinstance(dependency.semantic_version, GoSpec)
         version_string = str(dependency.semantic_version)
         module = GoModule.from_import(dependency.package, version_string)
         yield Package(
