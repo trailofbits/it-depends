@@ -172,7 +172,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             else:
                 output_file = open(args.output_file, "w")
             with DBPackageCache(args.database) as cache:
-                package_list = resolve(repo, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers)
+                try:
+                    package_list = resolve(
+                        repo, cache=cache, depth_limit=args.depth_limit, max_workers=args.max_workers
+                    )
+                except ValueError as e:
+                    if not args.clear_cache or args.PATH_OR_NAME.strip():
+                        sys.stderr.write(f"{e!s}\n")
+                    return 1
                 if not package_list:
                     sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n")
                     sys.stderr.flush()
