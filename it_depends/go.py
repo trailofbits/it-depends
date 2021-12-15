@@ -68,6 +68,8 @@ def git_commit(path: Optional[str] = None) -> Optional[str]:
 class GoVersion:
     def __init__(self, go_version_string: str):
         self.version_string: str = go_version_string.strip()
+        if self.version_string.startswith("="):
+            self.version_string = self.version_string[1:]
         self.build: bool = False  # This is to appease semantic_version.base.SimpleSpec
 
     def __eq__(self, other):
