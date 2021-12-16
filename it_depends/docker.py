@@ -3,6 +3,7 @@ import re
 import shutil
 import subprocess
 import sys
+import os
 from pathlib import Path
 from tempfile import mkdtemp
 from tqdm import tqdm
@@ -246,7 +247,8 @@ class DockerContainer:
             raise ValueError("Could not find the Dockerfile.")
         # use the low-level APIClient so we can get streaming build status
         try:
-            cli = docker.APIClient()
+            sock = self._try_podman_socket()
+            cli = docker.APIClient(base_url=sock)
         except DockerException as e:
             raise ValueError("Docker not installed. Try `sudo apt install docker`.")  from e
         with tqdm(desc="Archiving the build directory", unit=" steps", leave=False) as t:
@@ -281,3 +283,24 @@ class DockerContainer:
                                     t.update(new_line - last_line)
                                     last_line = new_line
                         t.write(line["stream"].replace("\n", "").strip())
+
+    def _try_podman_socket(self):
+        """Try to find a podman socket. If it fails, use Docker default.
+
+        First try to construct the Docker socket via the podman rootless
+        socket path. Failing that, fallback to Docker library defaults with
+        base_url=None.
+
+        This isn't as robust as it could be, but it should work on systems
+        using either rootless podman or Docker.
+        """
+        runtime_dir = os.environ.get("XDG_RUNTIME_DIR", None)
+        if runtime_dir is None:
+            # We're not gonna find it without XDG's help; fallback to Docker.
+            return None
+        sock_path = Path(f'{runtime_dir}/podman/podman.sock')
+        if sock_path.exists():
+            sock = f'unix://{sock_path}' 
+        if not sock_path.exists():
+            sock = None
+        return sock
