@@ -13,7 +13,9 @@ _container: Optional[DockerContainer] = None
 _UBUNTU_LOCK: Lock = Lock()
 
 _UBUNTU_NAME_MATCH: Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
-_VERSION_ID_MATCH: Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
+_VERSION_ID_MATCH: Pattern[str] = re.compile(
+    r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,14 +58,22 @@ def run_command(*args: str) -> bytes:
     with _UBUNTU_LOCK:
         global _container
         if _container is None:
-            with InMemoryDockerfile("""FROM ubuntu:20.04
+            with InMemoryDockerfile(
+                """FROM ubuntu:20.04
 
 RUN apt-get update && apt-get install -y apt-file && apt-file update
-""") as dockerfile:
+"""
+            ) as dockerfile:
                 _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
                 _container.rebuild()
     logger.debug(f"running {' '.join(args)} in Docker")
-    p = _container.run(*args, interactive=False, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, rebuild=False)
+    p = _container.run(
+        *args,
+        interactive=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        rebuild=False,
+    )
     if p.returncode != 0:
         raise subprocess.CalledProcessError(p.returncode, cmd=f"{' '.join(args)}")
     return p.stdout

@@ -8,8 +8,18 @@ from typing import Iterable, Iterator, Optional
 from .apt import file_to_packages
 from .docker import is_running_ubuntu, run_command
 from ..dependencies import (
-    Dependency, DependencyResolver, Dict, List, Package, PackageCache, ResolverAvailability, SimpleSpec, SourcePackage,
-    SourceRepository, Tuple, Version
+    Dependency,
+    DependencyResolver,
+    Dict,
+    List,
+    Package,
+    PackageCache,
+    ResolverAvailability,
+    SimpleSpec,
+    SourcePackage,
+    SourceRepository,
+    Tuple,
+    Version,
 )
 from ..native import get_native_dependencies
 
@@ -48,7 +58,7 @@ class UbuntuResolver(DependencyResolver):
         packages: Dict[Tuple[str, Version], List[List[Dependency]]] = {}
         for line in contents.split("\n"):
             if line.startswith("Version: "):
-                matched = UbuntuResolver._ubuntu_version.match(line[len("Version: "):])
+                matched = UbuntuResolver._ubuntu_version.match(line[len("Version: ") :])
                 if matched:
                     # FIXME: Ubuntu versions can include "~", which the semantic_version library does not like
                     #        So hack a fix by simply dropping everything after the tilde:
@@ -65,9 +75,11 @@ class UbuntuResolver(DependencyResolver):
                         # Fixme: For now, treat each ORed dependency as a separate ANDed dependency
                         matched = UbuntuResolver._pattern.match(or_segment)
                         if not matched:
-                            raise ValueError(f"Invalid dependency line in apt output for {package_name}: {line!r}")
-                        dep_package = matched.group('package')
-                        dep_version = matched.group('version')
+                            raise ValueError(
+                                f"Invalid dependency line in apt output for {package_name}: {line!r}"
+                            )
+                        dep_package = matched.group("package")
+                        dep_version = matched.group("version")
                         try:
                             # remove trailing ubuntu versions like "-10ubuntu4":
                             dep_version = dep_version.split("-", maxsplit=1)[0]
@@ -78,11 +90,12 @@ class UbuntuResolver(DependencyResolver):
 
                         deps.append((dep_package, dep_version))
 
-                packages[(package_name, version)].append([
+                packages[(package_name, version)].append(
+                    [
                         Dependency(
                             package=pkg,
                             semantic_version=SimpleSpec(ver),
-                            source=UbuntuResolver()
+                            source=UbuntuResolver(),
                         )
                         for pkg, ver in deps
                     ]
@@ -98,14 +111,16 @@ class UbuntuResolver(DependencyResolver):
                 name=pkg_name,
                 version=version,
                 source=UbuntuResolver(),
-                dependencies=set().union(*duplicates)  # type: ignore
+                dependencies=set().union(*duplicates),  # type: ignore
             )
             for (pkg_name, version), duplicates in packages.items()
         ]
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         if dependency.source != "ubuntu":
-            raise ValueError(f"{self} can not resolve dependencies from other sources ({dependency})")
+            raise ValueError(
+                f"{self} can not resolve dependencies from other sources ({dependency})"
+            )
 
         if dependency.package.startswith("/"):
             # this is a file path, likely produced from native.py
@@ -118,7 +133,7 @@ class UbuntuResolver(DependencyResolver):
                         name=dependency.package,
                         source=dependency.source,
                         version=Version.coerce("0"),
-                        dependencies=deps
+                        dependencies=deps,
                     )
             except (ValueError, subprocess.CalledProcessError):
                 pass
@@ -133,15 +148,17 @@ class UbuntuResolver(DependencyResolver):
 
     def is_available(self) -> ResolverAvailability:
         if shutil.which("docker") is None:
-            return ResolverAvailability(False,
-                                        "`Ubuntu` classifier needs to have Docker installed. Try apt install docker.io.")
+            return ResolverAvailability(
+                False,
+                "`Ubuntu` classifier needs to have Docker installed. Try apt install docker.io.",
+            )
         return ResolverAvailability(True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         return False
 
     def resolve_from_source(
-            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+        self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
         return None
 
