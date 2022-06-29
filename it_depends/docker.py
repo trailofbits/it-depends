@@ -289,7 +289,7 @@ class DockerContainer:
             sock = _discover_podman_socket()
             cli = docker.APIClient(base_url=sock)
         except DockerException as e:
-            raise ValueError(f"Could not connect to socket: {e}") from e
+            raise ValueError(f"Could not connect to socket: sock={sock} {e}") from e
         with tqdm(desc="Archiving the build directory", unit=" steps", leave=False) as t:
             last_line = 0
             last_step = None
