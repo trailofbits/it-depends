@@ -75,6 +75,11 @@ class GoVersion:
     def __eq__(self, other):
         return isinstance(other, GoVersion) and self.version_string == other.version_string
 
+    def __gt__(self, other):
+        # Go versions start with "v"
+        other_version = isinstance(other, GoVersion) and Version(str(other)[1:]) or other
+        return Version(self.version_string[1:]) > other_version
+
     def __hash__(self):
         return hash(self.version_string)
 
