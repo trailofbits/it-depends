@@ -72,6 +72,9 @@ class GoVersion:
             self.version_string = self.version_string[1:]
         self.build: bool = False  # This is to appease semantic_version.base.SimpleSpec
 
+    def __lt__(self, other):
+        return self.version_string < str(other)
+
     def __eq__(self, other):
         return isinstance(other, GoVersion) and self.version_string == other.version_string
 
