@@ -8,7 +8,14 @@ from typing import Dict, Iterator, Optional, Union
 from semantic_version import NpmSpec, SimpleSpec, Version
 
 from .dependencies import (
-    Dependency, DependencyResolver, DockerSetup, Package, PackageCache, SemanticVersion, SourcePackage, SourceRepository
+    Dependency,
+    DependencyResolver,
+    DockerSetup,
+    Package,
+    PackageCache,
+    SemanticVersion,
+    SourcePackage,
+    SourceRepository,
 )
 
 log = getLogger(__file__)
@@ -22,7 +29,7 @@ class NPMResolver(DependencyResolver):
         return bool(self.is_available()) and (repo.path / "package.json").exists()
 
     def resolve_from_source(
-            self, repo: SourceRepository, cache: Optional[PackageCache] = None
+        self, repo: SourceRepository, cache: Optional[PackageCache] = None
     ) -> Optional[SourcePackage]:
         if not self.can_resolve_from_source(repo):
             return None
@@ -57,23 +64,41 @@ class NPMResolver(DependencyResolver):
             version = "0"
         version = Version.coerce(version)
 
-        return SourcePackage(name, version, source_repo=source_repository,
-                             source="npm", dependencies=(
-            Dependency(package=dep_name, semantic_version=NPMResolver.parse_spec(dep_version), source="npm")
-            for dep_name, dep_version in dependencies.items()
-        ))
+        return SourcePackage(
+            name,
+            version,
+            source_repo=source_repository,
+            source="npm",
+            dependencies=(
+                Dependency(
+                    package=dep_name,
+                    semantic_version=NPMResolver.parse_spec(dep_version),
+                    source="npm",
+                )
+                for dep_name, dep_version in dependencies.items()
+            ),
+        )
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         """Yields all packages that satisfy the dependency without expanding those packages' dependencies"""
         if dependency.source != self.name:
             return
         try:
-            output = subprocess.check_output(["npm", "view", "--json",
-                                              f"{dependency.package}@{dependency.semantic_version!s}", "dependencies"])
+            output = subprocess.check_output(
+                [
+                    "npm",
+                    "view",
+                    "--json",
+                    f"{dependency.package}@{dependency.semantic_version!s}",
+                    "dependencies",
+                ]
+            )
         except subprocess.CalledProcessError as e:
             # This probably means that the package no longer exists in npm
-            log.warning(f"Error running `npm view --json {dependency.package}@{dependency.semantic_version!s} "
-                        f"dependencies`: {e!s}")
+            log.warning(
+                f"Error running `npm view --json {dependency.package}@{dependency.semantic_version!s} "
+                f"dependencies`: {e!s}"
+            )
             return
         if len(output.strip()) == 0:
             # this means the package has no dependencies
@@ -91,7 +116,12 @@ class NPMResolver(DependencyResolver):
             in_data = False
             versions = []
             for line in subprocess.check_output(
-                    ["npm", "view", f"{dependency.package}@{dependency.semantic_version!s}", "dependencies"]
+                [
+                    "npm",
+                    "view",
+                    f"{dependency.package}@{dependency.semantic_version!s}",
+                    "dependencies",
+                ]
             ).splitlines():
                 line = line.decode("utf-8").strip()
                 if in_data:
@@ -103,19 +133,36 @@ class NPMResolver(DependencyResolver):
                 else:
                     versions.append(line)
             for pkg_version, dep_dict in zip(versions, deps):
-                version = Version.coerce(pkg_version[len(dependency.package)+1:])
-                yield Package(name=dependency.package, version=version, source=self, dependencies=(
-                    Dependency(package=dep, semantic_version=NPMResolver.parse_spec(dep_version), source=self)
-                    for dep, dep_version in dep_dict.items()
-                ))
+                version = Version.coerce(pkg_version[len(dependency.package) + 1 :])
+                yield Package(
+                    name=dependency.package,
+                    version=version,
+                    source=self,
+                    dependencies=(
+                        Dependency(
+                            package=dep,
+                            semantic_version=NPMResolver.parse_spec(dep_version),
+                            source=self,
+                        )
+                        for dep, dep_version in dep_dict.items()
+                    ),
+                )
         else:
             try:
                 output = subprocess.check_output(
-                    ["npm", "view", "--json", f"{dependency.package}@{dependency.semantic_version!s}", "versions"])
+                    [
+                        "npm",
+                        "view",
+                        "--json",
+                        f"{dependency.package}@{dependency.semantic_version!s}",
+                        "versions",
+                    ]
+                )
             except subprocess.CalledProcessError as e:
                 raise ValueError(
                     f"Error running `npm view --json {dependency.package}@{dependency.semantic_version!s} versions`: "
-                    f"{e!s}")
+                    f"{e!s}"
+                )
             if len(output.strip()) == 0:
                 # no available versions!
                 return
@@ -135,10 +182,19 @@ class NPMResolver(DependencyResolver):
                 except ValueError:
                     continue
                 if version in dependency.semantic_version:
-                    yield Package(name=dependency.package, version=version, source=self, dependencies=(
-                        Dependency(package=dep, semantic_version=NPMResolver.parse_spec(dep_version), source=self)
-                        for dep, dep_version in deps.items()
-                    ))
+                    yield Package(
+                        name=dependency.package,
+                        version=version,
+                        source=self,
+                        dependencies=(
+                            Dependency(
+                                package=dep,
+                                semantic_version=NPMResolver.parse_spec(dep_version),
+                                source=self,
+                            )
+                            for dep, dep_version in deps.items()
+                        ),
+                    )
 
     @classmethod
     def parse_spec(cls, spec: str) -> SemanticVersion:
@@ -164,5 +220,5 @@ npm install $1@$2
             load_package_script="""#!/usr/bin/env bash
 node -e "require(\\"$1\\")"
 """,
-            baseline_script="#!/usr/bin/env node -e \"\"\n"
+            baseline_script='#!/usr/bin/env node -e ""\n',
         )

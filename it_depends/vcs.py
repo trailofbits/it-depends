@@ -42,15 +42,18 @@ class VCS:
         return cast(T, getattr(cls, "_DEFAULT_INSTANCE"))
 
     def ping(self, repo: str) -> Optional[str]:
-        env = {
-            "GIT_TERMINAL_PROMPT": "0"
-        }
+        env = {"GIT_TERMINAL_PROMPT": "0"}
         if os.environ.get("GIT_SSH", "") == "" and os.environ.get("GIT_SSH_COMMAND", "") == "":
             # disable any ssh connection pooling by git
             env["GIT_SSH_COMMAND"] = "ssh -o ControlMaster=no"
         for scheme in self.scheme:
-            cmd = [self.cmd] + [c.replace("{scheme}", scheme).replace("{repo}", repo) for c in self.ping_cmd]
-            if subprocess.call(cmd, stdout=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=env) == 0:
+            cmd = [self.cmd] + [
+                c.replace("{scheme}", scheme).replace("{repo}", repo) for c in self.ping_cmd
+            ]
+            if (
+                subprocess.call(cmd, stdout=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=env)
+                == 0
+            ):
                 return scheme
         return None
 
@@ -67,13 +70,11 @@ class Git(VCS):
             name="Git",
             cmd="git",
             scheme=("git", "https", "http", "git+ssh", "ssh"),
-            ping_cmd=("ls-remote","{scheme}://{repo}")
+            ping_cmd=("ls-remote", "{scheme}://{repo}"),
         )
 
 
-VCSes: List[VCS] = [
-    vcs.default_instance() for vcs in (Git,)
-]
+VCSes: List[VCS] = [vcs.default_instance() for vcs in (Git,)]
 
 # VCS_MOD is a stub for the "mod" scheme. It's returned by
 # repoRootForImportPathDynamic, but is otherwise not treated as a VCS command.
@@ -135,20 +136,28 @@ def _register(path: VCSPath) -> VCSPath:
     return path
 
 
-GITHUB = _register(VCSPath(
-    path_prefix="github.com",
-    regexp=re.compile(r"^(?P<root>github\.com/[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+)(/[A-Za-z0-9_.\-]+)*$"),
-    vcs="git",
-    repo="https://{root}",
-    check=no_vcs_suffix
-))
+GITHUB = _register(
+    VCSPath(
+        path_prefix="github.com",
+        regexp=re.compile(
+            r"^(?P<root>github\.com/[A-Za-z0-9_.\-]+/[A-Za-z0-9_.\-]+)(/[A-Za-z0-9_.\-]+)*$"
+        ),
+        vcs="git",
+        repo="https://{root}",
+        check=no_vcs_suffix,
+    )
+)
 
 
-GENERAL_REPO = _register(VCSPath(
-    regexp=re.compile(r"(?P<root>(?P<repo>([a-z0-9.\-]+\.)+[a-z0-9.\-]+(:[0-9]+)?(/~?[A-Za-z0-9_.\-]+)+?)\."
-                      r"(?P<vcs>bzr|fossil|git|hg|svn))(/~?[A-Za-z0-9_.\-]+)*$"),
-    schemeless_repo=True
-))
+GENERAL_REPO = _register(
+    VCSPath(
+        regexp=re.compile(
+            r"(?P<root>(?P<repo>([a-z0-9.\-]+\.)+[a-z0-9.\-]+(:[0-9]+)?(/~?[A-Za-z0-9_.\-]+)+?)\."
+            r"(?P<vcs>bzr|fossil|git|hg|svn))(/~?[A-Za-z0-9_.\-]+)*$"
+        ),
+        schemeless_repo=True,
+    )
+)
 
 
 @dataclass
@@ -175,7 +184,7 @@ class GoVCSRule:
 
 DEFAULT_GO_VCS: List[GoVCSRule] = [
     GoVCSRule("private", ["all"]),
-    GoVCSRule("public", ["git", "hg"])
+    GoVCSRule("public", ["git", "hg"]),
 ]
 
 
@@ -195,7 +204,7 @@ def parse_go_vcs(s: str) -> Optional[List[GoVCSRule]]:
         i = item.find(":")
         if i < 0:
             raise GoVCSConfigError(f"Malformed entry in GOVCS (missing colon): {item!r}")
-        pattern, vcs_list = item[:i].strip(), item[i+1:].strip()
+        pattern, vcs_list = item[:i].strip(), item[i + 1 :].strip()
         if not pattern:
             raise GoVCSConfigError(f"Empty pattern in GOVCS: {item!r}")
         if not vcs_list:
@@ -203,12 +212,11 @@ def parse_go_vcs(s: str) -> Optional[List[GoVCSRule]]:
         if not os.path.isabs(pattern):
             raise GoVCSConfigError(f"Relative pattern not allowed in GOVCS: {pattern!r}")
         if have.get(pattern, default=""):
-            raise GoVCSConfigError(f"Unreachable pattern in GOVCS: {item!r} after {have[pattern]!r}")
+            raise GoVCSConfigError(
+                f"Unreachable pattern in GOVCS: {item!r} after {have[pattern]!r}"
+            )
         have[pattern] = item
-        allowed = [
-            a.strip()
-            for a in vcs_list.split("|")
-        ]
+        allowed = [a.strip() for a in vcs_list.split("|")]
         if any(not a for a in allowed):
             raise GoVCSConfigError(f"Empty VCS name in GOVCS: {item!r}")
         rules.append(GoVCSRule(pattern=pattern, allowed=allowed))

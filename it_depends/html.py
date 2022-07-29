@@ -84,9 +84,9 @@ drawGraph();
 
 
 def graph_to_html(
-        graph: Union[DependencyGraph, PackageCache],
-        collapse_versions: bool = True,
-        title: Optional[str] = None
+    graph: Union[DependencyGraph, PackageCache],
+    collapse_versions: bool = True,
+    title: Optional[str] = None,
 ) -> str:
     if not isinstance(graph, DependencyGraph):
         graph = graph.to_graph()
@@ -113,11 +113,13 @@ def graph_to_html(
     for package, node_id in node_ids.items():
         nodes.append({"id": node_id, "label": package.full_name})
         if package in roots:
-            nodes[-1].update({
-                "shape": "square",
-                "color": "red",
-                "borderWidth": 4,
-            })
+            nodes[-1].update(
+                {
+                    "shape": "square",
+                    "color": "red",
+                    "borderWidth": 4,
+                }
+            )
         if package.vulnerabilities:
             nodes[-1].update({"color": "red"})
         if graph.source_packages:
@@ -129,11 +131,7 @@ def graph_to_html(
                 dep_name = f"{dep.source}:{dep.package}"
             else:
                 dep_name = str(dep)
-            edges.append({
-                "from": node_ids[pkg1],
-                "to": node_ids[pkg2],
-                "shape": "dot"
-            })
+            edges.append({"from": node_ids[pkg1], "to": node_ids[pkg2], "shape": "dot"})
             if dep_name != pkg2.full_name:
                 edges[-1]["label"] = dep_name
 
@@ -144,8 +142,9 @@ def graph_to_html(
         else:
             title = f"Dependency Graph for {source_packages}"
 
-    return TEMPLATE\
-        .replace("$NODES", repr(nodes))\
-        .replace("$EDGES", repr(edges))\
-        .replace("$TITLE", title)\
+    return (
+        TEMPLATE.replace("$NODES", repr(nodes))
+        .replace("$EDGES", repr(edges))
+        .replace("$TITLE", title)
         .replace("$LAYOUT", layout)
+    )
