@@ -9,7 +9,13 @@ from tqdm import tqdm
 
 from . import version as it_depends_version
 from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
-from .dependencies import Dependency, DependencyResolver, DockerSetup, Package, SemanticVersion
+from .dependencies import (
+    Dependency,
+    DependencyResolver,
+    DockerSetup,
+    Package,
+    SemanticVersion,
+)
 
 logger = getLogger(__name__)
 
@@ -19,7 +25,8 @@ def make_dockerfile(docker_setup: DockerSetup) -> InMemoryDockerfile:
     run_script = InMemoryFile("run.sh", docker_setup.load_package_script.encode("utf-8"))
     baseline_script = InMemoryFile("baseline.sh", docker_setup.baseline_script.encode("utf-8"))
     pkgs = " ".join(docker_setup.apt_get_packages)
-    return InMemoryDockerfile(f"""
+    return InMemoryDockerfile(
+        f"""
 FROM ubuntu:20.04
 
 RUN mkdir -p /workdir
@@ -36,17 +43,21 @@ COPY install.sh .
 COPY run.sh .
 COPY baseline.sh .
 RUN chmod +x *.sh
-""", local_files=(install_script, run_script, baseline_script))
+""",
+        local_files=(install_script, run_script, baseline_script),
+    )
 
 
-STRACE_LIBRARY_REGEX = re.compile(r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
+STRACE_LIBRARY_REGEX = re.compile(
+    r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*"
+)
 CONTAINERS_BY_SOURCE: Dict[DependencyResolver, DockerContainer] = {}
 BASELINES_BY_SOURCE: Dict[DependencyResolver, FrozenSet[Dependency]] = {}
 _CONTAINER_LOCK: Lock = Lock()
 
 
 def get_dependencies(
-        container: DockerContainer, command: str, pre_command: Optional[str] = None
+    container: DockerContainer, command: str, pre_command: Optional[str] = None
 ) -> Iterator[Dependency]:
     """Yields all dynamic libraries loaded by `command`, in order, including duplicates"""
     stdout = NamedTemporaryFile(prefix="stdout", delete=False)
@@ -56,7 +67,15 @@ def get_dependencies(
         pre_command = ""
     command = f"{pre_command}strace -e open,openat -f {command} 3>&1 1>&2 2>&3"
     try:
-        container.run("bash", "-c", command, rebuild=False, interactive=False, stdout=stdout, check_existence=False)
+        container.run(
+            "bash",
+            "-c",
+            command,
+            rebuild=False,
+            interactive=False,
+            stdout=stdout,
+            check_existence=False,
+        )
         stdout.close()
         with open(stdout.name, "r") as f:
             for line in f.readlines():
@@ -67,7 +86,7 @@ def get_dependencies(
                         yield Dependency(
                             package=path,
                             source="ubuntu",  # make the package be from the UbuntuResolver
-                            semantic_version=SemanticVersion.parse('*')
+                            semantic_version=SemanticVersion.parse("*"),
                         )
     finally:
         Path(stdout.name).unlink()
@@ -77,15 +96,12 @@ def get_package_dependencies(container: DockerContainer, package: Package) -> It
     yield from get_dependencies(
         container=container,
         pre_command=f"./install.sh {package.name} {package.version!s}",
-        command=f"./run.sh {package.name}"
+        command=f"./run.sh {package.name}",
     )
 
 
 def get_baseline_dependencies(container: DockerContainer) -> Iterator[Dependency]:
-    yield from get_dependencies(
-        container=container,
-        command="./baseline.sh"
-    )
+    yield from get_dependencies(container=container, command="./baseline.sh")
 
 
 def container_for(source: DependencyResolver) -> DockerContainer:
@@ -96,10 +112,17 @@ def container_for(source: DependencyResolver) -> DockerContainer:
         if docker_setup is None:
             raise ValueError(f"source {source.name} does not support native dependency resolution")
         with tqdm(
-                desc=f"configuring Docker for {source.name}", leave=False, unit=" steps", total=2, initial=1
+            desc=f"configuring Docker for {source.name}",
+            leave=False,
+            unit=" steps",
+            total=2,
+            initial=1,
         ) as t, make_dockerfile(docker_setup) as dockerfile:
-            container = DockerContainer(f"trailofbits/it-depends-{source.name!s}", dockerfile,
-                                        tag=it_depends_version())
+            container = DockerContainer(
+                f"trailofbits/it-depends-{source.name!s}",
+                dockerfile,
+                tag=it_depends_version(),
+            )
             t.update(1)
             container.rebuild()
             CONTAINERS_BY_SOURCE[source] = container
