@@ -53,7 +53,7 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
             self._all_pairs_shortest_paths = dict(nx.all_pairs_shortest_path_length(self))  # type: ignore
         if (
             from_node not in self._all_pairs_shortest_paths
-            or to_node not in self._all_pairs_shortest_paths[from_node]
+            or to_node not in self._all_pairs_shortest_paths[from_node]  # type: ignore
         ):  # type: ignore
             return -1
         return self._all_pairs_shortest_paths[from_node][to_node]  # type: ignore
