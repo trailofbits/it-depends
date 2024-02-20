@@ -138,6 +138,17 @@ class Dependency:
         )
 
 
+class AliasedDependency(Dependency):
+    def __init__(self,
+                 package: str,
+                 alias_name: str,
+                 source: Union[str, "DependencyResolver"],
+                 semantic_version: SemanticVersion = SimpleSpec("*"),
+                 ):
+        self.alias_name = alias_name
+        super().__init__(package, source, semantic_version)
+
+
 class Package:
     def __init__(
         self,

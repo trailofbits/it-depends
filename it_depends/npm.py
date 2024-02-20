@@ -8,6 +8,7 @@ from typing import Dict, Iterator, Optional, Union
 from semantic_version import NpmSpec, SimpleSpec, Version
 
 from .dependencies import (
+    AliasedDependency,
     Dependency,
     DependencyResolver,
     DockerSetup,
@@ -64,32 +65,62 @@ class NPMResolver(DependencyResolver):
             version = "0"
         version = Version.coerce(version)
 
+        resolved_dependencies = []
+        for dep_name, dep_version in dependencies.items():
+            # First check if the dependency is aliased.
+            # Source https://docs.npmjs.com/cli/v8/commands/npm-install
+            if dep_version.startswith("npm:"):
+                # Does the package have a scope ?
+
+                if dep_version.count("@") == 2:
+                    parts = dep_version.split("@")
+                    scope, version = parts[1], parts[2]
+
+                    resolved_dependencies.append(
+                        AliasedDependency(
+                            package=dep_name,
+                            alias_name=scope,
+                            semantic_version=NPMResolver.parse_spec(version),
+                            source="npm",
+                        )
+                    )
+
+                else:
+                    msg = (f"This type of dependencies {dep_name} {dep_version} is not yet supported."
+                           f" Please open an issue on GitHub.")
+                    raise ValueError(msg)
+
+            else:
+                resolved_dependencies.append(
+                    Dependency(package=dep_name,
+                               semantic_version=NPMResolver.parse_spec(dep_version),
+                               source="npm")
+                )
+
         return SourcePackage(
             name,
             version,
             source_repo=source_repository,
             source="npm",
-            dependencies=(
-                Dependency(
-                    package=dep_name,
-                    semantic_version=NPMResolver.parse_spec(dep_version),
-                    source="npm",
-                )
-                for dep_name, dep_version in dependencies.items()
-            ),
+            dependencies=resolved_dependencies,
         )
 
-    def resolve(self, dependency: Dependency) -> Iterator[Package]:
+    def resolve(self, dependency: Union[Dependency, AliasedDependency]) -> Iterator[Package]:
         """Yields all packages that satisfy the dependency without expanding those packages' dependencies"""
         if dependency.source != self.name:
             return
+
+        dependency_name = dependency.package
+        if isinstance(dependency, AliasedDependency):
+            dependency_name = f"@{dependency.alias_name}"
+
         try:
             output = subprocess.check_output(
                 [
                     "npm",
                     "view",
                     "--json",
-                    f"{dependency.package}@{dependency.semantic_version!s}",
+                    f"{dependency_name}@{dependency.semantic_version!s}",
                     "dependencies",
                 ]
             )
@@ -108,12 +139,11 @@ class NPMResolver(DependencyResolver):
                 deps = json.loads(output)
             except ValueError as e:
                 raise ValueError(
-                    f"Error parsing output of `npm view --json {dependency.package}@{dependency.semantic_version!s} "
+                    f"Error parsing output of `npm view --json {dependency_name}@{dependency.semantic_version!s} "
                     f"dependencies`: {e!s}"
                 )
         if isinstance(deps, list):
             # this means that there are multiple dependencies that match the version
-            in_data = False
             versions = []
             for line in subprocess.check_output(
                 [
@@ -124,14 +154,9 @@ class NPMResolver(DependencyResolver):
                 ]
             ).splitlines():
                 line = line.decode("utf-8").strip()
-                if in_data:
-                    if line.endswith("}"):
-                        in_data = False
-                    continue
-                elif line.startswith("{"):
-                    in_data = True
-                else:
+                if line.startswith(dependency.package):
                     versions.append(line)
+
             for pkg_version, dep_dict in zip(versions, deps):
                 version = Version.coerce(pkg_version[len(dependency.package) + 1 :])
                 yield Package(
@@ -154,13 +179,13 @@ class NPMResolver(DependencyResolver):
                         "npm",
                         "view",
                         "--json",
-                        f"{dependency.package}@{dependency.semantic_version!s}",
+                        f"{dependency_name}@{dependency.semantic_version!s}",
                         "versions",
                     ]
                 )
             except subprocess.CalledProcessError as e:
                 raise ValueError(
-                    f"Error running `npm view --json {dependency.package}@{dependency.semantic_version!s} versions`: "
+                    f"Error running `npm view --json {dependency_name}@{dependency.semantic_version!s} versions`: "
                     f"{e!s}"
                 )
             if len(output.strip()) == 0:
