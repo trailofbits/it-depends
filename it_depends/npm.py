@@ -1,7 +1,6 @@
 import json
 from logging import getLogger
 from pathlib import Path
-import shutil
 import subprocess
 from typing import Dict, Iterator, Optional, Union
 
@@ -65,44 +64,13 @@ class NPMResolver(DependencyResolver):
             version = "0"
         version = Version.coerce(version)
 
-        resolved_dependencies = []
-        for dep_name, dep_version in dependencies.items():
-            # First check if the dependency is aliased.
-            # Source https://docs.npmjs.com/cli/v8/commands/npm-install
-            if dep_version.startswith("npm:"):
-                # Does the package have a scope ?
-
-                if dep_version.count("@") == 2:
-                    parts = dep_version.split("@")
-                    scope, version = parts[1], parts[2]
-
-                    resolved_dependencies.append(
-                        AliasedDependency(
-                            package=dep_name,
-                            alias_name=scope,
-                            semantic_version=NPMResolver.parse_spec(version),
-                            source="npm",
-                        )
-                    )
-
-                else:
-                    msg = (f"This type of dependencies {dep_name} {dep_version} is not yet supported."
-                           f" Please open an issue on GitHub.")
-                    raise ValueError(msg)
-
-            else:
-                resolved_dependencies.append(
-                    Dependency(package=dep_name,
-                               semantic_version=NPMResolver.parse_spec(dep_version),
-                               source="npm")
-                )
-
         return SourcePackage(
             name,
             version,
             source_repo=source_repository,
             source="npm",
-            dependencies=resolved_dependencies,
+            dependencies=[generate_dependency_from_information(dep_name, dep_version)
+                          for dep_name, dep_version in dependencies.items()],
         )
 
     def resolve(self, dependency: Union[Dependency, AliasedDependency]) -> Iterator[Package]:
@@ -113,6 +81,9 @@ class NPMResolver(DependencyResolver):
         dependency_name = dependency.package
         if isinstance(dependency, AliasedDependency):
             dependency_name = f"@{dependency.alias_name}"
+        # Fix an issue when setting a dependency with a scope, we need to prefix it with @
+        elif dependency_name.count("/") == 1 and not dependency_name.startswith("@"):
+            dependency_name = f"@{dependency_name}"
 
         try:
             output = subprocess.check_output(
@@ -121,105 +92,49 @@ class NPMResolver(DependencyResolver):
                     "view",
                     "--json",
                     f"{dependency_name}@{dependency.semantic_version!s}",
+                    "name",
+                    "version",
                     "dependencies",
                 ]
             )
         except subprocess.CalledProcessError as e:
-            # This probably means that the package no longer exists in npm
             log.warning(
-                f"Error running `npm view --json {dependency.package}@{dependency.semantic_version!s} "
+                f"Error running `npm view --json {dependency_name}@{dependency.semantic_version!s} "
                 f"dependencies`: {e!s}"
             )
             return
-        if len(output.strip()) == 0:
-            # this means the package has no dependencies
-            deps = {}
-        else:
-            try:
-                deps = json.loads(output)
-            except ValueError as e:
-                raise ValueError(
-                    f"Error parsing output of `npm view --json {dependency_name}@{dependency.semantic_version!s} "
-                    f"dependencies`: {e!s}"
-                )
-        if isinstance(deps, list):
-            # this means that there are multiple dependencies that match the version
-            versions = []
-            for line in subprocess.check_output(
-                [
-                    "npm",
-                    "view",
-                    f"{dependency.package}@{dependency.semantic_version!s}",
-                    "dependencies",
-                ]
-            ).splitlines():
-                line = line.decode("utf-8").strip()
-                if line.startswith(dependency.package):
-                    versions.append(line)
 
-            for pkg_version, dep_dict in zip(versions, deps):
-                version = Version.coerce(pkg_version[len(dependency.package) + 1 :])
+        try:
+            result = json.loads(output)
+        except ValueError as e:
+            raise ValueError(
+                f"Error parsing output of `npm view --json {dependency_name}@{dependency.semantic_version!s} "
+                f"dependencies`: {e!s}"
+            )
+
+        # Only 1 version
+        if isinstance(result, dict):
+            deps = result.get("dependencies", {})
+            yield Package(
+                name=dependency.package,
+                version=Version.coerce(result["version"]),
+                source=self,
+                dependencies=(
+                    generate_dependency_from_information(dep_name, dep_version, self) for dep_name, dep_version in deps.items()
+                ),
+            )
+        elif isinstance(result, list):
+            # This means that there are multiple dependencies that match the version
+            for package in result:
+                assert package["name"] == dependency.package, "Problem with NPM view output"
+                dependencies = package.get("dependencies", {})
                 yield Package(
                     name=dependency.package,
-                    version=version,
+                    version=Version.coerce(package["version"]),
                     source=self,
-                    dependencies=(
-                        Dependency(
-                            package=dep,
-                            semantic_version=NPMResolver.parse_spec(dep_version),
-                            source=self,
-                        )
-                        for dep, dep_version in dep_dict.items()
-                    ),
+                    dependencies=(generate_dependency_from_information(dep_name, dep_version, self)
+                                  for dep_name, dep_version in dependencies.items())
                 )
-        else:
-            try:
-                output = subprocess.check_output(
-                    [
-                        "npm",
-                        "view",
-                        "--json",
-                        f"{dependency_name}@{dependency.semantic_version!s}",
-                        "versions",
-                    ]
-                )
-            except subprocess.CalledProcessError as e:
-                raise ValueError(
-                    f"Error running `npm view --json {dependency_name}@{dependency.semantic_version!s} versions`: "
-                    f"{e!s}"
-                )
-            if len(output.strip()) == 0:
-                # no available versions!
-                return
-            try:
-                version_list = json.loads(output)
-            except ValueError as e:
-                raise ValueError(
-                    f"Error parsing output of `npm view --json {dependency.package}@{dependency.semantic_version!s} "
-                    f"versions`: {e!s}"
-                )
-            while version_list and isinstance(version_list[0], list):
-                # TODO: Figure out why sometimes `npm view` returns a list of lists 🤷
-                version_list = version_list[0]
-            for version_string in version_list:
-                try:
-                    version = Version.coerce(version_string)
-                except ValueError:
-                    continue
-                if version in dependency.semantic_version:
-                    yield Package(
-                        name=dependency.package,
-                        version=version,
-                        source=self,
-                        dependencies=(
-                            Dependency(
-                                package=dep,
-                                semantic_version=NPMResolver.parse_spec(dep_version),
-                                source=self,
-                            )
-                            for dep, dep_version in deps.items()
-                        ),
-                    )
 
     @classmethod
     def parse_spec(cls, spec: str) -> SemanticVersion:
@@ -246,4 +161,52 @@ npm install $1@$2
 node -e "require(\\"$1\\")"
 """,
             baseline_script='#!/usr/bin/env node -e ""\n',
+        )
+
+
+def generate_dependency_from_information(
+        package_name: str,
+        package_version: str,
+        source: Union[str, NPMResolver] = "npm",
+) -> Union[Dependency, AliasedDependency, None]:
+    """Generate a dependency from a dependency declaration.
+
+    A dependency may be declared like this :
+    * [<@scope>/]<name>@<tag>
+    * <alias>@npm:<name>
+    """
+    if package_version.startswith("npm:"):
+        # Does the package have a scope ?
+
+        if package_version.count("@") == 2:
+            parts = package_version.split("@")
+            scope, version = parts[1], parts[2]
+
+            semantic_version = NPMResolver.parse_spec(version)
+            if semantic_version is None:
+                log.warning("Unable to compute the semantic version of %s (%s)", package_name, package_version)
+                semantic_version = SimpleSpec("*")
+
+            return AliasedDependency(
+                package=package_name,
+                alias_name=scope,
+                semantic_version=semantic_version,
+                source=source,
+            )
+
+        else:
+            msg = (f"This type of dependencies {package_name} {package_version} is not yet supported."
+                   f" Please open an issue on GitHub.")
+            raise ValueError(msg)
+
+    else:
+        semantic_version = NPMResolver.parse_spec(package_version)
+        if semantic_version is None:
+            log.warning("Unable to compute the semantic version of %s (%s)", package_name, package_version)
+            semantic_version = SimpleSpec("*")
+
+        return Dependency(
+            package=package_name,
+            semantic_version=semantic_version,
+            source=source,
         )

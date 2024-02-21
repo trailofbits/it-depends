@@ -13,6 +13,7 @@ from subprocess import check_call
 import sys
 from tempfile import mkdtemp
 from typing import (
+    Any,
     Dict,
     FrozenSet,
     Iterable,
@@ -139,6 +140,11 @@ class Dependency:
 
 
 class AliasedDependency(Dependency):
+    """An Aliased Dependency represents a dependency that has been aliased in a project.
+
+    For instance, NPM allows this to have multiple version of the same dependency in your
+    dependency chain.
+    """
     def __init__(self,
                  package: str,
                  alias_name: str,
@@ -147,6 +153,18 @@ class AliasedDependency(Dependency):
                  ):
         self.alias_name = alias_name
         super().__init__(package, source, semantic_version)
+
+    def __eq__(self, other: Any) -> bool:
+        """Checks equality."""
+        return isinstance(other, AliasedDependency) and self.alias_name == other.alias_name and super().__eq__(other)
+
+    def __hash__(self) -> int:
+        """Hash computation."""
+        return hash((self.alias_name, super().__hash__()))
+
+    def __str__(self) -> str:
+        """String representation."""
+        return f"{self.source}:{self.alias_name}@{self.package}@{self.semantic_version!s}"
 
 
 class Package:
