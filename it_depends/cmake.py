@@ -454,7 +454,8 @@ class CMakeResolver(DependencyResolver):
                                 package_name = body[0]
                             elif command == "set":
                                 # detect project version...
-                                value: Optional[str] = (body + [None,])[
+                                # TODO: Revisit the following type error:
+                                value: Optional[str] = (body + [None,])[  # type: ignore
                                     1
                                 ]  # type: ignore
                                 if (
