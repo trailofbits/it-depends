@@ -2,7 +2,6 @@ import argparse
 from contextlib import contextmanager
 import json
 from pathlib import Path
-import pkg_resources
 import sys
 from typing import Iterator, Optional, Sequence, TextIO, Union
 import webbrowser
@@ -12,6 +11,7 @@ from sqlalchemy.exc import OperationalError
 from .audit import vulnerabilities
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import Dependency, resolvers, resolve, SourceRepository
+from .it_depends import version as it_depends_version
 from .html import graph_to_html
 
 
@@ -152,7 +152,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.version:
         sys.stderr.write("it-depends version ")
         sys.stderr.flush()
-        version = pkg_resources.require("it-depends")[0].version
+        version = it_depends_version()
         sys.stdout.write(str(version))
         sys.stdout.flush()
         sys.stderr.write("\n")
