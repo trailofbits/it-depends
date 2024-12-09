@@ -1,32 +1,73 @@
-from spdx.creationinfo import CreationInfo, Creator
-from spdx.document import Document, License
-from spdx.package import Package as SPDXPackage
-#from spdx.relationship import Relationship
-from spdx.version import Version
-from spdx.writers import json
+from typing import Dict, List, Optional, Tuple
 
+from cyclonedx.builder.this import this_component as cdx_lib_component
+from cyclonedx.model import XsUri
+from cyclonedx.model.bom import Bom
+from cyclonedx.model.component import Component, ComponentType
+from cyclonedx.model.contact import OrganizationalEntity
+from cyclonedx.output.json import JsonV1Dot5
+
+from . import version
 from .dependencies import PackageCache, Package
 
-__all__ = "package_to_spdx",
+__all__ = "package_to_cyclonedx", "cyclonedx_to_json"
 
 
-def package_to_spdx(package: Package, packages: PackageCache) -> str:
-    spdx_package = SPDXPackage(
+def package_to_cyclonedx(package: Package, packages: PackageCache, bom: Optional[Bom] = None) -> Bom:
+    root_component = Component(
         name=package.name,
-        spdx_id=package.full_name,
+        type=ComponentType.APPLICATION,
+        bom_ref=package.full_name,
     )
-    spdx_package.source_info = package.source
-    document = Document(
-        version=Version(2, 1),
-        data_license=License.from_identifier("CC0-1.0"),
-        name=f"It-Depends Dependencies for {package.name}",
-        namespace=f"It-Depends {package.full_name}",
-        spdx_id=f"SBOM:{package.full_name}:SPDXRef-DOCUMENT",
-        package=spdx_package,
-    )
-    document.creation_info = CreationInfo()
-    document.creation_info.add_creator(Creator("https://github.com/trailofbits/it-depends"))
-    document.creation_info.set_created_now()
-    import sys
-    json.write_document(document, sys.stdout)
-    return ""
+    if bom is None:
+        bom = Bom()
+        bom.metadata.tools.components.add(cdx_lib_component())
+        bom.metadata.tools.components.add(Component(
+            name="it-depends",
+            supplier=OrganizationalEntity(
+                name="Trail of Bits",
+                urls=[XsUri("https://www.trailofbits.com/")]
+            ),
+            type=ComponentType.APPLICATION,
+            version=version(),
+        ))
+
+        bom.metadata.component = root_component
+
+    package_queue: List[Tuple[Optional[Component], Package]] = [(None, package)]
+
+    expanded: Dict[Package, Component] = {}
+
+    while package_queue:
+        parent_component, pkg = package_queue.pop()
+
+        if pkg in expanded:
+            if parent_component is not None:
+                bom.register_dependency(parent_component, [expanded[pkg]])
+            continue
+
+        component = Component(
+            name=pkg.name,
+            type=ComponentType.LIBRARY,
+            version=str(pkg.version),
+            bom_ref=f"{pkg.full_name}@{pkg.version!s}"
+        )
+
+        expanded[pkg] = component
+
+        bom.components.add(component)
+        if parent_component is not None:
+            bom.register_dependency(parent_component, [component])
+
+        for dep in pkg.dependencies:
+            for resolved in packages.match(dep):
+                if resolved in expanded:
+                    bom.register_dependency(component, [expanded[resolved]])
+                else:
+                    package_queue.append((component, resolved))
+
+    return bom
+
+
+def cyclonedx_to_json(bom: Bom, indent: int = 2) -> str:
+    return JsonV1Dot5(bom).output_as_string(indent=indent)

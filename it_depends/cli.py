@@ -13,7 +13,7 @@ from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import Dependency, resolvers, resolve, SourceRepository
 from .it_depends import version as it_depends_version
 from .html import graph_to_html
-from .sbom import package_to_spdx
+from .sbom import package_to_cyclonedx, cyclonedx_to_json
 
 
 @contextmanager
@@ -104,7 +104,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--output-format",
         "-f",
-        choices=("json", "dot", "html"),
+        choices=("json", "dot", "html", "cyclonedx"),
         default="json",
         help="how the output should be formatted (default is JSON)",
     )
@@ -288,12 +288,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         webbrowser.open(output_file.name)
                 elif args.output_format == "json":
                     output_file.write(json.dumps(package_list.to_obj(), indent=4))
-                elif args.output_format == "spdx":
-                    from .dependencies import Package, Version
-                    output_file.write(package_to_spdx(
-                        Package(name="foo", source="pip", version=Version.coerce("1.2.3")),
-                        package_list
-                    ))
+                elif args.output_format == "cyclonedx":
+                    bom = None
+                    for p in package_list:
+                        bom = package_to_cyclonedx(p, packages=package_list, bom=bom)
+                    output_file.write(cyclonedx_to_json(bom))
                 else:
                     raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
     except OperationalError as e:
