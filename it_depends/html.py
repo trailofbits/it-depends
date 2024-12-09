@@ -1,8 +1,6 @@
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Set, Union
 
-import networkx as nx
-
-from .dependencies import DependencyGraph, Package, PackageCache, SourcePackage
+from .dependencies import DependencyGraph, Package, PackageCache
 
 TEMPLATE: str = """<html>
 <head>
@@ -86,29 +84,24 @@ drawGraph();
 
 
 def graph_to_html(
-        graph: Union[DependencyGraph, PackageCache],
-        collapse_versions: bool = True,
-        title: Optional[str] = None
+    graph: Union[DependencyGraph, PackageCache],
+    collapse_versions: bool = True,
+    title: Optional[str] = None,
 ) -> str:
     if not isinstance(graph, DependencyGraph):
         graph = graph.to_graph()
     if collapse_versions:
         graph = graph.collapse_versions()
 
+    if graph.source_packages:
+        roots: Set[Package] = graph.source_packages  # type: ignore
+    else:
+        roots = graph.find_roots().roots
+
     if not graph.source_packages:
         layout = "improvedLayout: false"
-        shortest_paths_to_source: Optional[Dict[Package, int]] = None
     else:
         layout = "hierarchical: true"
-        if len(graph.source_packages) > 1:
-            shortest_paths = nx.all_pairs_shortest_path_length(graph)
-            shortest_paths_to_source = {
-                node: min(shortest_paths[source][node] for source in graph.source_packages)
-                for node in graph
-            }
-        else:
-            shortest_paths_to_source = nx.single_source_shortest_path_length(
-                graph, next(iter(graph.source_packages)))  # type: ignore
 
     # sort the nodes and assign IDs to them (so they are in a deterministic order):
     node_ids: Dict[Package, int] = {}
@@ -119,14 +112,18 @@ def graph_to_html(
     edges = []
     for package, node_id in node_ids.items():
         nodes.append({"id": node_id, "label": package.full_name})
-        if isinstance(package, SourcePackage):
-            nodes[-1].update({
-                "shape": "square",
-                "color": "red",
-                "borderWidth": 4,
-            })
-        if shortest_paths_to_source is not None:
-            nodes[-1]["level"] = shortest_paths_to_source[package]
+        if package in roots:
+            nodes[-1].update(
+                {
+                    "shape": "square",
+                    "color": "red",
+                    "borderWidth": 4,
+                }
+            )
+        if package.vulnerabilities:
+            nodes[-1].update({"color": "red"})
+        if graph.source_packages:
+            nodes[-1]["level"] = max(graph.shortest_path_from_root(package), 0)
         for pkg1, pkg2, *_ in graph.out_edges(package):  # type: ignore
             dep = graph.get_edge_data(pkg1, pkg2)["dependency"]
             if collapse_versions:
@@ -134,11 +131,7 @@ def graph_to_html(
                 dep_name = f"{dep.source}:{dep.package}"
             else:
                 dep_name = str(dep)
-            edges.append({
-                "from": node_ids[pkg1],
-                "to": node_ids[pkg2],
-                "shape": "dot"
-            })
+            edges.append({"from": node_ids[pkg1], "to": node_ids[pkg2], "shape": "dot"})
             if dep_name != pkg2.full_name:
                 edges[-1]["label"] = dep_name
 
@@ -149,8 +142,9 @@ def graph_to_html(
         else:
             title = f"Dependency Graph for {source_packages}"
 
-    return TEMPLATE\
-        .replace("$NODES", repr(nodes))\
-        .replace("$EDGES", repr(edges))\
-        .replace("$TITLE", title)\
+    return (
+        TEMPLATE.replace("$NODES", repr(nodes))
+        .replace("$EDGES", repr(edges))
+        .replace("$TITLE", title)
         .replace("$LAYOUT", layout)
+    )

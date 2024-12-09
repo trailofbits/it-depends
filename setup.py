@@ -15,7 +15,7 @@ setup(
     license="LGPL-3.0-or-later",
     url="https://github.com/trailofbits/it-depends",
     author="Trail of Bits",
-    version="0.0.1",
+    version="0.1.2",
     packages=find_packages(exclude=["test"]),
     python_requires=">=3.7",
     install_requires=[
@@ -28,10 +28,13 @@ setup(
         "semantic_version~=2.8.5",
         "spdx-tools~=0.6.1",
         "sqlalchemy>=1.3",
-        "tqdm>=4.48.0"
+        "tqdm>=4.48.0",
+        # Indirect dependencies for which we pin a minimum version to mitigate vulnerabilities:
+        "requests>=2.20.0",  # CVE-2018-18074
+        "urllib3>=1.26.5",  # CVE-2021-33503
     ],
     extras_require={
-        "dev": ["flake8", "pytest", "twine", "mypy>=0.812"]
+        "dev": ["flake8", "pytest", "twine", "mypy>=0.812", "types-setuptools", "types-requests"]
     },
     entry_points={
         "console_scripts": [

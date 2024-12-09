@@ -15,16 +15,24 @@ from semantic_version import Version
 from semantic_version.base import BaseSpec, Range, SimpleSpec
 
 from .dependencies import (
-    Dependency, DependencyResolver, SourcePackage, SourceRepository, Package, PackageCache, SemanticVersion
+    Dependency,
+    DependencyResolver,
+    SourcePackage,
+    SourceRepository,
+    Package,
+    PackageCache,
+    SemanticVersion,
 )
 from . import vcs
 
 log = getLogger(__file__)
 
-GITHUB_URL_MATCH = re.compile(r"\s*https?://(www\.)?github.com/([^/]+)/(.+?)(\.git)?\s*", re.IGNORECASE)
+GITHUB_URL_MATCH = re.compile(
+    r"\s*https?://(www\.)?github.com/([^/]+)/(.+?)(\.git)?\s*", re.IGNORECASE
+)
 REQUIRE_LINE_REGEX = r"\s*([^\s]+)\s+([^\s]+)\s*(//\s*indirect\s*)?"
 REQUIRE_LINE_MATCH = re.compile(REQUIRE_LINE_REGEX)
-REQUIRE_MATCH = re.compile(fr"\s*require\s+{REQUIRE_LINE_REGEX}")
+REQUIRE_MATCH = re.compile(rf"\s*require\s+{REQUIRE_LINE_REGEX}")
 REQUIRE_BLOCK_MATCH = re.compile(r"\s*require\s+\(\s*")
 MODULE_MATCH = re.compile(r"\s*module\s+([^\s]+)\s*")
 
@@ -56,11 +64,7 @@ class MetadataParser(HTMLParser):
 
 def git_commit(path: Optional[str] = None) -> Optional[str]:
     try:
-        return check_output(
-            ["git", "rev-parse", "HEAD"],
-            cwd=path,
-            stderr=DEVNULL
-        ).decode("utf-8")
+        return check_output(["git", "rev-parse", "HEAD"], cwd=path, stderr=DEVNULL).decode("utf-8")
     except CalledProcessError:
         return None
 
@@ -68,7 +72,12 @@ def git_commit(path: Optional[str] = None) -> Optional[str]:
 class GoVersion:
     def __init__(self, go_version_string: str):
         self.version_string: str = go_version_string.strip()
+        if self.version_string.startswith("="):
+            self.version_string = self.version_string[1:]
         self.build: bool = False  # This is to appease semantic_version.base.SimpleSpec
+
+    def __lt__(self, other):
+        return self.version_string < str(other)
 
     def __eq__(self, other):
         return isinstance(other, GoVersion) and self.version_string == other.version_string
@@ -82,7 +91,7 @@ class GoVersion:
 
 @BaseSpec.register_syntax
 class GoSpec(SimpleSpec):
-    SYNTAX = 'go'
+    SYNTAX = "go"
 
     class Parser(SimpleSpec.Parser):
         @classmethod
@@ -145,37 +154,96 @@ class GoModule:
                 return GoModule.parse_mod(response.read())
         except HTTPError as e:
             if e.code == 404:
-                # If there is no `go.mod`, it likely means the package has no dependencies:
-                return GoModule(f"github.com/{github_org}/{github_repo}")
+                # Revert to cloning the repo
+                return GoModule.from_git(
+                    import_path=f"github.com/{github_org}/{github_repo}",
+                    git_url=f"https://github.com/{github_org}/{github_repo}",
+                    tag=tag,
+                    check_for_github=False,
+                )
             raise
 
     @staticmethod
-    def from_git(import_path: str, git_url: str, tag: str):
-        m = GITHUB_URL_MATCH.fullmatch(git_url)
-        if m:
-            return GoModule.from_github(m.group(2), m.group(3), tag)
+    def from_git(
+        import_path: str,
+        git_url: str,
+        tag: str,
+        check_for_github: bool = True,
+        force_clone: bool = False,
+    ):
+        if check_for_github:
+            m = GITHUB_URL_MATCH.fullmatch(git_url)
+            if m:
+                return GoModule.from_github(m.group(2), m.group(3), tag)
         log.info(f"Attempting to clone {git_url}")
         with TemporaryDirectory() as tempdir:
-            check_call(["git", "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
-            check_call(["git", "remote", "add", "origin", git_url], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
-            git_hash = GoModule.tag_to_git_hash(tag)
-            env = {
-                "GIT_TERMINAL_PROMPT": "0"
-            }
+            env = {"GIT_TERMINAL_PROMPT": "0"}
             if os.environ.get("GIT_SSH", "") == "" and os.environ.get("GIT_SSH_COMMAND", "") == "":
                 # disable any ssh connection pooling by git
                 env["GIT_SSH_COMMAND"] = "ssh -o ControlMaster=no"
-            try:
-                check_call(["git", "fetch", "--depth", "1", "origin", git_hash], cwd=tempdir, stderr=DEVNULL,
-                           stdout=DEVNULL, env=env)
-            except CalledProcessError:
-                # not all git servers support `git fetch --depth 1` on a hash
+            if tag == "*" or force_clone:
+                # this will happen if we are resolving a wildcard, typically if the user called something like
+                # `it-depends go:github.com/ethereum/go-ethereum`
+                td = Path(tempdir)
+                check_call(
+                    ["git", "clone", "--depth", "1", git_url, td.name],
+                    cwd=td.parent,
+                    stderr=DEVNULL,
+                    stdout=DEVNULL,
+                    env=env,
+                )
+            else:
+                check_call(["git", "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
+                check_call(
+                    ["git", "remote", "add", "origin", git_url],
+                    cwd=tempdir,
+                    stderr=DEVNULL,
+                    stdout=DEVNULL,
+                )
+                git_hash = GoModule.tag_to_git_hash(tag)
                 try:
-                    check_call(["git", "fetch", "origin"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env)
-                    check_call(["git", "checkout", git_hash], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env)
+                    check_call(
+                        ["git", "fetch", "--depth", "1", "origin", git_hash],
+                        cwd=tempdir,
+                        stderr=DEVNULL,
+                        stdout=DEVNULL,
+                        env=env,
+                    )
                 except CalledProcessError:
-                    log.error(f"Could not clone {git_url} for {import_path!r}")
-                    return GoModule(import_path)
+                    # not all git servers support `git fetch --depth 1` on a hash
+                    try:
+                        check_call(
+                            ["git", "fetch", "origin"],
+                            cwd=tempdir,
+                            stderr=DEVNULL,
+                            stdout=DEVNULL,
+                            env=env,
+                        )
+                    except CalledProcessError:
+                        log.error(f"Could not clone {git_url} for {import_path!r}")
+                        return GoModule(import_path)
+                    try:
+                        check_call(
+                            ["git", "checkout", git_hash],
+                            cwd=tempdir,
+                            stderr=DEVNULL,
+                            stdout=DEVNULL,
+                            env=env,
+                        )
+                    except CalledProcessError:
+                        if tag.startswith("="):
+                            return GoModule.from_git(import_path, git_url, tag[1:])
+                        log.warning(
+                            f"Could not checkout tag {tag} of {git_url} for {import_path!r}; "
+                            "reverting to the main branch"
+                        )
+                        return GoModule.from_git(
+                            import_path,
+                            git_url,
+                            tag,
+                            check_for_github=False,
+                            force_clone=True,
+                        )
             go_mod_path = Path(tempdir) / "go.mod"
             if not go_mod_path.exists():
                 # the package likely doesn't have any dependencies
@@ -240,7 +308,9 @@ class GoModule:
             new_url, imports = GoModule.meta_imports_for_prefix(meta_import.prefix)
             meta_import2 = GoModule.match_go_import(imports, import_path)
             if meta_import != meta_import2:
-                raise ValueError(f"{url} and {new_url} disagree about go-import for {meta_import.prefix!r}")
+                raise ValueError(
+                    f"{url} and {new_url} disagree about go-import for {meta_import.prefix!r}"
+                )
         # validateRepoRoot(meta_import.RepoRoot)
         if meta_import.vcs == "mod":
             the_vcs = vcs.VCS_MOD
@@ -249,7 +319,12 @@ class GoModule:
             if the_vcs is None:
                 raise ValueError(f"{url}: unknown VCS {meta_import.vcs!r}")
         vcs.check_go_vcs(the_vcs, meta_import.prefix)
-        return vcs.Repository(repo=meta_import.repo_root, root=meta_import.prefix, is_custom=True, vcs=the_vcs)
+        return vcs.Repository(
+            repo=meta_import.repo_root,
+            root=meta_import.prefix,
+            is_custom=True,
+            vcs=the_vcs,
+        )
 
     @staticmethod
     def repo_root_for_import_path(import_path: str) -> vcs.Repository:
@@ -284,7 +359,7 @@ class GoResolver(DependencyResolver):
     description = "classifies the dependencies of JavaScript packages using `npm`"
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        assert isinstance(dependency.semantic_version, GoSpec)
+        # assert isinstance(dependency.semantic_version, GoSpec)
         version_string = str(dependency.semantic_version)
         module = GoModule.from_import(dependency.package, version_string)
         yield Package(
@@ -292,9 +367,13 @@ class GoResolver(DependencyResolver):
             version=GoVersion(version_string),  # type: ignore
             source=dependency.source,
             dependencies=[
-                Dependency(package=package, semantic_version=GoSpec(f"={version}"), source=dependency.source)
+                Dependency(
+                    package=package,
+                    semantic_version=GoSpec(f"={version}"),
+                    source=dependency.source,
+                )
                 for package, version in module.dependencies
-            ]
+            ],
         )
 
     @classmethod
@@ -329,5 +408,5 @@ class GoResolver(DependencyResolver):
             dependencies=[
                 Dependency(package=package, semantic_version=GoSpec(f"={version}"), source=self)
                 for package, version in module.dependencies
-            ]
+            ],
         )

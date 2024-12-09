@@ -1,343 +1,19 @@
 {
-    "cargo:adler": {
-        "0.2.3": {
+    "cargo:const-random": {
+        "0.1.13": {
             "dependencies": {
-                "cargo:compiler_builtins": "^0.1.2",
-                "cargo:rustc-std-workspace-core": "^1.0.0"
+                "cargo:proc-macro-hack": "^0.5",
+                "cargo:const-random-macro": "^0.1.13"
             },
             "source": "cargo"
         }
     },
-    "cargo:aho-corasick": {
-        "0.7.15": {
+    "cargo:miow": {
+        "0.3.6": {
             "dependencies": {
-                "cargo:memchr": "^2.2.0"
+                "cargo:winapi": "^0.3.3",
+                "cargo:socket2": "^0.3.16"
             },
-            "source": "cargo"
-        },
-        "0.7.18": {
-            "dependencies": {
-                "cargo:memchr": "^2.4.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:ansi_term": {
-        "0.11.0": {
-            "dependencies": {
-                "cargo:winapi": "^0.3.4"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:anyhow": {
-        "1.0.38": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:atty": {
-        "0.2.14": {
-            "dependencies": {
-                "cargo:hermit-abi": "^0.1.6",
-                "cargo:libc": "^0.2",
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:bitflags": {
-        "1.2.1": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:bitmaps": {
-        "2.1.0": {
-            "dependencies": {
-                "cargo:typenum": "^1.10.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:bstr": {
-        "0.2.15": {
-            "dependencies": {
-                "cargo:lazy_static": "^1.2",
-                "cargo:memchr": "^2.1.2",
-                "cargo:regex-automata": "^0.1.5",
-                "cargo:serde": "^1.0.85"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:bytesize": {
-        "1.0.1": {
-            "dependencies": {
-                "cargo:serde": "^1.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:cargo": {
-        "0.50.1": {
-            "dependencies": {
-                "cargo:anyhow": "^1.0",
-                "cargo:atty": "^0.2",
-                "cargo:bytesize": "^1.0",
-                "cargo:cargo-platform": "^0.1.1",
-                "cargo:clap": "^2.31.2",
-                "cargo:core-foundation": "^0.9.0",
-                "cargo:crates-io": "^0.31.1",
-                "cargo:crossbeam-utils": "^0.8",
-                "cargo:crypto-hash": "^0.3.1",
-                "cargo:curl": "^0.4.23",
-                "cargo:curl-sys": "^0.4.22",
-                "cargo:env_logger": "^0.8.1",
-                "cargo:filetime": "^0.2.9",
-                "cargo:flate2": "^1.0.3",
-                "cargo:fwdansi": "^1.1.0",
-                "cargo:git2": "^0.13.12",
-                "cargo:git2-curl": "^0.14.0",
-                "cargo:glob": "^0.3.0",
-                "cargo:hex": "^0.4",
-                "cargo:home": "^0.5",
-                "cargo:humantime": "^2.0.0",
-                "cargo:ignore": "^0.4.7",
-                "cargo:im-rc": "^15.0.0",
-                "cargo:jobserver": "^0.1.21",
-                "cargo:lazy_static": "^1.2.0",
-                "cargo:lazycell": "^1.2.0",
-                "cargo:libc": "^0.2",
-                "cargo:libgit2-sys": "^0.12.14",
-                "cargo:log": "^0.4.6",
-                "cargo:memchr": "^2.1.3",
-                "cargo:miow": "^0.3.1",
-                "cargo:num_cpus": "^1.0",
-                "cargo:opener": "^0.4",
-                "cargo:openssl": "^0.10.11",
-                "cargo:percent-encoding": "^2.0",
-                "cargo:pretty_env_logger": "^0.4",
-                "cargo:rustc-workspace-hack": "^1.0.0",
-                "cargo:rustfix": "^0.5.0",
-                "cargo:same-file": "^1",
-                "cargo:semver": "^0.10",
-                "cargo:serde": "^1.0.82",
-                "cargo:serde_ignored": "^0.1.0",
-                "cargo:serde_json": "^1.0.30",
-                "cargo:shell-escape": "^0.1.4",
-                "cargo:strip-ansi-escapes": "^0.1.0",
-                "cargo:tar": "^0.4.26",
-                "cargo:tempfile": "^3.0",
-                "cargo:termcolor": "^1.1",
-                "cargo:toml": "^0.5.7",
-                "cargo:unicode-width": "^0.1.5",
-                "cargo:unicode-xid": "^0.2.0",
-                "cargo:url": "^2.0",
-                "cargo:walkdir": "^2.2",
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:cargo-platform": {
-        "0.1.1": {
-            "dependencies": {
-                "cargo:serde": "^1.0.82"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:cfg-if": {
-        "1.0.0": {
-            "dependencies": {
-                "cargo:compiler_builtins": "^0.1.2",
-                "cargo:rustc-std-workspace-core": "^1.0.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:clap": {
-        "2.33.3": {
-            "dependencies": {
-                "cargo:ansi_term": "^0.11",
-                "cargo:atty": "^0.2.2",
-                "cargo:bitflags": "^1.0",
-                "cargo:clippy": "~0.0.166",
-                "cargo:strsim": "^0.8",
-                "cargo:term_size": "^0.3.0",
-                "cargo:textwrap": "^0.11.0",
-                "cargo:unicode-width": "^0.1.4",
-                "cargo:vec_map": "^0.8",
-                "cargo:yaml-rust": "^0.3.5"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:commoncrypto": {
-        "0.2.0": {
-            "dependencies": {
-                "cargo:clippy": "^0.0",
-                "cargo:commoncrypto-sys": "^0.2.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:commoncrypto-sys": {
-        "0.2.0": {
-            "dependencies": {
-                "cargo:clippy": "^0.0",
-                "cargo:libc": "^0.2"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:core-foundation": {
-        "0.9.1": {
-            "dependencies": {
-                "cargo:chrono": "^0.4",
-                "cargo:core-foundation-sys": "^0.8.0",
-                "cargo:libc": "^0.2",
-                "cargo:uuid": "^0.5"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:core-foundation-sys": {
-        "0.8.2": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:crates-io": {
-        "0.31.1": {
-            "dependencies": {
-                "cargo:anyhow": "^1.0.34",
-                "cargo:curl": "^0.4",
-                "cargo:percent-encoding": "^2.0",
-                "cargo:serde": "^1.0",
-                "cargo:serde_json": "^1.0",
-                "cargo:url": "^2.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:crc32fast": {
-        "1.2.1": {
-            "dependencies": {
-                "cargo:cfg-if": "^1.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:crossbeam-utils": {
-        "0.8.2": {
-            "dependencies": {
-                "cargo:cfg-if": "^1",
-                "cargo:lazy_static": "^1.4.0",
-                "cargo:loom": "^0.4"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:crypto-hash": {
-        "0.3.4": {
-            "dependencies": {
-                "cargo:commoncrypto": "^0.2",
-                "cargo:hex": "^0.3",
-                "cargo:openssl": "^0.10",
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:curl": {
-        "0.4.34": {
-            "dependencies": {
-                "cargo:curl-sys": "^0.4.37",
-                "cargo:libc": "^0.2.42",
-                "cargo:openssl-probe": "^0.1.2",
-                "cargo:openssl-sys": "^0.9.43",
-                "cargo:schannel": "^0.1.13",
-                "cargo:socket2": "^0.3.7",
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:curl-sys": {
-        "0.4.40+curl-7.75.0": {
-            "dependencies": {
-                "cargo:libc": "^0.2.2",
-                "cargo:libnghttp2-sys": "^0.1.3",
-                "cargo:libz-sys": "^1.0.18",
-                "cargo:mesalink": "^1.1.0-cratesio",
-                "cargo:openssl-sys": "^0.9",
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:either": {
-        "1.6.1": {
-            "dependencies": {
-                "cargo:serde": "^1.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:env_logger": {
-        "0.8.3": {
-            "dependencies": {
-                "cargo:atty": "^0.2.5",
-                "cargo:humantime": "^2.0.0",
-                "cargo:log": "^0.4.8",
-                "cargo:regex": "^1.0.3",
-                "cargo:termcolor": "^1.0.2"
-            },
-            "source": "cargo"
-        },
-        "0.8.4": {
-            "dependencies": {
-                "cargo:atty": "^0.2.5",
-                "cargo:humantime": "^2.0.0",
-                "cargo:log": "^0.4.8",
-                "cargo:regex": "^1.0.3",
-                "cargo:termcolor": "^1.0.2"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:filetime": {
-        "0.2.14": {
-            "dependencies": {
-                "cargo:cfg-if": "^1.0.0",
-                "cargo:libc": "^0.2.27",
-                "cargo:redox_syscall": "^0.2",
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:flate2": {
-        "1.0.20": {
-            "dependencies": {
-                "cargo:cfg-if": "^1.0.0",
-                "cargo:cloudflare-zlib-sys": "^0.2.0",
-                "cargo:crc32fast": "^1.2.0",
-                "cargo:futures": "^0.1.25",
-                "cargo:libc": "^0.2.65",
-                "cargo:libz-sys": "^1.1.0",
-                "cargo:miniz-sys": "^0.1.11",
-                "cargo:miniz_oxide": "^0.4.0,^0.4.0",
-                "cargo:tokio-io": "^0.1.11"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:fnv": {
-        "1.0.7": {
-            "dependencies": {},
             "source": "cargo"
         }
     },
@@ -349,233 +25,55 @@
             "source": "cargo"
         }
     },
-    "cargo:foreign-types-shared": {
-        "0.1.1": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:form_urlencoded": {
-        "1.0.1": {
+    "cargo:crypto-hash": {
+        "0.3.4": {
             "dependencies": {
-                "cargo:matches": "^0.1",
-                "cargo:percent-encoding": "^2.1.0"
+                "cargo:winapi": "^0.3",
+                "cargo:commoncrypto": "^0.2",
+                "cargo:hex": "^0.3",
+                "cargo:openssl": "^0.10"
             },
             "source": "cargo"
         }
     },
-    "cargo:fwdansi": {
-        "1.1.0": {
+    "cargo:walkdir": {
+        "2.3.1": {
             "dependencies": {
-                "cargo:memchr": "^2",
-                "cargo:termcolor": "^1"
+                "cargo:winapi": "^0.3",
+                "cargo:winapi-util": "^0.1.1",
+                "cargo:same-file": "^1.0.1"
             },
-            "source": "cargo"
-        }
-    },
-    "cargo:generator": {
-        "0.6.24": {
-            "dependencies": {
-                "cargo:libc": "^0.2",
-                "cargo:log": "^0.4",
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:getrandom": {
-        "0.2.2": {
-            "dependencies": {
-                "cargo:cfg-if": "^1",
-                "cargo:compiler_builtins": "^0.1",
-                "cargo:js-sys": "^0.3",
-                "cargo:libc": "^0.2.64",
-                "cargo:rustc-std-workspace-core": "^1.0",
-                "cargo:wasi": "^0.10",
-                "cargo:wasm-bindgen": "^0.2.62"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:git2": {
-        "0.13.17": {
-            "dependencies": {
-                "cargo:bitflags": "^1.1.0",
-                "cargo:libc": "^0.2",
-                "cargo:libgit2-sys": "^0.12.18",
-                "cargo:log": "^0.4.8",
-                "cargo:openssl-probe": "^0.1",
-                "cargo:openssl-sys": "^0.9.0",
-                "cargo:url": "^2.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:git2-curl": {
-        "0.14.1": {
-            "dependencies": {
-                "cargo:curl": "^0.4.33",
-                "cargo:git2": "^0.13",
-                "cargo:log": "^0.4",
-                "cargo:url": "^2.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:glob": {
-        "0.3.0": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:globset": {
-        "0.4.6": {
-            "dependencies": {
-                "cargo:aho-corasick": "^0.7.3",
-                "cargo:bstr": "^0.2.0",
-                "cargo:fnv": "^1.0.6",
-                "cargo:log": "^0.4.5",
-                "cargo:regex": "^1.1.5",
-                "cargo:serde": "^1.0.104"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:heck": {
-        "0.3.2": {
-            "dependencies": {
-                "cargo:unicode-segmentation": "^1.2.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:hermit-abi": {
-        "0.1.18": {
-            "dependencies": {
-                "cargo:compiler_builtins": "^0.1.0",
-                "cargo:libc": "^0.2.51",
-                "cargo:rustc-std-workspace-core": "^1.0.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:hex": {
-        "0.3.2": {
-            "dependencies": {},
             "source": "cargo"
         },
-        "0.4.2": {
+        "2.3.2": {
             "dependencies": {
-                "cargo:serde": "^1.0"
+                "cargo:winapi": "^0.3",
+                "cargo:winapi-util": "^0.1.1",
+                "cargo:same-file": "^1.0.1"
             },
             "source": "cargo"
         }
     },
-    "cargo:home": {
-        "0.5.3": {
+    "cargo:pest": {
+        "2.1.3": {
             "dependencies": {
-                "cargo:winapi": "^0.3"
+                "cargo:serde": "^1.0.89",
+                "cargo:ucd-trie": "^0.1.1",
+                "cargo:serde_json": "^1.0.39"
             },
             "source": "cargo"
         }
     },
-    "cargo:humantime": {
-        "2.1.0": {
+    "cargo:xdg": {
+        "2.2.0": {
             "dependencies": {},
             "source": "cargo"
         }
     },
-    "cargo:idna": {
-        "0.2.2": {
+    "cargo:tiny-keccak": {
+        "2.0.2": {
             "dependencies": {
-                "cargo:matches": "^0.1",
-                "cargo:unicode-bidi": "^0.3",
-                "cargo:unicode-normalization": "^0.1.17"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:ignore": {
-        "0.4.17": {
-            "dependencies": {
-                "cargo:crossbeam-utils": "^0.8.0",
-                "cargo:globset": "^0.4.5",
-                "cargo:lazy_static": "^1.1",
-                "cargo:log": "^0.4.5",
-                "cargo:memchr": "^2.1",
-                "cargo:regex": "^1.1",
-                "cargo:same-file": "^1.0.4",
-                "cargo:thread_local": "^1",
-                "cargo:walkdir": "^2.2.7",
-                "cargo:winapi-util": "^0.1.2"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:im-rc": {
-        "15.0.0": {
-            "dependencies": {
-                "cargo:arbitrary": "^0.4",
-                "cargo:bitmaps": "^2",
-                "cargo:proptest": "^0.9",
-                "cargo:quickcheck": "^0.9",
-                "cargo:rand_core": "^0.5.1",
-                "cargo:rand_xoshiro": "^0.4",
-                "cargo:rayon": "^1",
-                "cargo:refpool": "^0.4",
-                "cargo:serde": "^1",
-                "cargo:sized-chunks": "^0.6",
-                "cargo:typenum": "^1.12"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:itoa": {
-        "0.4.7": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:jobserver": {
-        "0.1.21": {
-            "dependencies": {
-                "cargo:libc": "^0.2.50"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:lazy_static": {
-        "1.4.0": {
-            "dependencies": {
-                "cargo:spin": "^0.5.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:lazycell": {
-        "1.3.0": {
-            "dependencies": {
-                "cargo:clippy": "^0.0",
-                "cargo:serde": "^1"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:libc": {
-        "0.2.86": {
-            "dependencies": {
-                "cargo:rustc-std-workspace-core": "^1.0.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:libgit2-sys": {
-        "0.12.18+1.1.0": {
-            "dependencies": {
-                "cargo:libc": "^0.2",
-                "cargo:libssh2-sys": "^0.2.19",
-                "cargo:libz-sys": "^1.1.0",
-                "cargo:openssl-sys": "^0.9"
+                "cargo:crunchy": "^0.2.2"
             },
             "source": "cargo"
         }
@@ -585,162 +83,6 @@
             "dependencies": {
                 "cargo:libc": "^0.2"
             },
-            "source": "cargo"
-        }
-    },
-    "cargo:libssh2-sys": {
-        "0.2.21": {
-            "dependencies": {
-                "cargo:libc": "^0.2",
-                "cargo:libz-sys": "^1.1.0",
-                "cargo:openssl-sys": "^0.9.35"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:libz-sys": {
-        "1.1.2": {
-            "dependencies": {
-                "cargo:libc": "^0.2.43"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:llvm-ir": {
-        "0.7.5": {
-            "dependencies": {
-                "cargo:either": "^1.6",
-                "cargo:llvm-sys": "^100.2.0,^110.0.0,^120.0.0,^80.3.0,^90.2.0",
-                "cargo:log": "^0.4.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:log": {
-        "0.4.14": {
-            "dependencies": {
-                "cargo:cfg-if": "^1.0",
-                "cargo:serde": "^1.0",
-                "cargo:sval": "^1.0.0-alpha.5",
-                "cargo:value-bag": "^1.0.0-alpha.6"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:loom": {
-        "0.4.0": {
-            "dependencies": {
-                "cargo:cfg-if": "^1.0.0",
-                "cargo:futures-util": "^0.3.0",
-                "cargo:generator": "^0.6.18",
-                "cargo:scoped-tls": "^1.0.0",
-                "cargo:serde": "^1.0.92",
-                "cargo:serde_json": "^1.0.33"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:matches": {
-        "0.1.8": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:memchr": {
-        "2.3.4": {
-            "dependencies": {
-                "cargo:libc": "^0.2.18"
-            },
-            "source": "cargo"
-        },
-        "2.4.0": {
-            "dependencies": {
-                "cargo:libc": "^0.2.18"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:miniz_oxide": {
-        "0.4.3": {
-            "dependencies": {
-                "cargo:adler": "^0.2.3",
-                "cargo:compiler_builtins": "^0.1.2",
-                "cargo:rustc-std-workspace-alloc": "^1.0.0",
-                "cargo:rustc-std-workspace-core": "^1.0.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:miow": {
-        "0.3.6": {
-            "dependencies": {
-                "cargo:socket2": "^0.3.16",
-                "cargo:winapi": "^0.3.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:num_cpus": {
-        "1.13.0": {
-            "dependencies": {
-                "cargo:hermit-abi": "^0.1.3",
-                "cargo:libc": "^0.2.26"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:once_cell": {
-        "1.6.0": {
-            "dependencies": {
-                "cargo:parking_lot": "^0.11"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:opener": {
-        "0.4.1": {
-            "dependencies": {
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:openssl": {
-        "0.10.32": {
-            "dependencies": {
-                "cargo:bitflags": "^1.0",
-                "cargo:cfg-if": "^1.0",
-                "cargo:foreign-types": "^0.3.1",
-                "cargo:lazy_static": "^1",
-                "cargo:libc": "^0.2",
-                "cargo:openssl-sys": "^0.9.60"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:openssl-probe": {
-        "0.1.2": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:openssl-sys": {
-        "0.9.60": {
-            "dependencies": {
-                "cargo:libc": "^0.2"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:percent-encoding": {
-        "2.1.0": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:ppv-lite86": {
-        "0.2.10": {
-            "dependencies": {},
             "source": "cargo"
         }
     },
@@ -755,6 +97,272 @@
             "source": "cargo"
         }
     },
+    "cargo:proc-macro-hack": {
+        "0.5.19": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:siderophile": {
+        "0.1.1": {
+            "dependencies": {
+                "cargo:rustc-demangle": "^0.1",
+                "cargo:structopt": "^0.3",
+                "cargo:cargo": "^0.50.1",
+                "cargo:log": "^0.4",
+                "cargo:regex": "^1",
+                "cargo:glob": "^0.3",
+                "cargo:walkdir": "^2.3",
+                "cargo:llvm-ir": "^0.7.4",
+                "cargo:syn": "^1.0",
+                "cargo:quote": "^1.0.9",
+                "cargo:tempfile": "^3.1.0",
+                "cargo:anyhow": "^1",
+                "cargo:env_logger": "^0.8"
+            },
+            "source": "cargo",
+            "is_source_package": true
+        }
+    },
+    "cargo:winapi-util": {
+        "0.1.5": {
+            "dependencies": {
+                "cargo:winapi": "^0.3"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:vec_map": {
+        "0.8.2": {
+            "dependencies": {
+                "cargo:serde": "^1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:const-random-macro": {
+        "0.1.13": {
+            "dependencies": {
+                "cargo:getrandom": "^0.2.0",
+                "cargo:lazy_static": "^1.4.0",
+                "cargo:tiny-keccak": "^2.0.2",
+                "cargo:proc-macro-hack": "^0.5.13"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:winapi": {
+        "0.3.9": {
+            "dependencies": {
+                "cargo:winapi-i686-pc-windows-gnu": "^0.4",
+                "cargo:winapi-x86_64-pc-windows-gnu": "^0.4"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:curl": {
+        "0.4.34": {
+            "dependencies": {
+                "cargo:winapi": "^0.3",
+                "cargo:openssl-probe": "^0.1.2",
+                "cargo:schannel": "^0.1.13",
+                "cargo:socket2": "^0.3.7",
+                "cargo:libc": "^0.2.42",
+                "cargo:openssl-sys": "^0.9.43",
+                "cargo:curl-sys": "^0.4.37"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:libc": {
+        "0.2.86": {
+            "dependencies": {
+                "cargo:rustc-std-workspace-core": "^1.0.0"
+            },
+            "source": "cargo"
+        },
+        "0.2.99": {
+            "dependencies": {
+                "cargo:rustc-std-workspace-core": "^1.0.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:rand_chacha": {
+        "0.3.0": {
+            "dependencies": {
+                "cargo:rand_core": "^0.6.0",
+                "cargo:ppv-lite86": "^0.2.8"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:same-file": {
+        "1.0.6": {
+            "dependencies": {
+                "cargo:winapi-util": "^0.1.1"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:opener": {
+        "0.4.1": {
+            "dependencies": {
+                "cargo:winapi": "^0.3"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:either": {
+        "1.6.1": {
+            "dependencies": {
+                "cargo:serde": "^1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:humantime": {
+        "2.1.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:structopt-derive": {
+        "0.4.15": {
+            "dependencies": {
+                "cargo:quote": "^1",
+                "cargo:syn": "^1",
+                "cargo:proc-macro2": "^1",
+                "cargo:heck": "^0.3.0",
+                "cargo:proc-macro-error": "^1.0.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:afl": {
+        "0.10.1": {
+            "dependencies": {
+                "cargo:libc": "^0.2.66",
+                "cargo:rustc_version": "^0.3",
+                "cargo:lazy_static": "^1.4.0",
+                "cargo:xdg": "^2.1",
+                "cargo:cc": "^1.0",
+                "cargo:clap": "^2.33"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:serde_json": {
+        "1.0.62": {
+            "dependencies": {
+                "cargo:itoa": "^0.4.3",
+                "cargo:ryu": "^1.0",
+                "cargo:indexmap": "^1.5",
+                "cargo:serde": "^1.0.100"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:atty": {
+        "0.2.14": {
+            "dependencies": {
+                "cargo:libc": "^0.2",
+                "cargo:winapi": "^0.3",
+                "cargo:hermit-abi": "^0.1.6"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:url": {
+        "2.2.1": {
+            "dependencies": {
+                "cargo:percent-encoding": "^2.1.0",
+                "cargo:idna": "^0.2.0",
+                "cargo:matches": "^0.1",
+                "cargo:serde": "^1.0",
+                "cargo:form_urlencoded": "^1.0.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:rustc-workspace-hack": {
+        "1.0.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:backtrace": {
+        "0.3.61": {
+            "dependencies": {
+                "cargo:cpp_demangle": "^0.3.0",
+                "cargo:rustc-demangle": "^0.1.4",
+                "cargo:libc": "^0.2.94",
+                "cargo:miniz_oxide": "^0.4.0",
+                "cargo:cfg-if": "^1.0",
+                "cargo:winapi": "^0.3.9",
+                "cargo:addr2line": "^0.16.0",
+                "cargo:rustc-serialize": "^0.3",
+                "cargo:serde": "^1.0",
+                "cargo:object": "^0.26.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:gimli": {
+        "0.25.0": {
+            "dependencies": {
+                "cargo:fallible-iterator": "^0.2.0",
+                "cargo:indexmap": "^1.0.2",
+                "cargo:rustc-std-workspace-alloc": "^1.0.0",
+                "cargo:stable_deref_trait": "^1.1.0",
+                "cargo:rustc-std-workspace-core": "^1.0.0",
+                "cargo:compiler_builtins": "^0.1.2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:ahash": {
+        "0.7.4": {
+            "dependencies": {
+                "cargo:getrandom": "^0.2.0",
+                "cargo:const-random": "^0.1.12,^0.1.12",
+                "cargo:serde": "^1.0.117,^1.0.117",
+                "cargo:once_cell": "^1.5.2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:jobserver": {
+        "0.1.21": {
+            "dependencies": {
+                "cargo:libc": "^0.2.50"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:num_cpus": {
+        "1.13.0": {
+            "dependencies": {
+                "cargo:libc": "^0.2.26",
+                "cargo:hermit-abi": "^0.1.3"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:crc32fast": {
+        "1.2.1": {
+            "dependencies": {
+                "cargo:cfg-if": "^1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:fallible-iterator": {
+        "0.2.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
     "cargo:proc-macro-error-attr": {
         "1.0.4": {
             "dependencies": {
@@ -764,41 +372,195 @@
             "source": "cargo"
         }
     },
-    "cargo:proc-macro2": {
-        "1.0.24": {
+    "cargo:ansi_term": {
+        "0.11.0": {
             "dependencies": {
-                "cargo:unicode-xid": "^0.2"
+                "cargo:winapi": "^0.3.4"
             },
             "source": "cargo"
         }
     },
-    "cargo:quote": {
-        "1.0.9": {
+    "cargo:cargo": {
+        "0.50.1": {
             "dependencies": {
-                "cargo:proc-macro2": "^1.0.20"
+                "cargo:humantime": "^2.0.0",
+                "cargo:unicode-xid": "^0.2.0",
+                "cargo:home": "^0.5",
+                "cargo:env_logger": "^0.8.1",
+                "cargo:strip-ansi-escapes": "^0.1.0",
+                "cargo:serde_ignored": "^0.1.0",
+                "cargo:unicode-width": "^0.1.5",
+                "cargo:anyhow": "^1.0",
+                "cargo:jobserver": "^0.1.21",
+                "cargo:winapi": "^0.3",
+                "cargo:toml": "^0.5.7",
+                "cargo:core-foundation": "^0.9.0",
+                "cargo:git2": "^0.13.12",
+                "cargo:im-rc": "^15.0.0",
+                "cargo:lazy_static": "^1.2.0",
+                "cargo:serde": "^1.0.82",
+                "cargo:walkdir": "^2.2",
+                "cargo:serde_json": "^1.0.30",
+                "cargo:memchr": "^2.1.3",
+                "cargo:git2-curl": "^0.14.0",
+                "cargo:lazycell": "^1.2.0",
+                "cargo:url": "^2.0",
+                "cargo:libgit2-sys": "^0.12.14",
+                "cargo:clap": "^2.31.2",
+                "cargo:num_cpus": "^1.0",
+                "cargo:curl-sys": "^0.4.22",
+                "cargo:crossbeam-utils": "^0.8",
+                "cargo:openssl": "^0.10.11",
+                "cargo:semver": "^0.10",
+                "cargo:tempfile": "^3.0",
+                "cargo:opener": "^0.4",
+                "cargo:atty": "^0.2",
+                "cargo:bytesize": "^1.0",
+                "cargo:same-file": "^1",
+                "cargo:termcolor": "^1.1",
+                "cargo:crypto-hash": "^0.3.1",
+                "cargo:percent-encoding": "^2.0",
+                "cargo:tar": "^0.4.26",
+                "cargo:hex": "^0.4",
+                "cargo:flate2": "^1.0.3",
+                "cargo:libc": "^0.2",
+                "cargo:shell-escape": "^0.1.4",
+                "cargo:rustfix": "^0.5.0",
+                "cargo:fwdansi": "^1.1.0",
+                "cargo:log": "^0.4.6",
+                "cargo:glob": "^0.3.0",
+                "cargo:curl": "^0.4.23",
+                "cargo:rustc-workspace-hack": "^1.0.0",
+                "cargo:miow": "^0.3.1",
+                "cargo:filetime": "^0.2.9",
+                "cargo:cargo-platform": "^0.1.1",
+                "cargo:crates-io": "^0.31.1",
+                "cargo:ignore": "^0.4.7",
+                "cargo:pretty_env_logger": "^0.4"
             },
             "source": "cargo"
         }
     },
-    "cargo:rand": {
-        "0.8.3": {
+    "cargo:termcolor": {
+        "1.1.2": {
             "dependencies": {
-                "cargo:libc": "^0.2.22",
-                "cargo:log": "^0.4.4",
-                "cargo:packed_simd_2": "^0.3.4",
-                "cargo:rand_chacha": "^0.3.0",
-                "cargo:rand_core": "^0.6.0",
-                "cargo:rand_hc": "^0.3.0",
-                "cargo:serde": "^1.0.103"
+                "cargo:winapi-util": "^0.1.3"
             },
             "source": "cargo"
         }
     },
-    "cargo:rand_chacha": {
-        "0.3.0": {
+    "cargo:serde_ignored": {
+        "0.1.2": {
             "dependencies": {
-                "cargo:ppv-lite86": "^0.2.8",
-                "cargo:rand_core": "^0.6.0"
+                "cargo:serde": "^1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:strip-ansi-escapes": {
+        "0.1.0": {
+            "dependencies": {
+                "cargo:vte": "^0.3.2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:crossbeam-channel": {
+        "0.5.1": {
+            "dependencies": {
+                "cargo:cfg-if": "^1",
+                "cargo:crossbeam-utils": "^0.8"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:ryu": {
+        "1.0.5": {
+            "dependencies": {
+                "cargo:no-panic": "^0.1"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:foreign-types-shared": {
+        "0.1.1": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:once_cell": {
+        "1.6.0": {
+            "dependencies": {
+                "cargo:parking_lot": "^0.11"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:toml": {
+        "0.5.8": {
+            "dependencies": {
+                "cargo:indexmap": "^1.0",
+                "cargo:serde": "^1.0.97"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:fwdansi": {
+        "1.1.0": {
+            "dependencies": {
+                "cargo:termcolor": "^1",
+                "cargo:memchr": "^2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:remove_dir_all": {
+        "0.5.3": {
+            "dependencies": {
+                "cargo:winapi": "^0.3"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:libz-sys": {
+        "1.1.2": {
+            "dependencies": {
+                "cargo:libc": "^0.2.43"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:tempfile": {
+        "3.2.0": {
+            "dependencies": {
+                "cargo:winapi": "^0.3",
+                "cargo:redox_syscall": "^0.2",
+                "cargo:cfg-if": "^1",
+                "cargo:libc": "^0.2.27",
+                "cargo:remove_dir_all": "^0.5",
+                "cargo:rand": "^0.8"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:structopt": {
+        "0.3.22": {
+            "dependencies": {
+                "cargo:paw": "^1",
+                "cargo:lazy_static": "^1.4.0",
+                "cargo:clap": "^2.33",
+                "cargo:structopt-derive": "=0.4.15"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:core-foundation": {
+        "0.9.1": {
+            "dependencies": {
+                "cargo:libc": "^0.2",
+                "cargo:chrono": "^0.4",
+                "cargo:core-foundation-sys": "^0.8.0",
+                "cargo:uuid": "^0.5"
             },
             "source": "cargo"
         }
@@ -819,122 +581,138 @@
             "source": "cargo"
         }
     },
-    "cargo:rand_hc": {
-        "0.3.0": {
+    "cargo:addr2line": {
+        "0.16.0": {
             "dependencies": {
-                "cargo:rand_core": "^0.6.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:rand_xoshiro": {
-        "0.4.0": {
-            "dependencies": {
-                "cargo:rand_core": "^0.5",
-                "cargo:serde": "^1"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:redox_syscall": {
-        "0.2.5": {
-            "dependencies": {
-                "cargo:bitflags": "^1.1.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:regex": {
-        "1.4.3": {
-            "dependencies": {
-                "cargo:aho-corasick": "^0.7.6",
-                "cargo:memchr": "^2.2.1",
-                "cargo:regex-syntax": "^0.6.22",
-                "cargo:thread_local": "^1"
-            },
-            "source": "cargo"
-        },
-        "1.5.4": {
-            "dependencies": {
-                "cargo:aho-corasick": "^0.7.18",
-                "cargo:memchr": "^2.4.0",
-                "cargo:regex-syntax": "^0.6.25"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:regex-syntax": {
-        "0.6.22": {
-            "dependencies": {},
-            "source": "cargo"
-        },
-        "0.6.25": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:remove_dir_all": {
-        "0.5.3": {
-            "dependencies": {
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:rustc-demangle": {
-        "0.1.20": {
-            "dependencies": {
+                "cargo:cpp_demangle": "^0.3",
+                "cargo:fallible-iterator": "^0.2",
+                "cargo:gimli": "^0.25",
+                "cargo:rustc-demangle": "^0.1",
                 "cargo:compiler_builtins": "^0.1.2",
+                "cargo:rustc-std-workspace-alloc": "^1.0.0",
+                "cargo:rustc-std-workspace-core": "^1.0.0",
+                "cargo:smallvec": "^1",
+                "cargo:object": "^0.26"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:scopeguard": {
+        "1.1.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:libssh2-sys": {
+        "0.2.21": {
+            "dependencies": {
+                "cargo:libc": "^0.2",
+                "cargo:openssl-sys": "^0.9.35",
+                "cargo:libz-sys": "^1.1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:thread_local": {
+        "1.1.3": {
+            "dependencies": {
+                "cargo:criterion": "^0.3.3",
+                "cargo:once_cell": "^1.5.2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:anyhow": {
+        "1.0.43": {
+            "dependencies": {
+                "cargo:backtrace": "^0.3.51"
+            },
+            "source": "cargo"
+        },
+        "1.0.38": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:typenum": {
+        "1.12.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:ignore": {
+        "0.4.17": {
+            "dependencies": {
+                "cargo:winapi-util": "^0.1.2",
+                "cargo:lazy_static": "^1.1",
+                "cargo:walkdir": "^2.2.7",
+                "cargo:memchr": "^2.1",
+                "cargo:same-file": "^1.0.4",
+                "cargo:crossbeam-utils": "^0.8.0",
+                "cargo:thread_local": "^1",
+                "cargo:globset": "^0.4.5",
+                "cargo:regex": "^1.1",
+                "cargo:log": "^0.4.5"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:heck": {
+        "0.3.2": {
+            "dependencies": {
+                "cargo:unicode-segmentation": "^1.2.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:object": {
+        "0.26.0": {
+            "dependencies": {
+                "cargo:crc32fast": "^1.2",
+                "cargo:wasmparser": "^0.57",
+                "cargo:memchr": "^2.4",
+                "cargo:compiler_builtins": "^0.1.2",
+                "cargo:indexmap": "^1.1",
+                "cargo:rustc-std-workspace-alloc": "^1.0.0",
+                "cargo:flate2": "^1",
                 "cargo:rustc-std-workspace-core": "^1.0.0"
             },
             "source": "cargo"
         }
     },
-    "cargo:rustc-workspace-hack": {
-        "1.0.0": {
+    "cargo:smallvec": {
+        "1.6.1": {
+            "dependencies": {
+                "cargo:serde": "^1"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:const_fn": {
+        "0.4.8": {
             "dependencies": {},
             "source": "cargo"
         }
     },
-    "cargo:rustfix": {
-        "0.5.1": {
+    "cargo:miniz_oxide": {
+        "0.4.3": {
             "dependencies": {
-                "cargo:anyhow": "^1.0.0",
-                "cargo:log": "^0.4.1",
-                "cargo:serde": "^1.0",
-                "cargo:serde_json": "^1.0"
+                "cargo:rustc-std-workspace-core": "^1.0.0",
+                "cargo:compiler_builtins": "^0.1.2",
+                "cargo:rustc-std-workspace-alloc": "^1.0.0",
+                "cargo:adler": "^0.2.3"
             },
             "source": "cargo"
         }
     },
-    "cargo:ryu": {
-        "1.0.5": {
+    "cargo:git2-curl": {
+        "0.14.1": {
             "dependencies": {
-                "cargo:no-panic": "^0.1"
+                "cargo:git2": "^0.13",
+                "cargo:url": "^2.0",
+                "cargo:curl": "^0.4.33",
+                "cargo:log": "^0.4"
             },
-            "source": "cargo"
-        }
-    },
-    "cargo:same-file": {
-        "1.0.6": {
-            "dependencies": {
-                "cargo:winapi-util": "^0.1.1"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:schannel": {
-        "0.1.19": {
-            "dependencies": {
-                "cargo:lazy_static": "^1.0",
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:scoped-tls": {
-        "1.0.0": {
-            "dependencies": {},
             "source": "cargo"
         }
     },
@@ -942,23 +720,103 @@
         "0.10.0": {
             "dependencies": {
                 "cargo:diesel": "^1.1",
-                "cargo:semver-parser": "^0.7.0",
-                "cargo:serde": "^1.0"
+                "cargo:serde": "^1.0",
+                "cargo:semver-parser": "^0.7.0"
+            },
+            "source": "cargo"
+        },
+        "0.11.0": {
+            "dependencies": {
+                "cargo:diesel": "^1.1",
+                "cargo:serde": "^1.0",
+                "cargo:semver-parser": "^0.10.0"
             },
             "source": "cargo"
         }
     },
-    "cargo:semver-parser": {
-        "0.7.0": {
+    "cargo:adler": {
+        "0.2.3": {
+            "dependencies": {
+                "cargo:rustc-std-workspace-core": "^1.0.0",
+                "cargo:compiler_builtins": "^0.1.2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:loom": {
+        "0.4.0": {
+            "dependencies": {
+                "cargo:cfg-if": "^1.0.0",
+                "cargo:serde": "^1.0.92",
+                "cargo:generator": "^0.6.18",
+                "cargo:futures-util": "^0.3.0",
+                "cargo:scoped-tls": "^1.0.0",
+                "cargo:serde_json": "^1.0.33"
+            },
+            "source": "cargo"
+        },
+        "0.5.1": {
+            "dependencies": {
+                "cargo:cfg-if": "^1.0.0",
+                "cargo:serde": "^1.0.92",
+                "cargo:pin-utils": "^0.1.0",
+                "cargo:scoped-tls": "^1.0.0",
+                "cargo:generator": "^0.7",
+                "cargo:serde_json": "^1.0.33"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:hermit-abi": {
+        "0.1.18": {
+            "dependencies": {
+                "cargo:compiler_builtins": "^0.1.0",
+                "cargo:rustc-std-workspace-core": "^1.0.0",
+                "cargo:libc": "^0.2.51"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:rand_xoshiro": {
+        "0.4.0": {
+            "dependencies": {
+                "cargo:serde": "^1",
+                "cargo:rand_core": "^0.5"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:percent-encoding": {
+        "2.1.0": {
             "dependencies": {},
             "source": "cargo"
         }
     },
-    "cargo:serde": {
-        "1.0.123": {
+    "cargo:unicode-segmentation": {
+        "1.7.1": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:pin-utils": {
+        "0.1.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:llvm-ir": {
+        "0.7.5": {
             "dependencies": {
-                "cargo:serde_derive": "=1.0.123"
+                "cargo:llvm-sys": "^100.2.0,^110.0.0,^120.0.0,^80.3.0,^90.2.0",
+                "cargo:either": "^1.6",
+                "cargo:log": "^0.4.0"
             },
+            "source": "cargo"
+        }
+    },
+    "cargo:shell-escape": {
+        "0.1.5": {
+            "dependencies": {},
             "source": "cargo"
         }
     },
@@ -970,62 +828,447 @@
                 "cargo:syn": "^1.0.60"
             },
             "source": "cargo"
+        },
+        "1.0.127": {
+            "dependencies": {
+                "cargo:proc-macro2": "^1.0",
+                "cargo:quote": "^1.0",
+                "cargo:syn": "^1.0.60"
+            },
+            "source": "cargo"
         }
     },
-    "cargo:serde_ignored": {
-        "0.1.2": {
+    "cargo:quote": {
+        "1.0.9": {
             "dependencies": {
+                "cargo:proc-macro2": "^1.0.20"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:clap": {
+        "2.33.3": {
+            "dependencies": {
+                "cargo:bitflags": "^1.0",
+                "cargo:atty": "^0.2.2",
+                "cargo:unicode-width": "^0.1.4",
+                "cargo:textwrap": "^0.11.0",
+                "cargo:ansi_term": "^0.11",
+                "cargo:strsim": "^0.8",
+                "cargo:vec_map": "^0.8",
+                "cargo:clippy": "~0.0.166",
+                "cargo:term_size": "^0.3.0",
+                "cargo:yaml-rust": "^0.3.5"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:schannel": {
+        "0.1.19": {
+            "dependencies": {
+                "cargo:winapi": "^0.3",
+                "cargo:lazy_static": "^1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:strsim": {
+        "0.8.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:indexmap": {
+        "1.7.0": {
+            "dependencies": {
+                "cargo:rayon": "^1.2",
+                "cargo:hashbrown": "^0.11",
                 "cargo:serde": "^1.0"
             },
             "source": "cargo"
         }
     },
-    "cargo:serde_json": {
-        "1.0.62": {
+    "cargo:rustc_version": {
+        "0.3.3": {
             "dependencies": {
-                "cargo:indexmap": "^1.5",
-                "cargo:itoa": "^0.4.3",
-                "cargo:ryu": "^1.0",
-                "cargo:serde": "^1.0.100"
+                "cargo:semver": "^0.11"
             },
             "source": "cargo"
         }
     },
-    "cargo:shell-escape": {
-        "0.1.5": {
+    "cargo:crossbeam-epoch": {
+        "0.9.5": {
+            "dependencies": {
+                "cargo:cfg-if": "^1",
+                "cargo:lazy_static": "^1.4.0",
+                "cargo:memoffset": "^0.6",
+                "cargo:crossbeam-utils": "^0.8.5",
+                "cargo:const_fn": "^0.4.4",
+                "cargo:scopeguard": "^1.1.0",
+                "cargo:loom": "^0.5"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:wasi": {
+        "0.10.2+wasi-snapshot-preview1": {
+            "dependencies": {
+                "cargo:rustc-std-workspace-core": "^1.0",
+                "cargo:rustc-std-workspace-alloc": "^1.0",
+                "cargo:compiler_builtins": "^0.1"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:wasmparser": {
+        "0.57.0": {
             "dependencies": {},
             "source": "cargo"
         }
     },
-    "cargo:siderophile": {
+    "cargo:vte": {
+        "0.3.3": {
+            "dependencies": {
+                "cargo:utf8parse": "^0.1"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:fnv": {
+        "1.0.7": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:tinyvec": {
+        "1.1.1": {
+            "dependencies": {
+                "cargo:serde": "^1.0",
+                "cargo:tinyvec_macros": "^0.1"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:openssl": {
+        "0.10.32": {
+            "dependencies": {
+                "cargo:libc": "^0.2",
+                "cargo:openssl-sys": "^0.9.60",
+                "cargo:cfg-if": "^1.0",
+                "cargo:bitflags": "^1.0",
+                "cargo:foreign-types": "^0.3.1",
+                "cargo:lazy_static": "^1"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:rustc-demangle": {
+        "0.1.20": {
+            "dependencies": {
+                "cargo:rustc-std-workspace-core": "^1.0.0",
+                "cargo:compiler_builtins": "^0.1.2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:cfg-if": {
+        "1.0.0": {
+            "dependencies": {
+                "cargo:rustc-std-workspace-core": "^1.0.0",
+                "cargo:compiler_builtins": "^0.1.2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:flate2": {
+        "1.0.20": {
+            "dependencies": {
+                "cargo:crc32fast": "^1.2.0",
+                "cargo:futures": "^0.1.25",
+                "cargo:libc": "^0.2.65",
+                "cargo:libz-sys": "^1.1.0",
+                "cargo:cloudflare-zlib-sys": "^0.2.0",
+                "cargo:tokio-io": "^0.1.11",
+                "cargo:miniz_oxide": "^0.4.0,^0.4.0",
+                "cargo:cfg-if": "^1.0.0",
+                "cargo:miniz-sys": "^0.1.11"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:regex": {
+        "1.5.4": {
+            "dependencies": {
+                "cargo:regex-syntax": "^0.6.25",
+                "cargo:memchr": "^2.4.0",
+                "cargo:aho-corasick": "^0.7.18"
+            },
+            "source": "cargo"
+        },
+        "1.4.3": {
+            "dependencies": {
+                "cargo:memchr": "^2.2.1",
+                "cargo:thread_local": "^1",
+                "cargo:aho-corasick": "^0.7.6",
+                "cargo:regex-syntax": "^0.6.22"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:unicode-width": {
+        "0.1.8": {
+            "dependencies": {
+                "cargo:rustc-std-workspace-std": "^1.0",
+                "cargo:compiler_builtins": "^0.1",
+                "cargo:rustc-std-workspace-core": "^1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:cargo-platform": {
         "0.1.1": {
             "dependencies": {
-                "cargo:anyhow": "^1",
-                "cargo:cargo": "^0.50.1",
-                "cargo:env_logger": "^0.8",
-                "cargo:glob": "^0.3",
-                "cargo:llvm-ir": "^0.7.4",
-                "cargo:log": "^0.4",
-                "cargo:quote": "^1.0.9",
-                "cargo:regex": "^1",
-                "cargo:rustc-demangle": "^0.1",
-                "cargo:structopt": "^0.3",
-                "cargo:syn": "^1.0",
-                "cargo:tempfile": "^3.1.0",
-                "cargo:walkdir": "^2.3"
+                "cargo:serde": "^1.0.82"
             },
-            "is_source_package": true,
+            "source": "cargo"
+        }
+    },
+    "cargo:bitflags": {
+        "1.2.1": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:bitmaps": {
+        "2.1.0": {
+            "dependencies": {
+                "cargo:typenum": "^1.10.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:ucd-trie": {
+        "0.1.3": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:globset": {
+        "0.4.6": {
+            "dependencies": {
+                "cargo:regex": "^1.1.5",
+                "cargo:serde": "^1.0.104",
+                "cargo:bstr": "^0.2.0",
+                "cargo:fnv": "^1.0.6",
+                "cargo:aho-corasick": "^0.7.3",
+                "cargo:log": "^0.4.5"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:crossbeam-utils": {
+        "0.8.2": {
+            "dependencies": {
+                "cargo:cfg-if": "^1",
+                "cargo:lazy_static": "^1.4.0",
+                "cargo:loom": "^0.4"
+            },
+            "source": "cargo"
+        },
+        "0.8.5": {
+            "dependencies": {
+                "cargo:cfg-if": "^1",
+                "cargo:lazy_static": "^1.4.0",
+                "cargo:loom": "^0.5"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:matches": {
+        "0.1.8": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:ppv-lite86": {
+        "0.2.10": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:generator": {
+        "0.6.24": {
+            "dependencies": {
+                "cargo:libc": "^0.2",
+                "cargo:winapi": "^0.3",
+                "cargo:log": "^0.4"
+            },
+            "source": "cargo"
+        },
+        "0.7.0": {
+            "dependencies": {
+                "cargo:libc": "^0.2",
+                "cargo:winapi": "^0.3",
+                "cargo:log": "^0.4"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:winapi-x86_64-pc-windows-gnu": {
+        "0.4.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:im-rc": {
+        "15.0.0": {
+            "dependencies": {
+                "cargo:typenum": "^1.12",
+                "cargo:proptest": "^0.9",
+                "cargo:rayon": "^1",
+                "cargo:rand_xoshiro": "^0.4",
+                "cargo:sized-chunks": "^0.6",
+                "cargo:refpool": "^0.4",
+                "cargo:arbitrary": "^0.4",
+                "cargo:rand_core": "^0.5.1",
+                "cargo:quickcheck": "^0.9",
+                "cargo:serde": "^1",
+                "cargo:bitmaps": "^2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:tar": {
+        "0.4.33": {
+            "dependencies": {
+                "cargo:libc": "^0.2",
+                "cargo:xattr": "^0.2",
+                "cargo:filetime": "^0.2.8"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:crossbeam-deque": {
+        "0.8.1": {
+            "dependencies": {
+                "cargo:cfg-if": "^1",
+                "cargo:crossbeam-epoch": "^0.9",
+                "cargo:crossbeam-utils": "^0.8"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:unicode-xid": {
+        "0.2.1": {
+            "dependencies": {},
             "source": "cargo"
         }
     },
     "cargo:sized-chunks": {
         "0.6.4": {
             "dependencies": {
+                "cargo:typenum": "^1.12.0",
                 "cargo:arbitrary": "^0.4.7",
-                "cargo:array-ops": "^0.1.0",
                 "cargo:bitmaps": "^2.1.0",
                 "cargo:refpool": "^0.4.3",
-                "cargo:typenum": "^1.12.0"
+                "cargo:array-ops": "^0.1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:memchr": {
+        "2.3.4": {
+            "dependencies": {
+                "cargo:libc": "^0.2.18"
+            },
+            "source": "cargo"
+        },
+        "2.4.1": {
+            "dependencies": {
+                "cargo:rustc-std-workspace-core": "^1.0.0",
+                "cargo:compiler_builtins": "^0.1.2",
+                "cargo:libc": "^0.2.18"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:idna": {
+        "0.2.2": {
+            "dependencies": {
+                "cargo:unicode-normalization": "^0.1.17",
+                "cargo:matches": "^0.1",
+                "cargo:unicode-bidi": "^0.3"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:stable_deref_trait": {
+        "1.2.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:lazy_static": {
+        "1.4.0": {
+            "dependencies": {
+                "cargo:spin": "^0.5.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:openssl-probe": {
+        "0.1.2": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:textwrap": {
+        "0.11.0": {
+            "dependencies": {
+                "cargo:unicode-width": "^0.1.3",
+                "cargo:term_size": "^0.3.0",
+                "cargo:hyphenation": "^0.7.1"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:bstr": {
+        "0.2.15": {
+            "dependencies": {
+                "cargo:serde": "^1.0.85",
+                "cargo:memchr": "^2.1.2",
+                "cargo:regex-automata": "^0.1.5",
+                "cargo:lazy_static": "^1.2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:env_logger": {
+        "0.8.4": {
+            "dependencies": {
+                "cargo:humantime": "^2.0.0",
+                "cargo:log": "^0.4.8",
+                "cargo:termcolor": "^1.0.2",
+                "cargo:regex": "^1.0.3",
+                "cargo:atty": "^0.2.5"
+            },
+            "source": "cargo"
+        },
+        "0.8.3": {
+            "dependencies": {
+                "cargo:humantime": "^2.0.0",
+                "cargo:regex": "^1.0.3",
+                "cargo:log": "^0.4.8",
+                "cargo:termcolor": "^1.0.2",
+                "cargo:atty": "^0.2.5"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:openssl-sys": {
+        "0.9.60": {
+            "dependencies": {
+                "cargo:libc": "^0.2"
             },
             "source": "cargo"
         }
@@ -1040,108 +1283,205 @@
             "source": "cargo"
         }
     },
-    "cargo:strip-ansi-escapes": {
-        "0.1.0": {
+    "cargo:unicode-bidi": {
+        "0.3.4": {
             "dependencies": {
-                "cargo:vte": "^0.3.2"
+                "cargo:matches": "^0.1",
+                "cargo:flame": "^0.1",
+                "cargo:flamer": "^0.1",
+                "cargo:serde": ">=0.8,<2.0"
             },
             "source": "cargo"
         }
     },
-    "cargo:strsim": {
-        "0.8.0": {
+    "cargo:memoffset": {
+        "0.6.4": {
             "dependencies": {},
             "source": "cargo"
         }
     },
-    "cargo:structopt": {
-        "0.3.22": {
+    "cargo:bytesize": {
+        "1.0.1": {
             "dependencies": {
-                "cargo:clap": "^2.33",
-                "cargo:lazy_static": "^1.4.0",
-                "cargo:paw": "^1",
-                "cargo:structopt-derive": "=0.4.15"
+                "cargo:serde": "^1.0"
             },
             "source": "cargo"
         }
     },
-    "cargo:structopt-derive": {
-        "0.4.15": {
+    "cargo:rand": {
+        "0.8.3": {
             "dependencies": {
-                "cargo:heck": "^0.3.0",
-                "cargo:proc-macro-error": "^1.0.0",
-                "cargo:proc-macro2": "^1",
-                "cargo:quote": "^1",
-                "cargo:syn": "^1"
+                "cargo:rand_core": "^0.6.0",
+                "cargo:rand_chacha": "^0.3.0",
+                "cargo:log": "^0.4.4",
+                "cargo:libc": "^0.2.22",
+                "cargo:packed_simd_2": "^0.3.4",
+                "cargo:serde": "^1.0.103",
+                "cargo:rand_hc": "^0.3.0"
             },
             "source": "cargo"
         }
     },
-    "cargo:syn": {
-        "1.0.60": {
+    "cargo:serde": {
+        "1.0.123": {
             "dependencies": {
-                "cargo:proc-macro2": "^1.0.23",
-                "cargo:quote": "^1.0",
+                "cargo:serde_derive": "=1.0.123"
+            },
+            "source": "cargo"
+        },
+        "1.0.127": {
+            "dependencies": {
+                "cargo:serde_derive": "=1.0.127"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:hashbrown": {
+        "0.11.2": {
+            "dependencies": {
+                "cargo:rustc-std-workspace-alloc": "^1.0.0",
+                "cargo:rayon": "^1.0",
+                "cargo:rustc-std-workspace-core": "^1.0.0",
+                "cargo:serde": "^1.0.25",
+                "cargo:bumpalo": "^3.5.0",
+                "cargo:compiler_builtins": "^0.1.2",
+                "cargo:ahash": "^0.7.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:scoped-tls": {
+        "1.0.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:crates-io": {
+        "0.31.1": {
+            "dependencies": {
+                "cargo:url": "^2.0",
+                "cargo:percent-encoding": "^2.0",
+                "cargo:serde_json": "^1.0",
+                "cargo:curl": "^0.4",
+                "cargo:anyhow": "^1.0.34",
+                "cargo:serde": "^1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:hex": {
+        "0.4.2": {
+            "dependencies": {
+                "cargo:serde": "^1.0"
+            },
+            "source": "cargo"
+        },
+        "0.3.2": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:lazycell": {
+        "1.3.0": {
+            "dependencies": {
+                "cargo:clippy": "^0.0",
+                "cargo:serde": "^1"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:redox_syscall": {
+        "0.2.5": {
+            "dependencies": {
+                "cargo:bitflags": "^1.1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:cc": {
+        "1.0.69": {
+            "dependencies": {
+                "cargo:jobserver": "^0.1.16"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:rustc-serialize": {
+        "0.3.24": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:winapi-i686-pc-windows-gnu": {
+        "0.4.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:proc-macro2": {
+        "1.0.24": {
+            "dependencies": {
+                "cargo:unicode-xid": "^0.2"
+            },
+            "source": "cargo"
+        },
+        "1.0.28": {
+            "dependencies": {
                 "cargo:unicode-xid": "^0.2"
             },
             "source": "cargo"
         }
     },
-    "cargo:tar": {
-        "0.4.33": {
+    "cargo:utf8parse": {
+        "0.1.1": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:rayon-core": {
+        "1.9.1": {
             "dependencies": {
-                "cargo:filetime": "^0.2.8",
-                "cargo:libc": "^0.2",
-                "cargo:xattr": "^0.2"
+                "cargo:num_cpus": "^1.2",
+                "cargo:lazy_static": "^1",
+                "cargo:crossbeam-channel": "^0.5.0",
+                "cargo:crossbeam-utils": "^0.8.0",
+                "cargo:crossbeam-deque": "^0.8.0"
             },
             "source": "cargo"
         }
     },
-    "cargo:tempfile": {
-        "3.2.0": {
+    "cargo:regex-syntax": {
+        "0.6.22": {
+            "dependencies": {},
+            "source": "cargo"
+        },
+        "0.6.25": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:core-foundation-sys": {
+        "0.8.2": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:glob": {
+        "0.3.0": {
+            "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:getrandom": {
+        "0.2.2": {
             "dependencies": {
                 "cargo:cfg-if": "^1",
-                "cargo:libc": "^0.2.27",
-                "cargo:rand": "^0.8",
-                "cargo:redox_syscall": "^0.2",
-                "cargo:remove_dir_all": "^0.5",
-                "cargo:winapi": "^0.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:termcolor": {
-        "1.1.2": {
-            "dependencies": {
-                "cargo:winapi-util": "^0.1.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:textwrap": {
-        "0.11.0": {
-            "dependencies": {
-                "cargo:hyphenation": "^0.7.1",
-                "cargo:term_size": "^0.3.0",
-                "cargo:unicode-width": "^0.1.3"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:thread_local": {
-        "1.1.3": {
-            "dependencies": {
-                "cargo:criterion": "^0.3.3",
-                "cargo:once_cell": "^1.5.2"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:tinyvec": {
-        "1.1.1": {
-            "dependencies": {
-                "cargo:serde": "^1.0",
-                "cargo:tinyvec_macros": "^0.1"
+                "cargo:libc": "^0.2.64",
+                "cargo:js-sys": "^0.3",
+                "cargo:wasi": "^0.10",
+                "cargo:compiler_builtins": "^0.1",
+                "cargo:rustc-std-workspace-core": "^1.0",
+                "cargo:wasm-bindgen": "^0.2.62"
             },
             "source": "cargo"
         }
@@ -1152,28 +1492,62 @@
             "source": "cargo"
         }
     },
-    "cargo:toml": {
-        "0.5.8": {
+    "cargo:rayon": {
+        "1.5.1": {
             "dependencies": {
-                "cargo:indexmap": "^1.0",
-                "cargo:serde": "^1.0.97"
+                "cargo:either": "^1.0",
+                "cargo:rayon-core": "^1.9.1",
+                "cargo:crossbeam-deque": "^0.8.0"
             },
             "source": "cargo"
         }
     },
-    "cargo:typenum": {
-        "1.12.0": {
+    "cargo:rand_hc": {
+        "0.3.0": {
+            "dependencies": {
+                "cargo:rand_core": "^0.6.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:itoa": {
+        "0.4.7": {
             "dependencies": {},
             "source": "cargo"
         }
     },
-    "cargo:unicode-bidi": {
-        "0.3.4": {
+    "cargo:aho-corasick": {
+        "0.7.15": {
             "dependencies": {
-                "cargo:flame": "^0.1",
-                "cargo:flamer": "^0.1",
-                "cargo:matches": "^0.1",
-                "cargo:serde": ">=0.8,<2.0"
+                "cargo:memchr": "^2.2.0"
+            },
+            "source": "cargo"
+        },
+        "0.7.18": {
+            "dependencies": {
+                "cargo:memchr": "^2.4.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:filetime": {
+        "0.2.14": {
+            "dependencies": {
+                "cargo:winapi": "^0.3",
+                "cargo:redox_syscall": "^0.2",
+                "cargo:cfg-if": "^1.0.0",
+                "cargo:libc": "^0.2.27"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:rustfix": {
+        "0.5.1": {
+            "dependencies": {
+                "cargo:serde_json": "^1.0",
+                "cargo:log": "^0.4.1",
+                "cargo:anyhow": "^1.0.0",
+                "cargo:serde": "^1.0"
             },
             "source": "cargo"
         }
@@ -1186,116 +1560,138 @@
             "source": "cargo"
         }
     },
-    "cargo:unicode-segmentation": {
-        "1.7.1": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:unicode-width": {
-        "0.1.8": {
-            "dependencies": {
-                "cargo:compiler_builtins": "^0.1",
-                "cargo:rustc-std-workspace-core": "^1.0",
-                "cargo:rustc-std-workspace-std": "^1.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:unicode-xid": {
-        "0.2.1": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:url": {
-        "2.2.1": {
-            "dependencies": {
-                "cargo:form_urlencoded": "^1.0.0",
-                "cargo:idna": "^0.2.0",
-                "cargo:matches": "^0.1",
-                "cargo:percent-encoding": "^2.1.0",
-                "cargo:serde": "^1.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:utf8parse": {
-        "0.1.1": {
-            "dependencies": {},
-            "source": "cargo"
-        }
-    },
-    "cargo:vec_map": {
-        "0.8.2": {
-            "dependencies": {
-                "cargo:serde": "^1.0"
-            },
-            "source": "cargo"
-        }
-    },
-    "cargo:vte": {
+    "cargo:cpp_demangle": {
         "0.3.3": {
             "dependencies": {
-                "cargo:utf8parse": "^0.1"
+                "cargo:cfg-if": "^1.0.0",
+                "cargo:afl": "^0.10.0"
             },
             "source": "cargo"
         }
     },
-    "cargo:walkdir": {
-        "2.3.1": {
+    "cargo:commoncrypto": {
+        "0.2.0": {
             "dependencies": {
-                "cargo:same-file": "^1.0.1",
-                "cargo:winapi": "^0.3",
-                "cargo:winapi-util": "^0.1.1"
+                "cargo:clippy": "^0.0",
+                "cargo:commoncrypto-sys": "^0.2.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:syn": {
+        "1.0.60": {
+            "dependencies": {
+                "cargo:proc-macro2": "^1.0.23",
+                "cargo:quote": "^1.0",
+                "cargo:unicode-xid": "^0.2"
             },
             "source": "cargo"
         },
-        "2.3.2": {
+        "1.0.74": {
             "dependencies": {
-                "cargo:same-file": "^1.0.1",
-                "cargo:winapi": "^0.3",
-                "cargo:winapi-util": "^0.1.1"
+                "cargo:proc-macro2": "^1.0.26",
+                "cargo:quote": "^1.0",
+                "cargo:unicode-xid": "^0.2"
             },
             "source": "cargo"
         }
     },
-    "cargo:wasi": {
-        "0.10.2+wasi-snapshot-preview1": {
+    "cargo:form_urlencoded": {
+        "1.0.1": {
             "dependencies": {
-                "cargo:compiler_builtins": "^0.1",
-                "cargo:rustc-std-workspace-alloc": "^1.0",
-                "cargo:rustc-std-workspace-core": "^1.0"
+                "cargo:percent-encoding": "^2.1.0",
+                "cargo:matches": "^0.1"
             },
             "source": "cargo"
         }
     },
-    "cargo:winapi": {
-        "0.3.9": {
+    "cargo:libgit2-sys": {
+        "0.12.18+1.1.0": {
             "dependencies": {
-                "cargo:winapi-i686-pc-windows-gnu": "^0.4",
-                "cargo:winapi-x86_64-pc-windows-gnu": "^0.4"
+                "cargo:libc": "^0.2",
+                "cargo:libz-sys": "^1.1.0",
+                "cargo:libssh2-sys": "^0.2.19",
+                "cargo:openssl-sys": "^0.9"
             },
             "source": "cargo"
         }
     },
-    "cargo:winapi-i686-pc-windows-gnu": {
-        "0.4.0": {
+    "cargo:git2": {
+        "0.13.17": {
+            "dependencies": {
+                "cargo:libc": "^0.2",
+                "cargo:bitflags": "^1.1.0",
+                "cargo:log": "^0.4.8",
+                "cargo:url": "^2.0",
+                "cargo:libgit2-sys": "^0.12.18",
+                "cargo:openssl-probe": "^0.1",
+                "cargo:openssl-sys": "^0.9.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:bumpalo": {
+        "3.7.0": {
             "dependencies": {},
             "source": "cargo"
         }
     },
-    "cargo:winapi-util": {
-        "0.1.5": {
+    "cargo:commoncrypto-sys": {
+        "0.2.0": {
+            "dependencies": {
+                "cargo:clippy": "^0.0",
+                "cargo:libc": "^0.2"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:curl-sys": {
+        "0.4.40+curl-7.75.0": {
+            "dependencies": {
+                "cargo:winapi": "^0.3",
+                "cargo:libz-sys": "^1.0.18",
+                "cargo:libc": "^0.2.2",
+                "cargo:mesalink": "^1.1.0-cratesio",
+                "cargo:libnghttp2-sys": "^0.1.3",
+                "cargo:openssl-sys": "^0.9"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:home": {
+        "0.5.3": {
             "dependencies": {
                 "cargo:winapi": "^0.3"
             },
             "source": "cargo"
         }
     },
-    "cargo:winapi-x86_64-pc-windows-gnu": {
-        "0.4.0": {
+    "cargo:crunchy": {
+        "0.2.2": {
             "dependencies": {},
+            "source": "cargo"
+        }
+    },
+    "cargo:log": {
+        "0.4.14": {
+            "dependencies": {
+                "cargo:sval": "^1.0.0-alpha.5",
+                "cargo:cfg-if": "^1.0",
+                "cargo:value-bag": "^1.0.0-alpha.6",
+                "cargo:serde": "^1.0"
+            },
+            "source": "cargo"
+        }
+    },
+    "cargo:semver-parser": {
+        "0.7.0": {
+            "dependencies": {},
+            "source": "cargo"
+        },
+        "0.10.2": {
+            "dependencies": {
+                "cargo:pest": "^2.1.0"
+            },
             "source": "cargo"
         }
     }

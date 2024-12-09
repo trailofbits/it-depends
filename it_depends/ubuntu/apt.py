@@ -33,14 +33,14 @@ def search_package(package: str) -> str:
         if package.lower() not in apt_package:
             continue
         if re.match(
-                fr"^(lib)*{re.escape(package.lower())}(\-*([0-9]*)(\.*))*(\-dev)*$",
-                apt_package):
+            rf"^(lib)*{re.escape(package.lower())}(\-*([0-9]*)(\.*))*(\-dev)*$",
+            apt_package,
+        ):
             found_packages.append(apt_package)
     found_packages.sort(key=len, reverse=True)
     if not found_packages:
         raise ValueError(f"Package {package} not found in apt package list.")
-    logger.info(
-        f"Found {len(found_packages)} matching packages, Choosing {found_packages[0]}")
+    logger.info(f"Found {len(found_packages)} matching packages, Choosing {found_packages[0]}")
     return found_packages[0]
 
 
@@ -61,17 +61,20 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
 
     dbfile = Path(APP_DIRS.user_cache_dir) / f"Contents-{arch}.gz"
     if not dbfile.exists():
-        request.urlretrieve(f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz", dbfile)
+        request.urlretrieve(
+            f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz",
+            dbfile,
+        )
     if not dbfile in _loaded_dbs:
         logger.info("Rebuilding contents db")
         with gzip.open(str(dbfile), "rt") as contents:
             for line in contents.readlines():
                 filename_i, *packages_i = re.split(r"\s+", line[:-1])
-                assert(len(packages_i) > 0)
+                assert len(packages_i) > 0
                 contents_db.setdefault(filename_i, []).extend(packages_i)
         _loaded_dbs.add(dbfile)
 
-    regex = re.compile("(.*/)+"+filename+"$")
+    regex = re.compile("(.*/)+" + filename + "$")
     matches = 0
     for (filename_i, packages_i) in contents_db.items():
         if regex.match(filename_i):
@@ -111,7 +114,9 @@ def file_to_package(filename: str, arch: str = "amd64") -> str:
         raise ValueError(f"{filename} not found in apt-file")
 
 
-def cached_file_to_package(pattern: str, file_to_package_cache: Optional[List[Tuple[str, str]]] = None) -> str:
+def cached_file_to_package(
+    pattern: str, file_to_package_cache: Optional[List[Tuple[str, str]]] = None
+) -> str:
     # file_to_package_cache contains all the files that are provided be previous
     # dependencies. If a file pattern is already sastified by current files
     # use the package already included as a dependency
