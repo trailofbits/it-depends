@@ -291,7 +291,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 elif args.output_format == "cyclonedx":
                     bom = None
                     for p in package_list:
-                        bom = package_to_cyclonedx(p, packages=package_list, bom=bom)
+                        bom = package_to_cyclonedx(p, packages=package_list, bom=bom, only_latest=True)
                     output_file.write(cyclonedx_to_json(bom))
                 else:
                     raise NotImplementedError(f"TODO: Implement output format {args.output_format}")

@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from cyclonedx.builder.this import this_component as cdx_lib_component
 from cyclonedx.model import XsUri
@@ -13,7 +13,9 @@ from .dependencies import PackageCache, Package
 __all__ = "package_to_cyclonedx", "cyclonedx_to_json"
 
 
-def package_to_cyclonedx(package: Package, packages: PackageCache, bom: Optional[Bom] = None) -> Bom:
+def package_to_cyclonedx(
+        package: Package, packages: PackageCache, bom: Optional[Bom] = None, only_latest: bool = False
+) -> Bom:
     root_component = Component(
         name=package.name,
         type=ComponentType.APPLICATION,
@@ -60,7 +62,14 @@ def package_to_cyclonedx(package: Package, packages: PackageCache, bom: Optional
             bom.register_dependency(parent_component, [component])
 
         for dep in pkg.dependencies:
-            for resolved in packages.match(dep):
+            if only_latest:
+                latest = packages.latest_match(dep)
+                if latest is None:
+                    continue
+                matches: Iterable[Package] = (latest,)
+            else:
+                matches = packages.match(dep)
+            for resolved in matches:
                 if resolved in expanded:
                     bom.register_dependency(component, [expanded[resolved]])
                 else:
