@@ -518,6 +518,16 @@ class PackageCache(ABC):
     def package_full_names(self) -> FrozenSet[str]:
         raise NotImplementedError()
 
+    def latest_match(self, to_match: Union[str, Package, Dependency]) -> Optional[Package]:
+        """
+        Returns the latest package version that matches the given dependency, or None if no packages match
+        """
+        latest: Optional[Package] = None
+        for p in self.match(to_match):
+            if latest is None or p.version >= latest.version:
+                latest = p
+        return latest
+
     @abstractmethod
     def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
         """
