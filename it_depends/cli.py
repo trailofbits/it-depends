@@ -297,7 +297,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     output_file.write(json.dumps(package_list.to_obj(), indent=4))
                 elif args.output_format == "cyclonedx":
                     sbom = None
-                    for p in package_list:
+                    for p in package_list.source_packages:
                         for bom in resolve_sbom(p, package_list, order_ascending=not args.latest_resolution):
                             if sbom is None:
                                 sbom = bom

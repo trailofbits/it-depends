@@ -171,7 +171,7 @@ def resolve_sbom(root_package: Package, packages: PackageCache, order_ascending:
         yield SBOM((), (root_package,))
         return
 
-    logger.info(f"Resolving the {['oldest', 'newest'][order_ascending]} possible SBOM for {root_package.name}")
+    logger.info(f"Resolving the {['newest', 'oldest'][order_ascending]} possible SBOM for {root_package.name}")
 
     stack: List[PartialResolution] = [
         PartialResolution(packages=(root_package,))
