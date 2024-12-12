@@ -14,7 +14,7 @@ from .dependencies import Dependency, resolvers, resolve, SourceRepository
 from .it_depends import version as it_depends_version
 from .html import graph_to_html
 from .resolver import resolve_sbom
-from .sbom import cyclonedx_to_json, SBOM
+from .sbom import cyclonedx_to_json
 
 
 @contextmanager
@@ -107,19 +107,25 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "-f",
         choices=("json", "dot", "html", "cyclonedx"),
         default="json",
-        help="how the output should be formatted (default is JSON)",
+        help="how the output should be formatted (default is JSON); note that `cyclonedx` will output a single "
+             "satisfying dependency resolution rather than the universe of all possible resolutions "
+             "(see `--newest-resolution`)",
     )
+    parser.add_argument("--latest-resolution", "-lr", action="store_true",
+                        help="by default, the `cyclonedx` output format emits a single satisfying dependency "
+                             "resolution containing the oldest versions of all of the packages possible; this option "
+                             "instead returns the latest latest possible resolution")
     parser.add_argument(
         "--output-file",
         "-o",
         type=str,
         default=None,
-        help="path to the output file; default is to " "write output to STDOUT",
+        help="path to the output file; default is to write output to STDOUT",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="force overwriting the output file even if it already " "exists",
+        help="force overwriting the output file even if it already exists",
     )
     parser.add_argument(
         "--all-versions",
@@ -292,7 +298,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 elif args.output_format == "cyclonedx":
                     sbom = None
                     for p in package_list:
-                        for bom in resolve_sbom(p, package_list, order_ascending=True):
+                        for bom in resolve_sbom(p, package_list, order_ascending=not args.latest_resolution):
                             if sbom is None:
                                 sbom = bom
                             else:

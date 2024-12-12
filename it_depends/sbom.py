@@ -47,6 +47,7 @@ class SBOM:
             root_component = Component(
                 name=root_package.name,
                 type=ComponentType.APPLICATION,
+                version=str(root_package.version),
                 bom_ref=root_package.full_name,
             )
             bom.components.add(root_component)

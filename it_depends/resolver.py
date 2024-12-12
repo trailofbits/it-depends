@@ -1,10 +1,14 @@
+import logging
 from collections import defaultdict
+from logging import getLogger
 from typing import Dict, FrozenSet, Iterable, Iterator, List, Optional, Set, Tuple
 
 from semantic_version.base import AllOf, BaseSpec
 
 from .dependencies import Dependency, Package, PackageCache
 from .sbom import SBOM
+
+logger = getLogger(__name__)
 
 
 class CompoundSpec(BaseSpec):
@@ -47,8 +51,7 @@ class PackageSet:
         for (pkg_name, pkg_source), deps in sorted(
                 # try the dependencies with the most options first
                 self._unsatisfied.items(),
-                key=lambda x: (len(x[1]), x[0]),
-                reverse=True
+                key=lambda x: (len(x[1]), x[0])
         ):
             if len(deps) == 0:
                 continue
@@ -168,6 +171,8 @@ def resolve_sbom(root_package: Package, packages: PackageCache, order_ascending:
         yield SBOM((), (root_package,))
         return
 
+    logger.info(f"Resolving the {['oldest', 'newest'][order_ascending]} possible SBOM for {root_package.name}")
+
     stack: List[PartialResolution] = [
         PartialResolution(packages=(root_package,))
     ]
@@ -185,15 +190,7 @@ def resolve_sbom(root_package: Package, packages: PackageCache, order_ascending:
         elif not pr.is_valid:
             continue
 
-        sorted_deps = sorted(
-            pr.packages.unsatisfied_dependencies(),
-            key=lambda d: (len(d[1]), d[0].package, d[0].source),
-            reverse=True
-        )
-
-        # traverse the dependencies in order of decreasing constraints
-
-        for dep, required_by in sorted_deps:
+        for dep, required_by in pr.packages.unsatisfied_dependencies():
             if not PartialResolution(packages=required_by, parent=pr).is_valid:
                 continue
             for match in sorted(
