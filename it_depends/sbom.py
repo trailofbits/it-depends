@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, FrozenSet, Iterable, List, Optional, Tuple, Type, TypeVar
 
 from cyclonedx.builder.this import this_component as cdx_lib_component
 from cyclonedx.model import XsUri
@@ -8,21 +8,51 @@ from cyclonedx.model.contact import OrganizationalEntity
 from cyclonedx.output.json import JsonV1Dot5
 
 from . import version
-from .dependencies import PackageCache, Package
+from .dependencies import Package
 
-__all__ = "package_to_cyclonedx", "cyclonedx_to_json"
+__all__ = "cyclonedx_to_json", "SBOM"
 
 
-def package_to_cyclonedx(
-        package: Package, packages: PackageCache, bom: Optional[Bom] = None, only_latest: bool = False
-) -> Bom:
-    root_component = Component(
-        name=package.name,
-        type=ComponentType.APPLICATION,
-        bom_ref=package.full_name,
-    )
-    if bom is None:
+S = TypeVar("S", bound="SBOM")
+
+
+class SBOM:
+    def __init__(self, dependencies: Iterable[Tuple[Package, Package]] = (), root_packages: Iterable[Package] = ()):
+        self.dependencies: FrozenSet[Tuple[Package, Package]] = frozenset(dependencies)
+        self.root_packages: FrozenSet[Package] = frozenset(root_packages)
+
+    @property
+    def packages(self) -> FrozenSet[Package]:
+        return self.root_packages | {
+            p
+            for deps in self.dependencies
+            for p in deps
+        }
+
+    def __str__(self):
+        return ", ".join(p.full_name for p in sorted(self.packages))
+
+    def to_cyclonedx(self) -> Bom:
         bom = Bom()
+
+        expanded: Dict[Package, Component] = {}
+
+        root_component: Optional[Component] = None
+
+        for root_package in sorted(
+                self.root_packages,
+                key=lambda package: package.full_name,
+                reverse=True
+        ):
+            root_component = Component(
+                name=root_package.name,
+                type=ComponentType.APPLICATION,
+                version=str(root_package.version),
+                bom_ref=root_package.full_name,
+            )
+            bom.components.add(root_component)
+            expanded[root_package] = root_component
+
         bom.metadata.tools.components.add(cdx_lib_component())
         bom.metadata.tools.components.add(Component(
             name="it-depends",
@@ -34,48 +64,43 @@ def package_to_cyclonedx(
             version=version(),
         ))
 
-        bom.metadata.component = root_component
+        if root_component is not None:
+            bom.metadata.component = root_component
 
-    package_queue: List[Tuple[Optional[Component], Package]] = [(None, package)]
-
-    expanded: Dict[Package, Component] = {}
-
-    while package_queue:
-        parent_component, pkg = package_queue.pop()
-
-        if pkg in expanded:
-            if parent_component is not None:
-                bom.register_dependency(parent_component, [expanded[pkg]])
-            continue
-
-        component = Component(
-            name=pkg.name,
-            type=ComponentType.LIBRARY,
-            version=str(pkg.version),
-            bom_ref=f"{pkg.full_name}@{pkg.version!s}"
-        )
-
-        expanded[pkg] = component
-
-        bom.components.add(component)
-        if parent_component is not None:
-            bom.register_dependency(parent_component, [component])
-
-        for dep in pkg.dependencies:
-            if only_latest:
-                latest = packages.latest_match(dep)
-                if latest is None:
-                    continue
-                matches: Iterable[Package] = (latest,)
+        for pkg, depends_on in self.dependencies:
+            if pkg not in expanded:
+                component = Component(
+                    name=pkg.name,
+                    type=ComponentType.LIBRARY,
+                    version=str(pkg.version),
+                    bom_ref=f"{pkg.full_name}@{pkg.version!s}"
+                )
+                bom.components.add(component)
             else:
-                matches = packages.match(dep)
-            for resolved in matches:
-                if resolved in expanded:
-                    bom.register_dependency(component, [expanded[resolved]])
-                else:
-                    package_queue.append((component, resolved))
+                component = expanded[pkg]
+            if depends_on not in expanded:
+                d_component = Component(
+                    name=depends_on.name,
+                    type=ComponentType.LIBRARY,
+                    version=str(depends_on.version),
+                    bom_ref=f"{depends_on.full_name}@{depends_on.version!s}"
+                )
+                bom.components.add(d_component)
+            else:
+                d_component = expanded[depends_on]
+            bom.register_dependency(component, [d_component])
 
-    return bom
+        return bom
+
+    def __or__(self, other: "SBOM") -> "SBOM":
+        return SBOM(self.dependencies | other.dependencies, self.root_packages | other.root_packages)
+
+    def __hash__(self):
+        return hash((self.root_packages, self.dependencies))
+
+    def __eq__(self, other):
+        return isinstance(other, SBOM) and self.root_packages == other.root_packages \
+            and self.dependencies == other.dependencies
 
 
 def cyclonedx_to_json(bom: Bom, indent: int = 2) -> str:

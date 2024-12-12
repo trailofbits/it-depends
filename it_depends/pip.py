@@ -1,3 +1,4 @@
+import io
 from logging import getLogger
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -199,6 +200,11 @@ class PipSourcePackage(SourcePackage):
     def from_repo(repo: SourceRepository) -> "PipSourcePackage":
         if (repo.path / "setup.py").exists():
             with TemporaryDirectory() as tmp_dir:
+                try:
+                    _ = sys.stderr.fileno()
+                    stderr = sys.stderr
+                except io.UnsupportedOperation:
+                    stderr = None
                 subprocess.check_call(
                     [
                         sys.executable,
@@ -210,13 +216,13 @@ class PipSourcePackage(SourcePackage):
                         tmp_dir,
                         str(repo.path.absolute()),
                     ],
-                    stdout=sys.stderr,
+                    stdout=stderr,
                 )
                 wheel = None
                 for whl in Path(tmp_dir).glob("*.whl"):
                     if wheel is not None:
                         raise ValueError(
-                            f"`pip wheel --no-deps {repo.path!s}` produced mutliple wheel files!"
+                            f"`pip wheel --no-deps {repo.path!s}` produced multiple wheel files!"
                         )
                     wheel = whl
                 if wheel is None:
