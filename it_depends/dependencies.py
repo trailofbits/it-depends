@@ -130,7 +130,7 @@ class Dependency:
     def __hash__(self):
         return hash((self.source, self.package, self.semantic_version))
 
-    def match(self, package: "Package"):
+    def match(self, package: "Package") -> bool:
         """True if package is a solution for this dependency"""
         return (
             package.source == self.source
@@ -264,6 +264,10 @@ class Package:
 
     def dumps(self) -> str:
         return json.dumps(self.to_obj())
+
+    def same_package(self, other: "Package") -> bool:
+        """Checks if two packages are the same, but potentially different versions"""
+        return self.name == other.name and self.source == other.source
 
     def __eq__(self, other):
         if isinstance(other, Package):

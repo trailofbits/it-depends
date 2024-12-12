@@ -13,7 +13,8 @@ from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import Dependency, resolvers, resolve, SourceRepository
 from .it_depends import version as it_depends_version
 from .html import graph_to_html
-from .sbom import package_to_cyclonedx, cyclonedx_to_json
+from .resolver import resolve_sbom
+from .sbom import cyclonedx_to_json, SBOM
 
 
 @contextmanager
@@ -289,10 +290,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 elif args.output_format == "json":
                     output_file.write(json.dumps(package_list.to_obj(), indent=4))
                 elif args.output_format == "cyclonedx":
-                    bom = None
+                    sbom = None
                     for p in package_list:
-                        bom = package_to_cyclonedx(p, packages=package_list, bom=bom, only_latest=True)
-                    output_file.write(cyclonedx_to_json(bom))
+                        for bom in resolve_sbom(p, package_list, order_ascending=True):
+                            if sbom is None:
+                                sbom = bom
+                            else:
+                                sbom = sbom | bom
+                            # only get the first resolution
+                            # TODO: Provide a means for enumerating all valid SBOMs
+                            break
+                    output_file.write(cyclonedx_to_json(sbom.to_cyclonedx()))
                 else:
                     raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
     except OperationalError as e:
