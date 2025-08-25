@@ -7,7 +7,7 @@ from typing import Dict, FrozenSet, Iterator, Optional
 
 from tqdm import tqdm
 
-from . import version as it_depends_version
+from it_depends import __version__
 from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 from .dependencies import (
     Dependency,
@@ -121,7 +121,7 @@ def container_for(source: DependencyResolver) -> DockerContainer:
             container = DockerContainer(
                 f"trailofbits/it-depends-{source.name!s}",
                 dockerfile,
-                tag=it_depends_version(),
+                tag=__version__,
             )
             t.update(1)
             container.rebuild()
