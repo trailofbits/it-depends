@@ -1,204 +1,122 @@
-import logging
-from collections import defaultdict
-from logging import getLogger
-from typing import Dict, FrozenSet, Iterable, Iterator, List, Optional, Set, Tuple
+import functools
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import FrozenSet, Iterator, Optional, TYPE_CHECKING
 
-from semantic_version.base import AllOf, BaseSpec
+from semantic_version import SimpleSpec, Version
+from semantic_version.base import BaseSpec as SemanticVersion
 
-from .dependencies import Dependency, Package, PackageCache
-from .sbom import SBOM
+from .repository import SourceRepository
 
-logger = getLogger(__name__)
+if TYPE_CHECKING:
+    from .models import Package, Dependency
 
 
-class CompoundSpec(BaseSpec):
-    def __init__(self, *to_combine: BaseSpec):
-        super(CompoundSpec, self).__init__(",".join(s.expression for s in to_combine))
-        self.clause = AllOf(*(s.clause for s in to_combine))
+@dataclass
+class DockerSetup:
+    apt_get_packages: list[str]
+    install_package_script: str
+    load_package_script: str
+    baseline_script: str
+    post_install: str = ""
+
+
+class ResolverAvailability:
+    def __init__(self, is_available: bool, reason: str = ""):
+        if not is_available and not reason:
+            raise ValueError("You must provide a reason if `not is_available`")
+        self.is_available: bool = is_available
+        self.reason: str = reason
+
+    def __bool__(self):
+        return self.is_available
+
+
+class DependencyResolver:
+    """Finds a set of Packages that agrees with a Dependency specification"""
+
+    name: str
+    description: str
+    _instance = None
+
+    def __new__(class_, *args, **kwargs):
+        """A singleton (Only one default instance exists)"""
+        if not isinstance(class_._instance, class_):
+            class_._instance = super().__new__(class_, *args, **kwargs)
+        return class_._instance
+
+    def __init_subclass__(cls, **kwargs):
+        if not hasattr(cls, "name") or cls.name is None:
+            raise TypeError(f"{cls.__name__} must define a `name` class member")
+        elif not hasattr(cls, "description") or cls.description is None:
+            raise TypeError(f"{cls.__name__} must define a `description` class member")
+        resolvers.cache_clear()
+
+    @abstractmethod
+    def resolve(self, dependency: "Dependency") -> Iterator["Package"]:
+        """Yields all packages that satisfy the given dependency"""
+        raise NotImplementedError
 
     @classmethod
-    def _parse_to_clause(cls, expression):
-        """Converts an expression to a clause."""
-        # Placeholder, we actually set self.clause in self.__init__
+    def parse_spec(cls, spec: str) -> SemanticVersion:
+        """Parses a semantic version string into a semantic version object for this specific resolver"""
+        return SimpleSpec.parse(spec)
+
+    @classmethod
+    def parse_version(cls, version_string: str) -> Version:
+        """Parses a version string into a version object for this specific resolver"""
+        return Version.coerce(version_string)
+
+    def docker_setup(self) -> Optional[DockerSetup]:
+        """Returns an optional docker setup for running this resolver"""
         return None
 
+    def is_available(self) -> ResolverAvailability:
+        return ResolverAvailability(True)
 
-class PackageSet:
-    def __init__(self):
-        self._packages: Dict[Tuple[str, str], Package] = {}
-        self._unsatisfied: Dict[Tuple[str, str], Dict[Dependency, Set[Package]]] = \
-            defaultdict(lambda: defaultdict(set))
-        self.is_valid: bool = True
-        self.is_complete: bool = True
+    @abstractmethod
+    def can_resolve_from_source(self, repo: SourceRepository) -> bool:
+        raise NotImplementedError()
 
-    def __eq__(self, other):
-        return isinstance(other, PackageSet) and self._packages.values() == other._packages.values()
+    @abstractmethod
+    def resolve_from_source(
+        self, repo: SourceRepository, cache=None
+    ) -> Optional["SourcePackage"]:
+        """Resolves any new `SourcePackage`s in this repo"""
+        raise NotImplementedError()
 
-    def __hash__(self):
-        return hash(frozenset(self._packages.values()))
+    def can_update_dependencies(self, package: "Package") -> bool:
+        return False
 
-    def __len__(self):
-        return len(self._packages)
-
-    def __iter__(self) -> Iterator[Package]:
-        yield from self._packages.values()
-
-    def __contains__(self, package: Package) -> bool:
-        pkg_spec = (package.name, package.source)
-        return pkg_spec in self._packages and self._packages[pkg_spec] == package
-
-    def unsatisfied_dependencies(self) -> Iterator[Tuple[Dependency, FrozenSet[Package]]]:
-        for (pkg_name, pkg_source), deps in sorted(
-                # try the dependencies with the most options first
-                self._unsatisfied.items(),
-                key=lambda x: (len(x[1]), x[0])
-        ):
-            if len(deps) == 0:
-                continue
-            elif len(deps) == 1:
-                dep, packages = next(iter(deps.items()))
-            else:
-                # there are multiple requirements for the same dependency
-                spec = CompoundSpec(*(d.semantic_version for d in deps.keys()))
-                dep = Dependency(pkg_name, pkg_source, spec)
-                packages = {
-                    p
-                    for packages in deps.values()
-                    for p in packages
-                }
-
-            yield dep, frozenset(packages)
-
-    def copy(self) -> "PackageSet":
-        ret = PackageSet()
-        ret._packages = self._packages.copy()
-        ret._unsatisfied = defaultdict(lambda: defaultdict(set))
-        for dep_spec, deps in self._unsatisfied.items():
-            ret._unsatisfied[dep_spec] = defaultdict(set)
-            for dep, packages in deps.items():
-                ret._unsatisfied[dep_spec][dep] = set(packages)
-                assert all(p in ret for p in packages)
-        ret.is_valid = self.is_valid
-        ret.is_complete = self.is_complete
-        return ret
-
-    def add(self, package: Package):
-        pkg_spec = (package.name, package.source)
-        if pkg_spec in self._packages and self._packages[pkg_spec].version != package.version:
-            self.is_valid = False
-        if not self.is_valid:
-            return
-        self._packages[pkg_spec] = package
-        if pkg_spec in self._unsatisfied:
-            # there are some existing packages that have unsatisfied dependencies that could be
-            # satisfied by this new package
-            for dep in list(self._unsatisfied[pkg_spec].keys()):
-                if dep.match(package):
-                    del self._unsatisfied[pkg_spec][dep]
-                    if len(self._unsatisfied[pkg_spec]) == 0:
-                        del self._unsatisfied[pkg_spec]
-        # add any new unsatisfied dependencies for this package
-        for dep in package.dependencies:
-            dep_spec = (dep.package, dep.source)
-            if dep_spec not in self._packages:
-                self._unsatisfied[dep_spec][dep].add(package)
-            elif not dep.match(self._packages[dep_spec]):
-                self.is_valid = False
-                break
-
-        self.is_complete = self.is_valid and len(self._unsatisfied) == 0
-
-
-class PartialResolution:
-    def __init__(self, packages: Iterable[Package] = (), dependencies: Iterable[Package] = (),
-                 parent: Optional["PartialResolution"] = None):
-        self._packages: FrozenSet[Package] = frozenset(packages)
-        self._dependencies: FrozenSet[Package] = frozenset(dependencies)
-        self.parent: Optional[PartialResolution] = parent
-        if self.parent is not None:
-            self.packages: PackageSet = self.parent.packages.copy()
-        else:
-            self.packages = PackageSet()
-        for package in self._packages:
-            self.packages.add(package)
-            if not self.is_valid:
-                break
-        if self.is_valid:
-            for dep in self._dependencies:
-                self.packages.add(dep)
-                if not self.is_valid:
-                    break
-
-    @property
-    def is_valid(self) -> bool:
-        return self.packages.is_valid
-
-    @property
-    def is_complete(self) -> bool:
-        return self.packages.is_complete
-
-    def __contains__(self, package: Package) -> bool:
-        return package in self.packages
-
-    def add(self, packages: Iterable[Package], depends_on: Package) -> "PartialResolution":
-        return PartialResolution(packages, (depends_on,), parent=self)
-
-    def packages(self) -> Iterator[Package]:
-        yield from self.packages
-
-    __iter__ = packages
-
-    def dependencies(self) -> Iterator[Tuple[Package, Package]]:
-        pr: Optional[PartialResolution] = self
-        while pr is not None:
-            for depends_on in sorted(pr._dependencies):
-                for package in pr._packages:
-                    yield package, depends_on
-            pr = pr.parent
-
-    def __len__(self) -> int:
-        return len(self.packages)
-
-    def __eq__(self, other):
-        return isinstance(other, PartialResolution) and self.packages == other.packages
+    def update_dependencies(self, package: "Package") -> "Package":
+        return package
 
     def __hash__(self):
-        return hash(self.packages)
+        return hash(self.name)
+
+    def __eq__(self, other):
+        return isinstance(other, DependencyResolver) and other.name == self.name
 
 
-def resolve_sbom(root_package: Package, packages: PackageCache, order_ascending: bool = True) -> Iterator[SBOM]:
-    if not root_package.dependencies:
-        yield SBOM((), (root_package,))
-        return
+@functools.lru_cache()
+def resolvers() -> FrozenSet[DependencyResolver]:
+    """Collection of all the default instances of DependencyResolvers"""
+    return frozenset(cls() for cls in DependencyResolver.__subclasses__())
 
-    logger.info(f"Resolving the {['newest', 'oldest'][order_ascending]} possible SBOM for {root_package.name}")
 
-    stack: List[PartialResolution] = [
-        PartialResolution(packages=(root_package,))
-    ]
+@functools.lru_cache()
+def resolver_by_name(name: str) -> DependencyResolver:
+    """Finds a resolver instance by name. The result is cached."""
+    for instance in resolvers():
+        if instance.name == name:
+            return instance
+    raise KeyError(name)
 
-    history: Set[PartialResolution] = {
-        pr for pr in stack
-        if pr.is_valid
-    }
 
-    while stack:
-        pr = stack.pop()
-        if pr.is_complete:
-            yield SBOM(pr.dependencies(), root_packages=(root_package,))
-            continue
-        elif not pr.is_valid:
-            continue
-
-        for dep, required_by in pr.packages.unsatisfied_dependencies():
-            if not PartialResolution(packages=required_by, parent=pr).is_valid:
-                continue
-            for match in sorted(
-                    packages.match(dep),
-                    key=lambda p: p.version,
-                    reverse=order_ascending
-            ):
-                next_pr = pr.add(required_by, match)
-                if next_pr.is_valid and next_pr not in history:
-                    history.add(next_pr)
-                    stack.append(next_pr)
+def is_known_resolver(name: str) -> bool:
+    """Checks if name is a valid/known resolver name"""
+    try:
+        resolver_by_name(name)
+        return True
+    except KeyError:
+        return False
