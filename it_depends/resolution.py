@@ -1,17 +1,20 @@
 import sys
+import logging
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from multiprocessing import cpu_count
 from typing import List, Optional, Set, Tuple, Union, Iterable, TYPE_CHECKING
 
 from tqdm import tqdm
 
-from .repository import SourceRepository
 from .resolver import resolvers
 from .cache import PackageCache, InMemoryPackageCache, PackageRepository
+from .repository import SourceRepository
 
 if TYPE_CHECKING:
     from .models import Package, Dependency, SourcePackage
+    from .resolver import PartialResolution
 
+logger = logging.getLogger(__name__)
 
 class _DependencyResult:
     def __init__(self, dep: "Dependency", packages: List["Package"], depth: int):
@@ -70,17 +73,38 @@ def resolve_sbom(root_package: "Package", packages: "PackageRepository", order_a
     if not root_package.dependencies:
         yield SBOM((), (root_package,))
         return
-    
-    # For now, generate a simple SBOM with the root package and its direct dependencies
-    # This is a simplified implementation - the original may have been more sophisticated
-    dependencies = []
-    for dep in root_package.dependencies:
-        for pkg in packages.match(dep):
-            dependencies.append((pkg, root_package))
-            break  # Just take the first match for now
-    
-    yield SBOM(dependencies, (root_package,))
 
+    logger.info(f"Resolving the {['newest', 'oldest'][order_ascending]} possible SBOM for {root_package.name}")
+
+    stack: List["PartialResolution"] = [
+        PartialResolution(packages=(root_package,))
+    ]
+
+    history: Set["PartialResolution"] = {
+        pr for pr in stack
+        if pr.is_valid
+    }
+
+    while stack:
+        pr = stack.pop()
+        if pr.is_complete:
+            yield SBOM(pr.dependencies(), root_packages=(root_package,))
+            continue
+        elif not pr.is_valid:
+            continue
+
+        for dep, required_by in pr.packages.unsatisfied_dependencies():
+            if not PartialResolution(packages=required_by, parent=pr).is_valid:
+                continue
+            for match in sorted(
+                    packages.match(dep),
+                    key=lambda p: p.version,
+                    reverse=order_ascending
+            ):
+                next_pr = pr.add(required_by, match)
+                if next_pr.is_valid and next_pr not in history:
+                    history.add(next_pr)
+                    stack.append(next_pr)
 
 def resolve(
     repo_or_spec: Union["Package", "Dependency", SourceRepository],

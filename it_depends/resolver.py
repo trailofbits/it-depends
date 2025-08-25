@@ -1,7 +1,7 @@
 import functools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import FrozenSet, Iterator, Optional, TYPE_CHECKING
+from typing import FrozenSet, Iterator, Iterable, Optional, TYPE_CHECKING
 
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
@@ -96,6 +96,62 @@ class DependencyResolver:
 
     def __eq__(self, other):
         return isinstance(other, DependencyResolver) and other.name == self.name
+
+class PartialResolution:
+    def __init__(self, packages: Iterable[Package] = (), dependencies: Iterable[Package] = (),
+                 parent: Optional["PartialResolution"] = None):
+        self._packages: FrozenSet[Package] = frozenset(packages)
+        self._dependencies: FrozenSet[Package] = frozenset(dependencies)
+        self.parent: Optional[PartialResolution] = parent
+        if self.parent is not None:
+            self.packages: PackageSet = self.parent.packages.copy()
+        else:
+            self.packages = PackageSet()
+        for package in self._packages:
+            self.packages.add(package)
+            if not self.is_valid:
+                break
+        if self.is_valid:
+            for dep in self._dependencies:
+                self.packages.add(dep)
+                if not self.is_valid:
+                    break
+
+    @property
+    def is_valid(self) -> bool:
+        return self.packages.is_valid
+
+    @property
+    def is_complete(self) -> bool:
+        return self.packages.is_complete
+
+    def __contains__(self, package: Package) -> bool:
+        return package in self.packages
+
+    def add(self, packages: Iterable[Package], depends_on: Package) -> "PartialResolution":
+        return PartialResolution(packages, (depends_on,), parent=self)
+
+    def packages(self) -> Iterator[Package]:
+        yield from self.packages
+
+    __iter__ = packages
+
+    def dependencies(self) -> Iterator[Tuple[Package, Package]]:
+        pr: Optional[PartialResolution] = self
+        while pr is not None:
+            for depends_on in sorted(pr._dependencies):
+                for package in pr._packages:
+                    yield package, depends_on
+            pr = pr.parent
+
+    def __len__(self) -> int:
+        return len(self.packages)
+
+    def __eq__(self, other):
+        return isinstance(other, PartialResolution) and self.packages == other.packages
+
+    def __hash__(self):
+        return hash(self.packages)
 
 
 @functools.lru_cache()

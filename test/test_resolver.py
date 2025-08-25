@@ -1,6 +1,6 @@
 from unittest import TestCase
 
-from it_depends.resolver import resolve_sbom
+from it_depends.dependencies import resolve_sbom
 from it_depends.sbom import cyclonedx_to_json
 
 from .test_smoke import SmokeTest
