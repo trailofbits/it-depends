@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import sys
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from contextlib import suppress
 from multiprocessing import cpu_count
 from typing import TYPE_CHECKING
 
@@ -14,9 +15,10 @@ from .cache import PackageCache, PackageRepository
 from .models import Dependency, Package
 from .repository import SourceRepository
 from .resolver import PartialResolution, resolvers
+from .sbom import SBOM
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Iterator
 
     from .models import Dependency, Package
 
@@ -62,7 +64,7 @@ def _update_package(package: Package, depth: int) -> _PackageResult:
                 if updated_package.dependencies != old_deps:
                     uir.append(resolver.name)
                     package = updated_package
-            except Exception:
+            except Exception:  # noqa: S110, BLE001
                 pass
     return _PackageResult(
         package=package,
@@ -79,12 +81,12 @@ def _resolve_dependency(dep: Dependency, depth: int) -> _DependencyResult:
             try:
                 packages = list(resolver.resolve(dep))
                 return _DependencyResult(dep=dep, packages=packages, depth=depth)
-            except Exception:
+            except Exception:  # noqa: S110, BLE001
                 pass
     return _DependencyResult(dep=dep, packages=[], depth=depth)
 
 
-def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_ascending: bool = True):
+def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_ascending: bool = True) -> Iterator[SBOM]:  # noqa: C901
     """Generate SBOMs from packages.
 
     Args:
@@ -96,8 +98,6 @@ def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_as
         SBOM objects representing different dependency resolutions
 
     """
-    from .sbom import SBOM
-
     if not root_package.dependencies:
         yield SBOM(root_packages=(root_package,))
         return
@@ -135,11 +135,11 @@ def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_as
                         new_resolution = current.add(packages_for_dep, dep)
                         if new_resolution.is_valid and new_resolution not in history:
                             stack.append(new_resolution)
-                except Exception:
+                except Exception:  # noqa: S110, BLE001
                     pass
 
 
-def resolve(
+def resolve(  # noqa: C901, PLR0912, PLR0915
     repo_or_spec: Package | Dependency | SourceRepository,
     *,
     cache: PackageCache | None = None,
@@ -176,7 +176,7 @@ def resolve(
                             if source_package:
                                 found_source_package = True
                                 unupdated_packages.append((source_package, 0))
-                        except Exception:
+                        except Exception:  # noqa: S110, BLE001
                             pass
                 if not found_source_package:
                     error_msg = f"Can not resolve {repo_or_spec}"
@@ -202,8 +202,8 @@ def resolve(
                 updated_package: Package,
                 at_depth: int,
                 *,
-                updated_in_resolvers: set[str],
-                was_updated: bool = True,
+                updated_in_resolvers: set[str],  # noqa: ARG001
+                was_updated: bool = True,  # noqa: ARG001
             ) -> None:
                 repo.add(updated_package)
                 if at_depth < depth_limit or depth_limit < 0:
@@ -222,7 +222,7 @@ def resolve(
                 packages: Iterable[Package],
                 at_depth: int,
                 *,
-                already_cached: bool = False,
+                already_cached: bool = False,  # noqa: ARG001
             ) -> None:
                 """Process a dependency resolution."""
                 repo.set_resolved(dep)
@@ -259,8 +259,8 @@ def resolve(
                                 )
                             else:
                                 error_msg = f"Unexpected future result: {result!r}"
-                                raise NotImplementedError(error_msg)
-                        except Exception:
+                                raise NotImplementedError(error_msg)  # noqa: TRY301
+                        except Exception:  # noqa: S110, PERF203, BLE001
                             pass
 
                 # loop through the unupdated packages and see if any are cached:
@@ -271,7 +271,6 @@ def resolve(
                         was_updatable = True
                         if was_updatable:
                             # every resolver that could have updated this package did update it in the cache
-                            from contextlib import suppress
 
                             with suppress(StopIteration):
                                 # retrieve the package from the cache
