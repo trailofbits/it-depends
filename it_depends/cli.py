@@ -6,14 +6,13 @@ import sys
 from typing import Iterator, Optional, Sequence, TextIO, Union
 import webbrowser
 
-from sqlalchemy.exc import OperationalError
+from sqlite3 import OperationalError
 
 from .audit import vulnerabilities
 from .db import DEFAULT_DB_PATH, DBPackageCache
-from .dependencies import Dependency, resolvers, resolve, SourceRepository
+from .dependencies import Dependency, resolvers, resolve, SourceRepository, resolve_sbom
 from .it_depends import version as it_depends_version
 from .html import graph_to_html
-from .resolver import resolve_sbom
 from .sbom import cyclonedx_to_json
 
 
@@ -57,8 +56,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         default=".",
         help="path to the directory to analyze, or a package name in the form of "
         "RESOLVER_NAME:PACKAGE_NAME[@OPTIONAL_VERSION], where RESOLVER_NAME is a resolver listed "
-        'in `it-depends --list`. For example: "pip:numpy", "apt:libc6@2.31", or '
-        '"npm:lodash@>=4.17.0".',
+        "in `it-depends --list`. For example: "
+        '"pip:numpy", "apt:libc6@2.31", or "npm:lodash@>=4.17.0".',
     )
 
     parser.add_argument(
