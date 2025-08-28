@@ -1,5 +1,5 @@
 import io
-from logging import getLogger
+import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import subprocess
@@ -24,7 +24,7 @@ from .dependencies import (
 
 
 configure_logging(1)
-log = getLogger(__file__)
+logger = logging.getLogger(__name__)
 
 
 class PipResolver(DependencyResolver):
@@ -168,7 +168,7 @@ class PipResolver(DependencyResolver):
         return packages
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        print(dependency)
+        logger.info(dependency)
         try:
             return iter(
                 self.resolve_dist(
@@ -242,7 +242,7 @@ class PipSourcePackage(SourcePackage):
                     version = PipResolver.get_version(f.read().strip())
             else:
                 version = PipResolver.get_version("0.0.0")
-                log.info(f"Could not detect {repo.path} version. Using: {version}")
+                logger.info(f"Could not detect {repo.path} version. Using: {version}")
             return PipSourcePackage(
                 name=name,
                 version=version,

@@ -13,7 +13,8 @@ import docker
 from docker.errors import NotFound as ImageNotFound, DockerException
 from docker.models.images import Image
 
-from . import version as it_depends_version
+
+from it_depends import __version__
 
 
 def _discover_podman_socket():
@@ -162,7 +163,7 @@ class DockerContainer:
     ):
         self.image_name: str = image_name
         if tag is None:
-            self.tag: str = it_depends_version()
+            self.tag: str = __version__
         else:
             self.tag = tag
         self._client: Optional[docker.DockerClient] = None
