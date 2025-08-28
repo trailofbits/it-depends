@@ -5,7 +5,7 @@ from os import chdir, getcwd
 import shutil
 import subprocess
 from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
-from it_depends.ubuntu.apt import (
+from .ubuntu.apt import (
     cached_file_to_package as file_to_package,
     search_package,
 )

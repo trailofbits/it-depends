@@ -1,4 +1,4 @@
-from appdirs import AppDirs
+from platformdirs import PlatformDirs
 import sys
 
 if sys.version_info < (3, 12):
@@ -14,4 +14,4 @@ else:
         return meta_version("it-depends")
 
 
-APP_DIRS = AppDirs("it-depends", "Trail of Bits")
+APP_DIRS = PlatformDirs("it-depends", "Trail of Bits")

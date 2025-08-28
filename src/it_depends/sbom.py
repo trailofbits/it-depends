@@ -7,7 +7,7 @@ from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.contact import OrganizationalEntity
 from cyclonedx.output.json import JsonV1Dot5
 
-from . import version
+from . import __version__ as version
 from .dependencies import Package
 
 __all__ = "cyclonedx_to_json", "SBOM"
@@ -61,7 +61,7 @@ class SBOM:
                 urls=[XsUri("https://www.trailofbits.com/")]
             ),
             type=ComponentType.APPLICATION,
-            version=version(),
+            version=version,
         ))
 
         if root_component is not None:
