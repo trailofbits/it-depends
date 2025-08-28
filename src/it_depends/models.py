@@ -1,24 +1,17 @@
 import json
-from abc import ABC, abstractmethod
-from collections import defaultdict
-from dataclasses import dataclass
+from collections.abc import Iterable
 from typing import (
-    Any,
     Dict,
     FrozenSet,
-    Iterable,
-    Iterator,
     List,
-    Optional,
-    Set,
     Union,
 )
 
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
 
-from .resolver import DependencyResolver, resolver_by_name, is_known_resolver
 from .repository import SourceRepository
+from .resolver import DependencyResolver, is_known_resolver, resolver_by_name
 
 
 class Vulnerability:
@@ -105,11 +98,7 @@ class Dependency:
         return str(self) < str(other)
 
     def includes(self, other):
-        if (
-            not isinstance(other, Dependency)
-            or self.package != other.package
-            and self.source != other.source
-        ):
+        if not isinstance(other, Dependency) or (self.package != other.package and self.source != other.source):
             return False
         return self.semantic_version.clause.includes(other.semantic_version.clause)
 
@@ -131,16 +120,18 @@ class AliasedDependency(Dependency):
     For instance, NPM allows this to have multiple version of the same dependency in your
     dependency chain.
     """
-    def __init__(self,
-                 package: str,
-                 alias_name: str,
-                 source: Union[str, "DependencyResolver"],
-                 semantic_version: SemanticVersion = SimpleSpec("*"),
-                 ):
+
+    def __init__(
+        self,
+        package: str,
+        alias_name: str,
+        source: Union[str, "DependencyResolver"],
+        semantic_version: SemanticVersion = SimpleSpec("*"),
+    ):
         self.alias_name = alias_name
         super().__init__(package, source, semantic_version)
 
-    def __eq__(self, other: Any) -> bool:
+    def __eq__(self, other: object) -> bool:
         """Checks equality."""
         return isinstance(other, AliasedDependency) and self.alias_name == other.alias_name and super().__eq__(other)
 
@@ -187,8 +178,7 @@ class Package:
 
     @property
     def resolver(self):
-        """
-        The initial main resolver for this package.
+        """The initial main resolver for this package.
         Other resolvers could have added dependencies and perform modifications over it
         """
         return resolver_by_name(self.source)
@@ -240,10 +230,7 @@ class Package:
             "source": self.source,
             "name": self.name,
             "version": str(self.version),
-            "dependencies": {
-                f"{dep.source}:{dep.package}": str(dep.semantic_version)
-                for dep in self.dependencies
-            },
+            "dependencies": {f"{dep.source}:{dep.package}": str(dep.semantic_version) for dep in self.dependencies},
             "vulnerabilities": [vuln.to_obj() for vuln in self.vulnerabilities],
         }
         return ret  # type: ignore
@@ -257,11 +244,7 @@ class Package:
 
     def __eq__(self, other):
         if isinstance(other, Package):
-            return (
-                other.name == self.name
-                and other.source == self.source
-                and other.version == self.version
-            )
+            return other.name == self.name and other.source == self.source and other.version == self.version
         return False
 
     def __lt__(self, other):

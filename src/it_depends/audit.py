@@ -1,9 +1,11 @@
-from abc import ABC
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
+from abc import ABC
+from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, FrozenSet, Tuple
+
 from requests import post
 from tqdm import tqdm
-from typing import Dict, FrozenSet, Iterable, List, Union, Tuple
 
 from .dependencies import Package, PackageRepository, Vulnerability
 
@@ -36,7 +38,7 @@ class OSVVulnerability(Vulnerability):
 
         # Inherit all other attributes
         for k in OSVVulnerability.EXTRA_KEYS:
-            setattr(self, k, osv_dict.get(k, None))
+            setattr(self, k, osv_dict.get(k))
 
     @classmethod
     def from_osv_dict(cls, d: Dict):
@@ -48,7 +50,7 @@ class VulnerabilityProvider(ABC):
 
     def query(self, pkg: Package) -> Iterable[Vulnerability]:
         """Queries the vulnerability provider for vulnerabilities in pkg"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
 
 class OSVProject(VulnerabilityProvider):
@@ -72,9 +74,10 @@ def vulnerabilities(repo: PackageRepository, nworkers=None) -> PackageRepository
         # thread handle the updates.
         return (pkg, frozenset({vuln: vuln for vuln in ret}))
 
-    with ThreadPoolExecutor(max_workers=nworkers) as executor, tqdm(
-        desc="Checking for vulnerabilities", leave=False, unit=" packages"
-    ) as t:
+    with (
+        ThreadPoolExecutor(max_workers=nworkers) as executor,
+        tqdm(desc="Checking for vulnerabilities", leave=False, unit=" packages") as t,
+    ):
         futures = {executor.submit(_get_vulninfo, pkg): pkg for pkg in repo}
         t.total = len(futures)
 
@@ -83,9 +86,7 @@ def vulnerabilities(repo: PackageRepository, nworkers=None) -> PackageRepository
                 t.update(1)
                 pkg, vulns = future.result()
             except Exception as exc:
-                logger.error(
-                    "Failed to retrieve vulnerability information. " "Exception: {}".format(exc)
-                )
+                logger.error(f"Failed to retrieve vulnerability information. Exception: {exc}")
             else:
                 pkg.update_vulnerabilities(vulns)
 

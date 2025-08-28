@@ -1,18 +1,18 @@
 import argparse
-from contextlib import contextmanager
 import json
-from pathlib import Path
 import sys
-from typing import Iterator, Optional, Sequence, TextIO, Union
 import webbrowser
-
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from pathlib import Path
 from sqlite3 import OperationalError
+from typing import Optional, TextIO, Union
 
 from .audit import vulnerabilities
 from .db import DEFAULT_DB_PATH, DBPackageCache
-from .dependencies import Dependency, resolvers, resolve, SourceRepository, resolve_sbom
-from .it_depends import version as it_depends_version
+from .dependencies import Dependency, SourceRepository, resolve, resolve_sbom, resolvers
 from .html import graph_to_html
+from .it_depends import version as it_depends_version
 from .sbom import cyclonedx_to_json
 
 
@@ -39,8 +39,7 @@ def parse_path_or_package_name(
         dependency = None
     if dependency is None or repo_path.exists():
         return SourceRepository(path_or_name)
-    else:
-        return dependency
+    return dependency
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -64,7 +63,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--audit",
         "-a",
         action="store_true",
-        help="audit packages for known vulnerabilities using " "Google OSV",
+        help="audit packages for known vulnerabilities using Google OSV",
     )
     parser.add_argument("--list", "-l", action="store_true", help="list available package resolver")
     parser.add_argument(
@@ -79,8 +78,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--clear-cache",
         action="store_true",
-        help="clears the database specified by `--database` "
-        "(equivalent to deleting the database file)",
+        help="clears the database specified by `--database` (equivalent to deleting the database file)",
     )
     parser.add_argument(
         "--compare",
@@ -107,13 +105,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         choices=("json", "dot", "html", "cyclonedx"),
         default="json",
         help="how the output should be formatted (default is JSON); note that `cyclonedx` will output a single "
-             "satisfying dependency resolution rather than the universe of all possible resolutions "
-             "(see `--newest-resolution`)",
+        "satisfying dependency resolution rather than the universe of all possible resolutions "
+        "(see `--newest-resolution`)",
     )
-    parser.add_argument("--latest-resolution", "-lr", action="store_true",
-                        help="by default, the `cyclonedx` output format emits a single satisfying dependency "
-                             "resolution containing the oldest versions of all of the packages possible; this option "
-                             "instead returns the latest latest possible resolution")
+    parser.add_argument(
+        "--latest-resolution",
+        "-lr",
+        action="store_true",
+        help="by default, the `cyclonedx` output format emits a single satisfying dependency "
+        "resolution containing the oldest versions of all of the packages possible; this option "
+        "instead returns the latest latest possible resolution",
+    )
     parser.add_argument(
         "--output-file",
         "-o",
@@ -129,23 +131,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--all-versions",
         action="store_true",
-        help="for `--output-format html`, this option will emit all package versions that satisfy each "
-        "dependency",
+        help="for `--output-format html`, this option will emit all package versions that satisfy each dependency",
     )
     parser.add_argument(
         "--depth-limit",
         "-d",
         type=int,
         default=-1,
-        help="depth limit for recursively solving dependencies (default is -1 to resolve all "
-        "dependencies)",
+        help="depth limit for recursively solving dependencies (default is -1 to resolve all dependencies)",
     )
     parser.add_argument(
         "--max-workers",
         "-j",
         type=int,
         default=None,
-        help="maximum number of jobs to run concurrently" " (default is # of CPUs)",
+        help="maximum number of jobs to run concurrently (default is # of CPUs)",
     )
     parser.add_argument(
         "--version",
@@ -169,9 +169,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         repo = parse_path_or_package_name(args.PATH_OR_NAME)
 
         if args.compare is not None:
-            to_compare: Optional[Union[SourceRepository, Dependency]] = parse_path_or_package_name(
-                args.compare
-            )
+            to_compare: Optional[Union[SourceRepository, Dependency]] = parse_path_or_package_name(args.compare)
         else:
             to_compare = None
     except ValueError as e:
@@ -198,7 +196,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         db_path.unlink()
                         sys.stderr.write("Cache cleared.\n")
                         break
-                    elif choice == "n" or choice == "":
+                    if choice == "n" or choice == "":
                         break
             else:
                 db_path.unlink()
@@ -219,9 +217,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if not available:
                 sys.stderr.write(f"\tnot available: {available.reason}")
                 sys.stderr.flush()
-            elif isinstance(repo, SourceRepository) and not classifier.can_resolve_from_source(
-                repo
-            ):
+            elif isinstance(repo, SourceRepository) and not classifier.can_resolve_from_source(repo):
                 sys.stderr.write("\tincompatible with this path")
                 sys.stderr.flush()
             elif isinstance(repo, Dependency) and repo.source != classifier.name:
@@ -240,9 +236,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if args.output_file is None or args.output_file == "-":
                 output_file = real_stdout
             elif not args.force and Path(args.output_file).exists():
-                sys.stderr.write(
-                    f"{args.output_file} already exists!\nRe-run with `--force` to overwrite the file.\n"
-                )
+                sys.stderr.write(f"{args.output_file} already exists!\nRe-run with `--force` to overwrite the file.\n")
                 return 1
             else:
                 output_file = open(args.output_file, "w")
@@ -259,9 +253,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         sys.stderr.write(f"{e!s}\n")
                     return 1
                 if not package_list:
-                    sys.stderr.write(
-                        f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n"
-                    )
+                    sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n")
                     sys.stderr.flush()
 
                 # TODO: Should the cache be updated instead????
@@ -276,19 +268,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         max_workers=args.max_workers,
                     )
                     output_file.write(
-                        str(
-                            package_list.to_graph().distance_to(
-                                to_compare_list.to_graph(), normalize=args.normalize
-                            )
-                        )
+                        str(package_list.to_graph().distance_to(to_compare_list.to_graph(), normalize=args.normalize))
                     )
                     output_file.write("\n")
                 elif args.output_format == "dot":
                     output_file.write(cache.to_dot(package_list.source_packages).source)
                 elif args.output_format == "html":
-                    output_file.write(
-                        graph_to_html(package_list, collapse_versions=not args.all_versions)
-                    )
+                    output_file.write(graph_to_html(package_list, collapse_versions=not args.all_versions))
                     if output_file is not real_stdout:
                         output_file.flush()
                         webbrowser.open(output_file.name)

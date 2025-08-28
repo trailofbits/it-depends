@@ -1,4 +1,5 @@
-from typing import Dict, FrozenSet, Iterable, List, Optional, Tuple, Type, TypeVar
+from collections.abc import Iterable
+from typing import Dict, FrozenSet, Optional, Tuple, TypeVar
 
 from cyclonedx.builder.this import this_component as cdx_lib_component
 from cyclonedx.model import XsUri
@@ -10,24 +11,24 @@ from cyclonedx.output.json import JsonV1Dot5
 from . import __version__ as version
 from .dependencies import Package
 
-__all__ = "cyclonedx_to_json", "SBOM"
+__all__ = "SBOM", "cyclonedx_to_json"
 
 
 S = TypeVar("S", bound="SBOM")
 
 
 class SBOM:
-    def __init__(self, dependencies: Iterable[Tuple[Package, Package]] = (), root_packages: Iterable[Package] = ()):
+    def __init__(
+        self,
+        dependencies: Iterable[Tuple[Package, Package]] = (),
+        root_packages: Iterable[Package] = (),
+    ):
         self.dependencies: FrozenSet[Tuple[Package, Package]] = frozenset(dependencies)
         self.root_packages: FrozenSet[Package] = frozenset(root_packages)
 
     @property
     def packages(self) -> FrozenSet[Package]:
-        return self.root_packages | {
-            p
-            for deps in self.dependencies
-            for p in deps
-        }
+        return self.root_packages | {p for deps in self.dependencies for p in deps}
 
     def __str__(self):
         return ", ".join(p.full_name for p in sorted(self.packages))
@@ -39,11 +40,7 @@ class SBOM:
 
         root_component: Optional[Component] = None
 
-        for root_package in sorted(
-                self.root_packages,
-                key=lambda package: package.full_name,
-                reverse=True
-        ):
+        for root_package in sorted(self.root_packages, key=lambda package: package.full_name, reverse=True):
             root_component = Component(
                 name=root_package.name,
                 type=ComponentType.APPLICATION,
@@ -54,15 +51,14 @@ class SBOM:
             expanded[root_package] = root_component
 
         bom.metadata.tools.components.add(cdx_lib_component())
-        bom.metadata.tools.components.add(Component(
-            name="it-depends",
-            supplier=OrganizationalEntity(
-                name="Trail of Bits",
-                urls=[XsUri("https://www.trailofbits.com/")]
-            ),
-            type=ComponentType.APPLICATION,
-            version=version,
-        ))
+        bom.metadata.tools.components.add(
+            Component(
+                name="it-depends",
+                supplier=OrganizationalEntity(name="Trail of Bits", urls=[XsUri("https://www.trailofbits.com/")]),
+                type=ComponentType.APPLICATION,
+                version=version,
+            )
+        )
 
         if root_component is not None:
             bom.metadata.component = root_component
@@ -73,7 +69,7 @@ class SBOM:
                     name=pkg.name,
                     type=ComponentType.LIBRARY,
                     version=str(pkg.version),
-                    bom_ref=f"{pkg.full_name}@{pkg.version!s}"
+                    bom_ref=f"{pkg.full_name}@{pkg.version!s}",
                 )
                 bom.components.add(component)
             else:
@@ -83,7 +79,7 @@ class SBOM:
                     name=depends_on.name,
                     type=ComponentType.LIBRARY,
                     version=str(depends_on.version),
-                    bom_ref=f"{depends_on.full_name}@{depends_on.version!s}"
+                    bom_ref=f"{depends_on.full_name}@{depends_on.version!s}",
                 )
                 bom.components.add(d_component)
             else:
@@ -99,8 +95,11 @@ class SBOM:
         return hash((self.root_packages, self.dependencies))
 
     def __eq__(self, other):
-        return isinstance(other, SBOM) and self.root_packages == other.root_packages \
+        return (
+            isinstance(other, SBOM)
+            and self.root_packages == other.root_packages
             and self.dependencies == other.dependencies
+        )
 
 
 def cyclonedx_to_json(bom: Bom, indent: int = 2) -> str:

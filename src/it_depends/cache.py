@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, FrozenSet, Iterable, Iterator, Optional, Set, Tuple, Union, TYPE_CHECKING
+from collections.abc import Iterable, Iterator
+from typing import TYPE_CHECKING, Dict, FrozenSet, Optional, Set, Union
 
 from graphviz import Digraph
 
-from .graphs import RootedDiGraph
-
 if TYPE_CHECKING:
-    from .models import Package, Dependency, SourcePackage
+    from .models import Dependency, Package, SourcePackage
 
 
 class PackageCache(ABC):
@@ -36,12 +35,12 @@ class PackageCache(ABC):
     @abstractmethod
     def __len__(self):
         """Returns the number of packages in this cache."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def __iter__(self) -> Iterator["Package"]:
         """Iterates over the packages in this cache."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __contains__(self, pkg: "Package"):
         """True if pkg exists in this in this collection of packages."""
@@ -53,42 +52,40 @@ class PackageCache(ABC):
     @abstractmethod
     def was_resolved(self, dependency: "Dependency") -> bool:
         """True if this particular dependency was set resolved"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def set_resolved(self, dependency: "Dependency"):
         """True if this particular dependency as resolved"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def set_updated(self, package: "Package", resolver: str):
         """Update package for updates made by resolver"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def was_updated(self, package: "Package", resolver: str) -> bool:
         """True if package was updated by resolver"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def updated_by(self, package: "Package") -> FrozenSet[str]:
         """A set of resolver names that updated package"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def package_versions(self, package_full_name: str) -> Iterator["Package"]:
         """"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
     def package_full_names(self) -> FrozenSet[str]:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def latest_match(self, to_match: Union[str, "Package", "Dependency"]) -> Optional["Package"]:
-        """
-        Returns the latest package version that matches the given dependency, or None if no packages match
-        """
-        latest: Optional["Package"] = None
+        """Returns the latest package version that matches the given dependency, or None if no packages match"""
+        latest: Optional[Package] = None
         for p in self.match(to_match):
             if latest is None or p.version >= latest.version:
                 latest = p
@@ -96,14 +93,13 @@ class PackageCache(ABC):
 
     @abstractmethod
     def match(self, to_match: Union[str, "Package", "Dependency"]) -> Iterator["Package"]:
-        """
-        Yields all packages in this collection of packages that match the Dependency.
+        """Yields all packages in this collection of packages that match the Dependency.
 
         This function does not perform any dependency resolution;
         it only matches against existing packages in this cache.
 
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def get(
         self,
@@ -112,6 +108,7 @@ class PackageCache(ABC):
         version: Union[str, "Version"],
     ) -> Optional["Package"]:
         from .models import Package
+
         pkg = Package(source=source, name=name, version=version)
         it = self.match(pkg.to_dependency())
         try:
@@ -121,6 +118,7 @@ class PackageCache(ABC):
 
     def to_graph(self) -> "DependencyGraph":
         from .graph import DependencyGraph
+
         graph = DependencyGraph()
         for package in self:
             graph.add_node(package)
@@ -134,27 +132,25 @@ class PackageCache(ABC):
         def package_to_dict(package: "Package"):
             ret = {
                 "dependencies": {
-                    f"{dep.source}:{dep.package}": str(dep.semantic_version)
-                    for dep in package.dependencies
+                    f"{dep.source}:{dep.package}": str(dep.semantic_version) for dep in package.dependencies
                 },
                 "vulnerabilities": [v.to_compact_str() for v in package.vulnerabilities],
                 "source": package.source,
             }
-            if hasattr(package, 'source_repo'):  # SourcePackage
+            if hasattr(package, "source_repo"):  # SourcePackage
                 ret["is_source_package"] = True
             return ret
 
         return {
             package_full_name: {
-                str(package.version): package_to_dict(package)
-                for package in self.package_versions(package_full_name)
+                str(package.version): package_to_dict(package) for package in self.package_versions(package_full_name)
             }
             for package_full_name in self.package_full_names()
         }
 
     @property
     def source_packages(self) -> Set["SourcePackage"]:
-        return {package for package in self if hasattr(package, 'source_repo')}
+        return {package for package in self if hasattr(package, "source_repo")}
 
     def to_dot(self, sources: Optional[Iterable["Package"]] = None) -> Digraph:
         """Renders a Graphviz Dot graph of the dependency hierarchy.
@@ -173,8 +169,8 @@ class PackageCache(ABC):
             dot = Digraph()
         else:
             dot = Digraph(comment=f"Dependencies for {', '.join(map(str, sources))}")
-        package_ids: Dict["Package", str] = {}
-        dependency_ids: Dict["Dependency", str] = {}
+        package_ids: Dict[Package, str] = {}
+        dependency_ids: Dict[Dependency, str] = {}
 
         def add_package(pkg: "Package") -> str:
             if pkg not in package_ids:
@@ -183,8 +179,7 @@ class PackageCache(ABC):
                 shape = "triangle" if pkg.vulnerabilities else "rectangle"
                 dot.node(pkg_id, label=str(pkg), shape=shape)
                 return pkg_id
-            else:
-                return package_ids[pkg]
+            return package_ids[pkg]
 
         def add_dependency(dep: "Dependency") -> str:
             if dep not in dependency_ids:
@@ -192,8 +187,7 @@ class PackageCache(ABC):
                 dependency_ids[dep] = dep_id
                 dot.node(dep_id, label=str(dep), shape="oval")
                 return dep_id
-            else:
-                return dependency_ids[dep]
+            return dependency_ids[dep]
 
         while sources:
             package = sources.pop()
@@ -213,15 +207,13 @@ class PackageCache(ABC):
 
     @abstractmethod
     def add(self, package: "Package"):
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def extend(self, packages: Iterable["Package"]):
         for package in packages:
             self.add(package)
 
-    def unresolved_dependencies(
-        self, packages: Optional[Iterable["Package"]] = None
-    ) -> Iterable["Dependency"]:
+    def unresolved_dependencies(self, packages: Optional[Iterable["Package"]] = None) -> Iterable["Dependency"]:
         """List all unresolved dependencies of packages."""
         unresolved = set()
         if packages is None:
@@ -237,11 +229,11 @@ class InMemoryPackageCache(PackageCache):
     def __init__(self, _cache: Optional[Dict[str, Dict[str, Dict["Version", "Package"]]]] = None):
         super().__init__()
         if _cache is None:
-            self._cache: Dict[str, Dict[str, Dict["Version", "Package"]]] = {}
+            self._cache: Dict[str, Dict[str, Dict[Version, Package]]] = {}
         else:
             self._cache = _cache
-        self._resolved: Dict[str, Set["Dependency"]] = defaultdict(set)  # source:package -> dep
-        self._updated: Dict["Package", Set[str]] = defaultdict(set)  # source:package -> dep
+        self._resolved: Dict[str, Set[Dependency]] = defaultdict(set)  # source:package -> dep
+        self._updated: Dict[Package, Set[str]] = defaultdict(set)  # source:package -> dep
 
     def __len__(self):
         return sum(sum(map(len, source.values())) for source in self._cache.values())
@@ -265,7 +257,7 @@ class InMemoryPackageCache(PackageCache):
         self._resolved[f"{dependency.source}:{dependency.package}"].add(dependency)
 
     def from_source(self, source: Union[str, "DependencyResolver"]) -> "PackageCache":
-        if hasattr(source, 'name'):
+        if hasattr(source, "name"):
             source = source.name
         return InMemoryPackageCache({source: self._cache.setdefault(source, {})})
 
@@ -285,21 +277,18 @@ class InMemoryPackageCache(PackageCache):
     def match(self, to_match: Union[str, "Package", "Dependency"]) -> Iterator["Package"]:
         if isinstance(to_match, str):
             from .models import Package
+
             to_match = Package.from_string(to_match)
-        if hasattr(to_match, 'to_dependency'):  # Package
+        if hasattr(to_match, "to_dependency"):  # Package
             to_match = to_match.to_dependency()
-        assert hasattr(to_match, 'source')  # Dependency
+        assert hasattr(to_match, "source")  # Dependency
         source_dict = self._cache.get(to_match.source, {})
         for version, package in source_dict.get(to_match.package, {}).items():
             if to_match.semantic_version is not None and version in to_match.semantic_version:
                 yield package
 
     def add(self, package: "Package"):
-        original_package = (
-            self._cache.setdefault(package.source, {})
-            .setdefault(package.name, {})
-            .get(package.version)
-        )
+        original_package = self._cache.setdefault(package.source, {}).setdefault(package.name, {}).get(package.version)
         if original_package is not None:
             package = original_package.update_dependencies(package.dependencies)
         self._cache[package.source][package.name][package.version] = package

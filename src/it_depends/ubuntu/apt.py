@@ -1,8 +1,8 @@
 import functools
 import gzip
-from pathlib import Path
-import re
 import logging
+import re
+from pathlib import Path
 from threading import Lock
 from typing import Dict, List, Optional, Set, Tuple
 from urllib import request
@@ -50,8 +50,7 @@ _loaded_dbs: Set[Path] = set()
 
 @functools.lru_cache(maxsize=5242880)
 def _file_to_package_contents(filename: str, arch: str = "amd64"):
-    """
-    Downloads and uses apt-file database directly
+    """Downloads and uses apt-file database directly
     # http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-amd64.gz
     # http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-i386.gz
     """
@@ -65,7 +64,7 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
             f"http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-{arch}.gz",
             dbfile,
         )
-    if not dbfile in _loaded_dbs:
+    if dbfile not in _loaded_dbs:
         logger.info("Rebuilding contents db")
         with gzip.open(str(dbfile), "rt") as contents:
             for line in contents.readlines():
@@ -76,7 +75,7 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
 
     regex = re.compile("(.*/)+" + filename + "$")
     matches = 0
-    for (filename_i, packages_i) in contents_db.items():
+    for filename_i, packages_i in contents_db.items():
         if regex.match(filename_i):
             matches += 1
             for package_i in packages_i:
@@ -93,7 +92,7 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
 def file_to_packages(filename: str, arch: str = "amd64") -> List[str]:
     if arch not in ("amd64", "i386"):
         raise ValueError("Only amd64 and i386 supported")
-    logger.debug(f'Running [{" ".join(["apt-file", "-x", "search", filename])}]')
+    logger.debug(f"Running [{' '.join(['apt-file', '-x', 'search', filename])}]")
     contents = run_command("apt-file", "-x", "search", filename).decode("utf-8")
     selected: List[str] = []
     for line in contents.split("\n"):
@@ -110,13 +109,10 @@ def file_to_package(filename: str, arch: str = "amd64") -> str:
         _, result = min((len(pkg), pkg) for pkg in packages)
         logger.info(f"Found {len(packages)} matching packages for {filename}. Choosing {result}")
         return result
-    else:
-        raise ValueError(f"{filename} not found in apt-file")
+    raise ValueError(f"{filename} not found in apt-file")
 
 
-def cached_file_to_package(
-    pattern: str, file_to_package_cache: Optional[List[Tuple[str, str]]] = None
-) -> str:
+def cached_file_to_package(pattern: str, file_to_package_cache: Optional[List[Tuple[str, str]]] = None) -> str:
     # file_to_package_cache contains all the files that are provided be previous
     # dependencies. If a file pattern is already sastified by current files
     # use the package already included as a dependency

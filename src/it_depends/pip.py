@@ -1,10 +1,11 @@
 import io
+import subprocess
+import sys
+from collections.abc import Iterable, Iterator
 from logging import getLogger
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import subprocess
-import sys
-from typing import Iterable, Iterator, List, Optional, Union
+from typing import List, Optional, Union
 
 from johnnydep import JohnnyDist
 from johnnydep.logs import configure_logging
@@ -22,7 +23,6 @@ from .dependencies import (
     Version,
 )
 
-
 configure_logging(1)
 log = getLogger(__file__)
 
@@ -32,11 +32,7 @@ class PipResolver(DependencyResolver):
     description = "classifies the dependencies of Python packages using pip"
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        return (
-            self.is_available
-            and (repo.path / "setup.py").exists()
-            or (repo.path / "requirements.txt").exists()
-        )
+        return (self.is_available and (repo.path / "setup.py").exists()) or (repo.path / "requirements.txt").exists()
 
     def resolve_from_source(
         self, repo: SourceRepository, cache: Optional[PackageCache] = None
@@ -86,7 +82,7 @@ class PipResolver(DependencyResolver):
 
     @staticmethod
     def get_dependencies(
-        dist_or_requirements_txt_path: Union[JohnnyDist, Path, str]
+        dist_or_requirements_txt_path: Union[JohnnyDist, Path, str],
     ) -> Iterable[Dependency]:
         if isinstance(dist_or_requirements_txt_path, JohnnyDist):
             return (
@@ -97,14 +93,14 @@ class PipResolver(DependencyResolver):
                 )
                 for child in dist_or_requirements_txt_path.children
             )
-        elif isinstance(dist_or_requirements_txt_path, str):
+        if isinstance(dist_or_requirements_txt_path, str):
             dist_or_requirements_txt_path = Path(dist_or_requirements_txt_path)
-        with open(dist_or_requirements_txt_path / "requirements.txt", "r") as f:
+        with open(dist_or_requirements_txt_path / "requirements.txt") as f:
             return filter(
                 lambda d: d is not None,
                 (
                     PipResolver.parse_requirements_txt_line(line)  # type: ignore
-                    for line in f.readlines()
+                    for line in f
                 ),
             )
 
@@ -113,24 +109,23 @@ class PipResolver(DependencyResolver):
         if version_str == "none":
             # this will happen if the dist is for a local wheel:
             return none_default
-        else:
-            try:
-                return Version.coerce(version_str)
-            except ValueError:
-                components = version_str.split(".")
-                if len(components) == 4:
-                    try:
-                        # assume the version component after the last period is the release
-                        return Version(
-                            major=int(components[0]),
-                            minor=int(components[1]),
-                            patch=int(components[2]),
-                            prerelease=components[3],
-                        )
-                    except ValueError:
-                        pass
-                # TODO: Figure out a better way to handle invalid version strings
-            return None
+        try:
+            return Version.coerce(version_str)
+        except ValueError:
+            components = version_str.split(".")
+            if len(components) == 4:
+                try:
+                    # assume the version component after the last period is the release
+                    return Version(
+                        major=int(components[0]),
+                        minor=int(components[1]),
+                        patch=int(components[2]),
+                        prerelease=components[3],
+                    )
+                except ValueError:
+                    pass
+            # TODO: Figure out a better way to handle invalid version strings
+        return None
 
     def resolve_dist(
         self,
@@ -149,10 +144,7 @@ class PipResolver(DependencyResolver):
             for version in sem_version.filter(
                 filter(
                     lambda v: v is not None,
-                    (
-                        PipResolver.get_version(v_str, none_default=none_default)
-                        for v_str in dist.versions_available
-                    ),
+                    (PipResolver.get_version(v_str, none_default=none_default) for v_str in dist.versions_available),
                 )
             ):
                 package = Package(
@@ -186,8 +178,7 @@ class PipSourcePackage(SourcePackage):
     @staticmethod
     def from_dist(dist: JohnnyDist, source_path: Path) -> "PipSourcePackage":
         version_str = dist.specifier
-        if version_str.startswith("=="):
-            version_str = version_str[2:]
+        version_str = version_str.removeprefix("==")
         return PipSourcePackage(
             name=dist.name,
             version=PipResolver.get_version(version_str),
@@ -221,14 +212,10 @@ class PipSourcePackage(SourcePackage):
                 wheel = None
                 for whl in Path(tmp_dir).glob("*.whl"):
                     if wheel is not None:
-                        raise ValueError(
-                            f"`pip wheel --no-deps {repo.path!s}` produced multiple wheel files!"
-                        )
+                        raise ValueError(f"`pip wheel --no-deps {repo.path!s}` produced multiple wheel files!")
                     wheel = whl
                 if wheel is None:
-                    raise ValueError(
-                        f"`pip wheel --no-deps {repo.path!s}` did not produce a wheel file!"
-                    )
+                    raise ValueError(f"`pip wheel --no-deps {repo.path!s}` did not produce a wheel file!")
                 dist = JohnnyDist(str(wheel))
                 # force JohnnyDist to read the dependencies before deleting the wheel:
                 _ = dist.children
@@ -238,7 +225,7 @@ class PipSourcePackage(SourcePackage):
             # Use the directory name as the package name
             name = repo.path.absolute().name
             if (repo.path / "VERSION").exists():
-                with open(repo.path / "VERSION", "r") as f:
+                with open(repo.path / "VERSION") as f:
                     version = PipResolver.get_version(f.read().strip())
             else:
                 version = PipResolver.get_version("0.0.0")

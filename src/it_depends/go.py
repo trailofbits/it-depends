@@ -1,35 +1,34 @@
+import os
+import re
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from html.parser import HTMLParser
 from logging import getLogger
-import os
 from pathlib import Path
-import re
-from subprocess import check_call, check_output, DEVNULL, CalledProcessError
+from subprocess import DEVNULL, CalledProcessError, check_call, check_output
 from tempfile import TemporaryDirectory
-from typing import Iterable, Iterator, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 from urllib import request
 from urllib.error import HTTPError, URLError
 
 from semantic_version import Version
 from semantic_version.base import BaseSpec, Range, SimpleSpec
 
+from . import vcs
 from .dependencies import (
     Dependency,
     DependencyResolver,
-    SourcePackage,
-    SourceRepository,
     Package,
     PackageCache,
     SemanticVersion,
+    SourcePackage,
+    SourceRepository,
 )
-from . import vcs
 
 log = getLogger(__file__)
 
-GITHUB_URL_MATCH = re.compile(
-    r"\s*https?://(www\.)?github.com/([^/]+)/(.+?)(\.git)?\s*", re.IGNORECASE
-)
+GITHUB_URL_MATCH = re.compile(r"\s*https?://(www\.)?github.com/([^/]+)/(.+?)(\.git)?\s*", re.IGNORECASE)
 REQUIRE_LINE_REGEX = r"\s*([^\s]+)\s+([^\s]+)\s*(//\s*indirect\s*)?"
 REQUIRE_LINE_MATCH = re.compile(REQUIRE_LINE_REGEX)
 REQUIRE_MATCH = re.compile(rf"\s*require\s+{REQUIRE_LINE_REGEX}")
@@ -72,8 +71,7 @@ def git_commit(path: Optional[str] = None) -> Optional[str]:
 class GoVersion:
     def __init__(self, go_version_string: str):
         self.version_string: str = go_version_string.strip()
-        if self.version_string.startswith("="):
-            self.version_string = self.version_string[1:]
+        self.version_string = self.version_string.removeprefix("=")
         self.build: bool = False  # This is to appease semantic_version.base.SimpleSpec
 
     def __lt__(self, other):
@@ -96,8 +94,7 @@ class GoSpec(SimpleSpec):
     class Parser(SimpleSpec.Parser):
         @classmethod
         def parse(cls, expression):
-            if expression.startswith("="):
-                expression = expression[1:]
+            expression = expression.removeprefix("=")
             return Range(operator=Range.OP_EQ, target=GoVersion(expression))
 
     def __contains__(self, item):
@@ -114,8 +111,7 @@ class GoModule:
         segments = tag.split("-")
         if len(segments) == 3:
             return segments[-1]
-        else:
-            return tag
+        return tag
 
     @staticmethod
     def parse_mod(mod_content: Union[str, bytes]) -> "GoModule":
@@ -248,13 +244,12 @@ class GoModule:
             if not go_mod_path.exists():
                 # the package likely doesn't have any dependencies
                 return GoModule(import_path)
-            with open(Path(tempdir) / "go.mod", "r") as f:
+            with open(Path(tempdir) / "go.mod") as f:
                 return GoModule.parse_mod(f.read())
 
     @staticmethod
     def url_for_import_path(import_path: str) -> str:
-        """
-        returns a partially-populated URL for the given Go import path.
+        """Returns a partially-populated URL for the given Go import path.
 
         The URL leaves the Scheme field blank so that web.Get will try any scheme
         allowed by the selected security mode.
@@ -281,7 +276,7 @@ class GoModule:
         for i, m in enumerate(imports):
             if not import_path.startswith(m.prefix):
                 continue
-            elif match is not None:
+            if match is not None:
                 if match.vcs == "mod" and m.vcs != "mod":
                     break
                 raise ValueError(f"Multiple meta tags match import path {import_path!r}")
@@ -308,9 +303,7 @@ class GoModule:
             new_url, imports = GoModule.meta_imports_for_prefix(meta_import.prefix)
             meta_import2 = GoModule.match_go_import(imports, import_path)
             if meta_import != meta_import2:
-                raise ValueError(
-                    f"{url} and {new_url} disagree about go-import for {meta_import.prefix!r}"
-                )
+                raise ValueError(f"{url} and {new_url} disagree about go-import for {meta_import.prefix!r}")
         # validateRepoRoot(meta_import.RepoRoot)
         if meta_import.vcs == "mod":
             the_vcs = vcs.VCS_MOD
@@ -343,15 +336,13 @@ class GoModule:
             return GoModule(import_path)
         if repo.vcs.name == "Git":
             return GoModule.from_git(import_path, repo.repo, tag)
-        else:
-            raise NotImplementedError(f"TODO: add support for VCS type {repo.vcs.name}")
+        raise NotImplementedError(f"TODO: add support for VCS type {repo.vcs.name}")
 
     @staticmethod
     def load(name_or_url: str, tag: str = "master") -> "GoModule":
         if not name_or_url.startswith("http://") and not name_or_url.startswith("https://"):
             return GoModule.from_import(name_or_url, tag)
-        else:
-            return GoModule.from_git(name_or_url, name_or_url, tag)
+        return GoModule.from_git(name_or_url, name_or_url, tag)
 
 
 class GoResolver(DependencyResolver):

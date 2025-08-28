@@ -1,11 +1,11 @@
-from functools import lru_cache
-from pathlib import Path
-import shutil
-import subprocess
 import logging
 import re
+import subprocess
+from functools import lru_cache
+from pathlib import Path
+from re import Pattern
 from threading import Lock
-from typing import Optional, Pattern
+from typing import Optional
 
 from ..docker import DockerContainer, InMemoryDockerfile
 
@@ -13,17 +13,14 @@ _container: Optional[DockerContainer] = None
 _UBUNTU_LOCK: Lock = Lock()
 
 _UBUNTU_NAME_MATCH: Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
-_VERSION_ID_MATCH: Pattern[str] = re.compile(
-    r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE
-)
+_VERSION_ID_MATCH: Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
 
 logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=4)
 def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
-    """
-    Tests whether the current system is running Ubuntu
+    """Tests whether the current system is running Ubuntu
 
     If `check_version` is not None, the specific version of Ubuntu is also tested.
     """
@@ -32,8 +29,8 @@ def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
         return False
     is_ubuntu = False
     version: Optional[str] = None
-    with open(os_release_path, "r") as f:
-        for line in f.readlines():
+    with open(os_release_path) as f:
+        for line in f:
             line = line.strip()
             is_ubuntu = is_ubuntu or bool(_UBUNTU_NAME_MATCH.match(line))
             if check_version is None:
@@ -49,8 +46,7 @@ def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
 
 
 def run_command(*args: str) -> bytes:
-    """
-    Runs the given command in Ubuntu 20.04
+    """Runs the given command in Ubuntu 20.04
 
     If the host system is not running Ubuntu 20.04, the command is run in Docker.
 

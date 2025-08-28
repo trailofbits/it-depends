@@ -1,8 +1,9 @@
 import json
+import subprocess
+from collections.abc import Iterator
 from logging import getLogger
 from pathlib import Path
-import subprocess
-from typing import Dict, Iterator, Optional, Union
+from typing import Dict, Optional, Union
 
 from semantic_version import NpmSpec, SimpleSpec, Version
 
@@ -47,7 +48,7 @@ class NPMResolver(DependencyResolver):
             path = path / "package.json"
         if not path.exists():
             raise ValueError(f"Expected a package.json file at {path!s}")
-        with open(path, "r") as json_file:
+        with open(path) as json_file:
             package = json.load(json_file)
         if "name" in package:
             name = package["name"]
@@ -69,8 +70,10 @@ class NPMResolver(DependencyResolver):
             version,
             source_repo=source_repository,
             source="npm",
-            dependencies=[generate_dependency_from_information(dep_name, dep_version)
-                          for dep_name, dep_version in dependencies.items()],
+            dependencies=[
+                generate_dependency_from_information(dep_name, dep_version)
+                for dep_name, dep_version in dependencies.items()
+            ],
         )
 
     def resolve(self, dependency: Union[Dependency, AliasedDependency]) -> Iterator[Package]:
@@ -99,8 +102,7 @@ class NPMResolver(DependencyResolver):
             )
         except subprocess.CalledProcessError as e:
             log.warning(
-                f"Error running `npm view --json {dependency_name}@{dependency.semantic_version!s} "
-                f"dependencies`: {e!s}"
+                f"Error running `npm view --json {dependency_name}@{dependency.semantic_version!s} dependencies`: {e!s}"
             )
             return
 
@@ -120,7 +122,8 @@ class NPMResolver(DependencyResolver):
                 version=Version.coerce(result["version"]),
                 source=self,
                 dependencies=(
-                    generate_dependency_from_information(dep_name, dep_version, self) for dep_name, dep_version in deps.items()
+                    generate_dependency_from_information(dep_name, dep_version, self)
+                    for dep_name, dep_version in deps.items()
                 ),
             )
         elif isinstance(result, list):
@@ -132,8 +135,10 @@ class NPMResolver(DependencyResolver):
                     name=dependency.package,
                     version=Version.coerce(package["version"]),
                     source=self,
-                    dependencies=(generate_dependency_from_information(dep_name, dep_version, self)
-                                  for dep_name, dep_version in dependencies.items())
+                    dependencies=(
+                        generate_dependency_from_information(dep_name, dep_version, self)
+                        for dep_name, dep_version in dependencies.items()
+                    ),
                 )
 
     @classmethod
@@ -165,9 +170,9 @@ node -e "require(\\"$1\\")"
 
 
 def generate_dependency_from_information(
-        package_name: str,
-        package_version: str,
-        source: Union[str, NPMResolver] = "npm",
+    package_name: str,
+    package_version: str,
+    source: Union[str, NPMResolver] = "npm",
 ) -> Union[Dependency, AliasedDependency, None]:
     """Generate a dependency from a dependency declaration.
 
@@ -184,7 +189,11 @@ def generate_dependency_from_information(
 
             semantic_version = NPMResolver.parse_spec(version)
             if semantic_version is None:
-                log.warning("Unable to compute the semantic version of %s (%s)", package_name, package_version)
+                log.warning(
+                    "Unable to compute the semantic version of %s (%s)",
+                    package_name,
+                    package_version,
+                )
                 semantic_version = SimpleSpec("*")
 
             return AliasedDependency(
@@ -194,19 +203,19 @@ def generate_dependency_from_information(
                 source=source,
             )
 
-        else:
-            msg = (f"This type of dependencies {package_name} {package_version} is not yet supported."
-                   f" Please open an issue on GitHub.")
-            raise ValueError(msg)
-
-    else:
-        semantic_version = NPMResolver.parse_spec(package_version)
-        if semantic_version is None:
-            log.warning("Unable to compute the semantic version of %s (%s)", package_name, package_version)
-            semantic_version = SimpleSpec("*")
-
-        return Dependency(
-            package=package_name,
-            semantic_version=semantic_version,
-            source=source,
+        msg = (
+            f"This type of dependencies {package_name} {package_version} is not yet supported."
+            f" Please open an issue on GitHub."
         )
+        raise ValueError(msg)
+
+    semantic_version = NPMResolver.parse_spec(package_version)
+    if semantic_version is None:
+        log.warning("Unable to compute the semantic version of %s (%s)", package_name, package_version)
+        semantic_version = SimpleSpec("*")
+
+    return Dependency(
+        package=package_name,
+        semantic_version=semantic_version,
+        source=source,
+    )

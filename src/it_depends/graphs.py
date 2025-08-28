@@ -1,8 +1,7 @@
+from collections.abc import Iterable, Iterator
 from typing import (
     Dict,
     Generic,
-    Iterable,
-    Iterator,
     Optional,
     Set,
     Tuple,
@@ -12,7 +11,6 @@ from typing import (
 )
 
 import networkx as nx
-
 
 T = TypeVar("T")
 R = TypeVar("R")
@@ -28,7 +26,7 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
         self._shortest_path_from_root: Optional[Dict[T, int]] = None
 
     def __init_subclass__(cls, **kwargs):
-        if not hasattr(cls, "root_type") or getattr(cls, "root_type") is None:
+        if not hasattr(cls, "root_type") or cls.root_type is None:
             raise TypeError(f"{cls.__name__} must assign a `root_type` class variable")
 
     def shortest_path_from_root(self, node: T) -> int:
@@ -42,18 +40,15 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
         if len(self.roots) > 1:
             path_lengths = [self.shortest_path_length(root, node) for root in self.roots]
             return min(length for length in path_lengths if length >= 0)
-        elif self._shortest_path_from_root is None:
-            self._shortest_path_from_root = nx.single_source_shortest_path_length(
-                self, next(iter(self.roots))
-            )  # type: ignore
+        if self._shortest_path_from_root is None:
+            self._shortest_path_from_root = nx.single_source_shortest_path_length(self, next(iter(self.roots)))  # type: ignore
         return self._shortest_path_from_root[node]
 
     def shortest_path_length(self, from_node: Union[T, R], to_node: T) -> int:
         if self._all_pairs_shortest_paths is None:
             self._all_pairs_shortest_paths = dict(nx.all_pairs_shortest_path_length(self))  # type: ignore
         if (
-            from_node not in self._all_pairs_shortest_paths
-            or to_node not in self._all_pairs_shortest_paths[from_node]  # type: ignore
+            from_node not in self._all_pairs_shortest_paths or to_node not in self._all_pairs_shortest_paths[from_node]  # type: ignore
         ):  # type: ignore
             return -1
         return self._all_pairs_shortest_paths[from_node][to_node]  # type: ignore
@@ -82,9 +77,7 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
         self._handle_new_node(v_of_edge)
         return super().add_edge(u_of_edge, v_of_edge, **attr)
 
-    def add_edges_from(
-        self, ebunch_to_add: Iterable[Union[Tuple[T, T], Tuple[T, T, Dict]]], **attr
-    ):
+    def add_edges_from(self, ebunch_to_add: Iterable[Union[Tuple[T, T], Tuple[T, T, Dict]]], **attr):
         edges = []
         for u, v, *r in ebunch_to_add:
             self._handle_new_node(u)
@@ -118,9 +111,7 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
         return compare_rooted_graphs(self, graph, normalize)
 
 
-def compare_rooted_graphs(
-    graph1: RootedDiGraph[T, R], graph2: RootedDiGraph[T, R], normalize: bool = False
-) -> float:
+def compare_rooted_graphs(graph1: RootedDiGraph[T, R], graph2: RootedDiGraph[T, R], normalize: bool = False) -> float:
     """Calculates the edit distance between two rooted graphs.
 
     If normalize == False (the default), a value of zero means the graphs are identical, with increasing values
@@ -150,9 +141,9 @@ def compare_rooted_graphs(
     if normalize:
         if distance > 0.0:
             # the graphs are not identical
-            max_distance = sum(
-                max(graph1.shortest_path_from_root(node), 1) for node in graph1
-            ) + sum(max(graph2.shortest_path_from_root(node), 1) for node in graph2)
+            max_distance = sum(max(graph1.shortest_path_from_root(node), 1) for node in graph1) + sum(
+                max(graph2.shortest_path_from_root(node), 1) for node in graph2
+            )
             distance /= max_distance
         distance = 1.0 - distance
     return distance

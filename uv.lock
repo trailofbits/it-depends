@@ -663,7 +663,7 @@ requires-dist = [
     { name = "interrogate", marker = "extra == 'lint'" },
     { name = "it-depends", extras = ["doc", "lint", "test"], marker = "extra == 'dev'" },
     { name = "johnnydep", specifier = ">=1.8" },
-    { name = "mypy", marker = "extra == 'lint'", specifier = ">=1.0" },
+    { name = "mypy", marker = "extra == 'lint'", specifier = "~=1.17.1" },
     { name = "networkx", specifier = ">=2.4" },
     { name = "parse-cmake", specifier = ">=0.4.1" },
     { name = "pdoc", marker = "extra == 'doc'" },

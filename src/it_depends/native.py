@@ -1,14 +1,14 @@
+import re
+from collections.abc import Iterator
 from logging import getLogger
 from pathlib import Path
-import re
 from tempfile import NamedTemporaryFile
 from threading import Lock
-from typing import Dict, FrozenSet, Iterator, Optional
+from typing import Dict, FrozenSet, Optional
 
 from tqdm import tqdm
 
 from . import version as it_depends_version
-from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 from .dependencies import (
     Dependency,
     DependencyResolver,
@@ -16,6 +16,7 @@ from .dependencies import (
     Package,
     SemanticVersion,
 )
+from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
 
 logger = getLogger(__name__)
 
@@ -48,9 +49,7 @@ RUN chmod +x *.sh
     )
 
 
-STRACE_LIBRARY_REGEX = re.compile(
-    r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*"
-)
+STRACE_LIBRARY_REGEX = re.compile(r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
 CONTAINERS_BY_SOURCE: Dict[DependencyResolver, DockerContainer] = {}
 BASELINES_BY_SOURCE: Dict[DependencyResolver, FrozenSet[Dependency]] = {}
 _CONTAINER_LOCK: Lock = Lock()
@@ -77,8 +76,8 @@ def get_dependencies(
             check_existence=False,
         )
         stdout.close()
-        with open(stdout.name, "r") as f:
-            for line in f.readlines():
+        with open(stdout.name) as f:
+            for line in f:
                 m = STRACE_LIBRARY_REGEX.match(line)
                 if m:
                     path = m.group(2)
@@ -111,13 +110,16 @@ def container_for(source: DependencyResolver) -> DockerContainer:
         docker_setup = source.docker_setup()
         if docker_setup is None:
             raise ValueError(f"source {source.name} does not support native dependency resolution")
-        with tqdm(
-            desc=f"configuring Docker for {source.name}",
-            leave=False,
-            unit=" steps",
-            total=2,
-            initial=1,
-        ) as t, make_dockerfile(docker_setup) as dockerfile:
+        with (
+            tqdm(
+                desc=f"configuring Docker for {source.name}",
+                leave=False,
+                unit=" steps",
+                total=2,
+                initial=1,
+            ) as t,
+            make_dockerfile(docker_setup) as dockerfile,
+        ):
             container = DockerContainer(
                 f"trailofbits/it-depends-{source.name!s}",
                 dockerfile,
@@ -135,8 +137,7 @@ def baseline_for(source: DependencyResolver) -> FrozenSet[Dependency]:
             baseline = frozenset(get_baseline_dependencies(container_for(source)))
             BASELINES_BY_SOURCE[source] = baseline
             return baseline
-        else:
-            return BASELINES_BY_SOURCE[source]
+        return BASELINES_BY_SOURCE[source]
 
 
 def get_native_dependencies(package: Package, use_baseline: bool = False) -> Iterator[Dependency]:

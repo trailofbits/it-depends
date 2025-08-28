@@ -1,25 +1,27 @@
-import sys
 import logging
+import sys
+from collections.abc import Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from multiprocessing import cpu_count
-from typing import List, Optional, Set, Tuple, Union, Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Set, Tuple, Union
 
 from tqdm import tqdm
 
-from .resolver import resolvers
-from .cache import PackageCache, InMemoryPackageCache, PackageRepository
+from .cache import InMemoryPackageCache, PackageCache, PackageRepository
 from .repository import SourceRepository
+from .resolver import resolvers
 
 if TYPE_CHECKING:
-    from .models import Package, Dependency, SourcePackage
+    from .models import Dependency, Package
     from .resolver import PartialResolution
 
 logger = logging.getLogger(__name__)
 
+
 class _DependencyResult:
     def __init__(self, dep: "Dependency", packages: List["Package"], depth: int):
-        self.dep: "Dependency" = dep
-        self.packages: List["Package"] = packages
+        self.dep: Dependency = dep
+        self.packages: List[Package] = packages
         self.depth: int = depth
 
 
@@ -35,7 +37,7 @@ class _PackageResult:
         updated_in_resolvers: Iterable[str],
         depth: int,
     ):
-        self.package: "Package" = package
+        self.package: Package = package
         self.was_updated: bool = was_updated
         self.updated_in_resolvers: Set[str] = set(updated_in_resolvers)
         self.depth: int = depth
@@ -57,33 +59,28 @@ def _update_package(package: "Package", depth: int) -> _PackageResult:
 
 
 def resolve_sbom(root_package: "Package", packages: "PackageRepository", order_ascending: bool = True):
-    """
-    Generates SBOMs from packages.
-    
+    """Generates SBOMs from packages.
+
     Args:
         root_package: The root package to generate SBOMs for
         packages: The package repository containing all packages
         order_ascending: If True, prefer older versions; if False, prefer newer versions
-        
+
     Yields:
         SBOM objects representing different dependency resolutions
+
     """
     from .sbom import SBOM
-    
+
     if not root_package.dependencies:
         yield SBOM((), (root_package,))
         return
 
     logger.info(f"Resolving the {['newest', 'oldest'][order_ascending]} possible SBOM for {root_package.name}")
 
-    stack: List["PartialResolution"] = [
-        PartialResolution(packages=(root_package,))
-    ]
+    stack: List[PartialResolution] = [PartialResolution(packages=(root_package,))]
 
-    history: Set["PartialResolution"] = {
-        pr for pr in stack
-        if pr.is_valid
-    }
+    history: Set[PartialResolution] = {pr for pr in stack if pr.is_valid}
 
     while stack:
         pr = stack.pop()
@@ -96,15 +93,12 @@ def resolve_sbom(root_package: "Package", packages: "PackageRepository", order_a
         for dep, required_by in pr.packages.unsatisfied_dependencies():
             if not PartialResolution(packages=required_by, parent=pr).is_valid:
                 continue
-            for match in sorted(
-                    packages.match(dep),
-                    key=lambda p: p.version,
-                    reverse=order_ascending
-            ):
+            for match in sorted(packages.match(dep), key=lambda p: p.version, reverse=order_ascending):
                 next_pr = pr.add(required_by, match)
                 if next_pr.is_valid and next_pr not in history:
                     history.add(next_pr)
                     stack.append(next_pr)
+
 
 def resolve(
     repo_or_spec: Union["Package", "Dependency", SourceRepository],
@@ -113,8 +107,7 @@ def resolve(
     repo: Optional[PackageRepository] = None,
     max_workers: Optional[int] = None,
 ) -> PackageRepository:
-    """
-    Resolves the dependencies for a package, dependency, or source repository.
+    """Resolves the dependencies for a package, dependency, or source repository.
 
     If depth_limit is negative (the default), recursively resolve all dependencies.
     If depth_limit is greater than zero, only recursively resolve dependencies to that depth.
@@ -136,16 +129,17 @@ def resolve(
         cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
 
     try:
-        with cache, tqdm(
-            desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies"
-        ) as t:
-            if hasattr(repo_or_spec, 'package'):  # Dependency
-                unresolved_dependencies: List[Tuple["Dependency", int]] = [(repo_or_spec, 0)]
-                unupdated_packages: List[Tuple["Package", int]] = []
-            elif hasattr(repo_or_spec, 'name'):  # Package
+        with (
+            cache,
+            tqdm(desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t,
+        ):
+            if hasattr(repo_or_spec, "package"):  # Dependency
+                unresolved_dependencies: List[Tuple[Dependency, int]] = [(repo_or_spec, 0)]
+                unupdated_packages: List[Tuple[Package, int]] = []
+            elif hasattr(repo_or_spec, "name"):  # Package
                 unresolved_dependencies = []
                 unupdated_packages = [(repo_or_spec, 0)]
-            elif hasattr(repo_or_spec, 'path'):  # SourceRepository
+            elif hasattr(repo_or_spec, "path"):  # SourceRepository
                 # repo_or_spec is a SourceRepository
                 unresolved_dependencies = []
                 unupdated_packages = []
@@ -160,18 +154,14 @@ def resolve(
                 if not found_source_package:
                     raise ValueError(f"Can not resolve {repo_or_spec}")
             else:
-                raise ValueError(
-                    f"repo_or_spec must be either a Package, Dependency, or SourceRepository"
-                )
+                raise ValueError("repo_or_spec must be either a Package, Dependency, or SourceRepository")
 
             t.total = len(unupdated_packages) + len(unresolved_dependencies)
 
             futures: Set[Future[Union[_DependencyResult, _PackageResult]]] = set()
-            queued: Set["Dependency"] = {d for d, _ in unresolved_dependencies}
+            queued: Set[Dependency] = {d for d, _ in unresolved_dependencies}
             if max_workers > 1:
-                pool = ThreadPoolExecutor(
-                    max_workers=max_workers, thread_name_prefix="it-depends-resolver"
-                )
+                pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="it-depends-resolver")
 
             def process_updated_package(
                 updated_package: "Package",
@@ -181,7 +171,7 @@ def resolve(
             ):
                 repo.add(updated_package)
                 if (
-                    not hasattr(updated_package, 'source_repo')  # not SourcePackage
+                    not hasattr(updated_package, "source_repo")  # not SourcePackage
                     and updated_package is not repo_or_spec
                 ):
                     if was_updated:
@@ -219,7 +209,7 @@ def resolve(
                     reached_fixed_point = True
 
                     # loop through the unupdated packages and see if any are cached:
-                    not_updated: List[Tuple["Package", int]] = []
+                    not_updated: List[Tuple[Package, int]] = []
                     was_updatable = False
                     for package, depth in unupdated_packages:
                         for resolver in resolvers():
@@ -244,7 +234,7 @@ def resolve(
                         unupdated_packages = not_updated
 
                     # loop through the unresolved deps and see if any are cached:
-                    not_cached: List[Tuple["Dependency", int]] = []
+                    not_cached: List[Tuple[Dependency, int]] = []
                     for dep, depth in unresolved_dependencies:
                         if dep is not repo_or_spec and cache.was_resolved(dep):
                             matches = cache.match(dep)
@@ -278,15 +268,13 @@ def resolve(
                     new_jobs = max_workers - len(futures)
                     # create `new_jobs` package update jobs:
                     futures |= {
-                        pool.submit(_update_package, package, depth)
-                        for package, depth in unupdated_packages[:new_jobs]
+                        pool.submit(_update_package, package, depth) for package, depth in unupdated_packages[:new_jobs]
                     }
                     unupdated_packages = unupdated_packages[new_jobs:]
                     new_jobs = max_workers - len(futures)
                     # create `new_jobs` new resolution jobs:
                     futures |= {
-                        pool.submit(_process_dep, dep, depth)
-                        for dep, depth in unresolved_dependencies[:new_jobs]
+                        pool.submit(_process_dep, dep, depth) for dep, depth in unresolved_dependencies[:new_jobs]
                     }
                     unresolved_dependencies = unresolved_dependencies[new_jobs:]
                     if futures:
@@ -314,7 +302,7 @@ def resolve(
                     choice = input().lower()
                     if choice == "" or choice == "y":
                         return repo
-                    elif choice == "n":
+                    if choice == "n":
                         sys.exit(1)
             except KeyboardInterrupt:
                 sys.exit(1)

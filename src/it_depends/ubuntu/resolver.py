@@ -1,12 +1,11 @@
-from functools import lru_cache
-import shutil
-import subprocess
 import logging
 import re
-from typing import Iterable, Iterator, Optional
+import shutil
+import subprocess
+from collections.abc import Iterable, Iterator
+from functools import lru_cache
+from typing import Optional
 
-from .apt import file_to_packages
-from .docker import is_running_ubuntu, run_command
 from ..dependencies import (
     Dependency,
     DependencyResolver,
@@ -22,6 +21,8 @@ from ..dependencies import (
     Version,
 )
 from ..native import get_native_dependencies
+from .apt import file_to_packages
+from .docker import run_command
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +76,7 @@ class UbuntuResolver(DependencyResolver):
                         # Fixme: For now, treat each ORed dependency as a separate ANDed dependency
                         matched = UbuntuResolver._pattern.match(or_segment)
                         if not matched:
-                            raise ValueError(
-                                f"Invalid dependency line in apt output for {package_name}: {line!r}"
-                            )
+                            raise ValueError(f"Invalid dependency line in apt output for {package_name}: {line!r}")
                         dep_package = matched.group("package")
                         dep_version = matched.group("version")
                         try:
@@ -85,7 +84,7 @@ class UbuntuResolver(DependencyResolver):
                             dep_version = dep_version.split("-", maxsplit=1)[0]
                             dep_version = dep_version.replace(" ", "")
                             SimpleSpec(dep_version.replace(" ", ""))
-                        except Exception as e:
+                        except Exception:
                             dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
 
                         deps.append((dep_package, dep_version))
@@ -118,9 +117,7 @@ class UbuntuResolver(DependencyResolver):
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         if dependency.source != "ubuntu":
-            raise ValueError(
-                f"{self} can not resolve dependencies from other sources ({dependency})"
-            )
+            raise ValueError(f"{self} can not resolve dependencies from other sources ({dependency})")
 
         if dependency.package.startswith("/"):
             # this is a file path, likely produced from native.py

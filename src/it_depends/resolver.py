@@ -1,7 +1,8 @@
 import functools
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from typing import FrozenSet, Iterator, Iterable, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, FrozenSet, Optional
 
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
@@ -9,7 +10,7 @@ from semantic_version.base import BaseSpec as SemanticVersion
 from .repository import SourceRepository
 
 if TYPE_CHECKING:
-    from .models import Package, Dependency
+    from .models import Dependency, Package
 
 
 @dataclass
@@ -48,7 +49,7 @@ class DependencyResolver:
     def __init_subclass__(cls, **kwargs):
         if not hasattr(cls, "name") or cls.name is None:
             raise TypeError(f"{cls.__name__} must define a `name` class member")
-        elif not hasattr(cls, "description") or cls.description is None:
+        if not hasattr(cls, "description") or cls.description is None:
             raise TypeError(f"{cls.__name__} must define a `description` class member")
         resolvers.cache_clear()
 
@@ -76,14 +77,12 @@ class DependencyResolver:
 
     @abstractmethod
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
-        raise NotImplementedError()
+        raise NotImplementedError
 
     @abstractmethod
-    def resolve_from_source(
-        self, repo: SourceRepository, cache=None
-    ) -> Optional["SourcePackage"]:
+    def resolve_from_source(self, repo: SourceRepository, cache=None) -> Optional["SourcePackage"]:
         """Resolves any new `SourcePackage`s in this repo"""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def can_update_dependencies(self, package: "Package") -> bool:
         return False
@@ -97,9 +96,14 @@ class DependencyResolver:
     def __eq__(self, other):
         return isinstance(other, DependencyResolver) and other.name == self.name
 
+
 class PartialResolution:
-    def __init__(self, packages: Iterable[Package] = (), dependencies: Iterable[Package] = (),
-                 parent: Optional["PartialResolution"] = None):
+    def __init__(
+        self,
+        packages: Iterable[Package] = (),
+        dependencies: Iterable[Package] = (),
+        parent: Optional["PartialResolution"] = None,
+    ):
         self._packages: FrozenSet[Package] = frozenset(packages)
         self._dependencies: FrozenSet[Package] = frozenset(dependencies)
         self.parent: Optional[PartialResolution] = parent
@@ -154,13 +158,13 @@ class PartialResolution:
         return hash(self.packages)
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def resolvers() -> FrozenSet[DependencyResolver]:
     """Collection of all the default instances of DependencyResolvers"""
     return frozenset(cls() for cls in DependencyResolver.__subclasses__())
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def resolver_by_name(name: str) -> DependencyResolver:
     """Finds a resolver instance by name. The result is cached."""
     for instance in resolvers():

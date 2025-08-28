@@ -80,7 +80,7 @@ warn_unused_configs = true
 warn_unused_ignores = true
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 include = ["src/**/*.py", "test/**/*.py"]
 
 [tool.ruff.lint]
