@@ -2,7 +2,6 @@ from unittest import TestCase
 
 from it_depends.go import GoModule, GoSpec, GoVersion
 
-
 EXAMPLE_MOD = """
 module github.com/btcsuite/btcd
 
@@ -29,16 +28,16 @@ go 1.12
 
 
 class TestGo(TestCase):
-    def test_load_from_github(self):
+    def test_load_from_github(self) -> None:
         GoModule.from_git("github.com/golang/protobuf", "https://github.com/golang/protobuf", tag="v1.4.3")
 
-    def test_parsing(self):
+    def test_parsing(self) -> None:
         module = GoModule.parse_mod(EXAMPLE_MOD)
-        self.assertEqual(module.name, "github.com/btcsuite/btcd")
-        self.assertEqual(len(module.dependencies), 15)
-        self.assertIn(("github.com/btcsuite/websocket", "v0.0.0-20150119174127-31079b680792"), module.dependencies)
+        assert module.name == "github.com/btcsuite/btcd"
+        assert len(module.dependencies) == 15  # noqa: PLR2004
+        assert ("github.com/btcsuite/websocket", "v0.0.0-20150119174127-31079b680792") in module.dependencies
 
-    def test_version_parsing(self):
+    def test_version_parsing(self) -> None:
         for _, version in GoModule.parse_mod(EXAMPLE_MOD).dependencies:
-            self.assertEqual(str(GoVersion(version)), version)
-            self.assertEqual(str(GoSpec(version)), version)
+            assert str(GoVersion(version)) == version
+            assert str(GoSpec(version)) == version

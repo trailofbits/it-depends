@@ -1,5 +1,6 @@
-from platformdirs import PlatformDirs
 import sys
+
+from platformdirs import PlatformDirs
 
 if sys.version_info < (3, 12):
     import pkg_resources

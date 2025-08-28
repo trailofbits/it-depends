@@ -1,14 +1,12 @@
-import os
 import functools
-import re
 import itertools
+import logging
+import os
+import re
 import shutil
 import subprocess
-import logging
 import tempfile
 from typing import List, Optional, Tuple
-
-from .ubuntu.apt import cached_file_to_package as file_to_package
 
 from .dependencies import (
     Dependency,
@@ -20,6 +18,7 @@ from .dependencies import (
     SourceRepository,
     Version,
 )
+from .ubuntu.apt import cached_file_to_package as file_to_package
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +40,7 @@ class AutotoolsResolver(DependencyResolver):
         if shutil.which("autoconf") is None:
             return ResolverAvailability(
                 False,
-                "`autoconf` does not appear to be installed! "
-                "Make sure it is installed and in the PATH.",
+                "`autoconf` does not appear to be installed! Make sure it is installed and in the PATH.",
             )
         return ResolverAvailability(True)
 
@@ -51,21 +49,17 @@ class AutotoolsResolver(DependencyResolver):
 
     @staticmethod
     def _ac_check_header(header_file, file_to_package_cache=None):
-        """
-        Macro: AC_CHECK_HEADER
+        """Macro: AC_CHECK_HEADER
         Checks if the system header file header-file is compilable.
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Generic-Headers.html
         """
         logger.info(f"AC_CHECK_HEADER {header_file}")
-        package_name = file_to_package(
-            f"{re.escape(header_file)}", file_to_package_cache=file_to_package_cache
-        )
+        package_name = file_to_package(f"{re.escape(header_file)}", file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
     @staticmethod
     def _ac_check_lib(function, file_to_package_cache=None):
-        """
-        Macro: AC_CHECK_LIB
+        """Macro: AC_CHECK_LIB
         Checks for the presence of certain C, C++, or Fortran library archive files.
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Libraries.html#Libraries
         """
@@ -79,8 +73,7 @@ class AutotoolsResolver(DependencyResolver):
 
     @staticmethod
     def _pkg_check_modules(module_name, version=None, file_to_package_cache=None):
-        """
-        Macro: PKG_CHECK_MODULES
+        """Macro: PKG_CHECK_MODULES
         The main interface between autoconf and pkg-config.
         Provides a very basic and easy way to check for the presence of a
         given package in the system.
@@ -90,23 +83,18 @@ class AutotoolsResolver(DependencyResolver):
         module_file = re.escape(module_name + ".pc")
         logger.info(f"PKG_CHECK_MODULES {module_file}, {version}")
         package_name = file_to_package(module_file, file_to_package_cache=file_to_package_cache)
-        return Dependency(
-            package=package_name, semantic_version=SimpleSpec(version), source="ubuntu"
-        )
+        return Dependency(package=package_name, semantic_version=SimpleSpec(version), source="ubuntu")
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
     def _replace_variables(token: str, configure: str):
-        """
-        Search all variable occurrences in token and then try to find
+        """Search all variable occurrences in token and then try to find
         bindings for them in the configure script.
         """
         if "$" not in token:
             return token
         variable_list = re.findall(r"\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
-        variables = set(
-            var for var in itertools.chain(*variable_list) if var
-        )  # remove dups and empty
+        variables = set(var for var in itertools.chain(*variable_list) if var)  # remove dups and empty
         for var in variables:
             logger.info(f"Trying to find bindings for {var} in configure")
 
@@ -164,9 +152,7 @@ class AutotoolsResolver(DependencyResolver):
                 ),
                 cwd=repo.path,
             ).decode("utf8")
-            configure = subprocess.check_output(["autoconf", tmp.name], cwd=repo.path).decode(
-                "utf8"
-            )
+            configure = subprocess.check_output(["autoconf", tmp.name], cwd=repo.path).decode("utf8")
 
         file_to_package_cache: List[Tuple[str]] = []
         deps = []

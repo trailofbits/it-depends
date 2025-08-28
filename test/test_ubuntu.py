@@ -1,11 +1,12 @@
 from unittest import TestCase
 from unittest.mock import patch
+
 from it_depends.dependencies import Dependency
 from it_depends.ubuntu.resolver import UbuntuResolver
 
 
 class TestUbuntu(TestCase):
-    def test_ubuntu(self):
+    def test_ubuntu(self) -> None:
         contents = """Package: dkms
 Version: 2.8.1-5ubuntu2
 Priority: optional
@@ -52,10 +53,12 @@ Description: Dynamic Kernel Module Support Framework
  you upgrade kernels.
 
 """
-        with patch('it_depends.ubuntu.docker.run_command') as mock:
+        with patch("it_depends.ubuntu.docker.run_command") as mock:
             mock.return_value = contents.encode()
             deps = tuple(UbuntuResolver().resolve(dependency=Dependency(package="dkms", source="ubuntu")))
-            self.assertEqual(len(deps), 1)
-            self.assertEqual(str(deps[0]), 'ubuntu:dkms@2.8.1[ubuntu:build-essential@*,ubuntu:c-compiler@*,'
-                                           'ubuntu:coreutils@>=7.4,ubuntu:dctrl-tools@*,ubuntu:dpkg-dev@*,'
-                                           'ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]')
+            assert len(deps) == 1
+            assert str(deps[0]) == (
+                "ubuntu:dkms@2.8.1[ubuntu:build-essential@*,ubuntu:c-compiler@*,"
+                "ubuntu:coreutils@>=7.4,ubuntu:dctrl-tools@*,ubuntu:dpkg-dev@*,"
+                "ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]",
+            )

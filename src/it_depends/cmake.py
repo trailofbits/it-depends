@@ -1,15 +1,19 @@
-import re
-import tempfile
+import logging
 import os
-from os import chdir, getcwd
+import re
 import shutil
 import subprocess
-from typing import Dict, Iterable, Iterator, List, Optional, Tuple, Union
+import tempfile
+from collections.abc import Iterable, Iterator
+from os import chdir, getcwd
+from typing import Dict, List, Optional, Tuple, Union
+
 from .ubuntu.apt import (
     cached_file_to_package as file_to_package,
+)
+from .ubuntu.apt import (
     search_package,
 )
-import logging
 
 try:
     # Used to parse the cmake trace. If this is not installed the plugin will
@@ -67,15 +71,13 @@ class CMakeResolver(DependencyResolver):
         if cmake_parsing is None:
             return ResolverAvailability(
                 False,
-                "`parse_cmake` does not appear to be installed! "
-                "Please run `pip install parse_cmake`",
+                "`parse_cmake` does not appear to be installed! Please run `pip install parse_cmake`",
             )
 
         if shutil.which("cmake") is None:
             return ResolverAvailability(
                 False,
-                "`cmake` does not appear to be installed! "
-                "Make sure it is installed and in the PATH.",
+                "`cmake` does not appear to be installed! Make sure it is installed and in the PATH.",
             )
 
         return ResolverAvailability(True)
@@ -89,8 +91,7 @@ class CMakeResolver(DependencyResolver):
         *args,
         file_to_package_cache: Optional[List[Tuple[str, str]]] = None,
     ) -> Iterator[Tuple[str, Optional[str]]]:
-        """
-        The command searches for a file called <PackageName>Config.cmake or <lower-case-package-name>-config.cmake for
+        """The command searches for a file called <PackageName>Config.cmake or <lower-case-package-name>-config.cmake for
         each name specified.
 
         find_package(<PackageName> [version] [EXACT] [QUIET]
@@ -166,8 +167,7 @@ class CMakeResolver(DependencyResolver):
             yield found_package, version
 
     def _pkg_check_modules(self, prefix, *args, file_to_package_cache=None):
-        """
-        pkg_check_modules(<prefix>
+        """pkg_check_modules(<prefix>
                   [REQUIRED] [QUIET]
                   [NO_CMAKE_PATH]
                   [NO_CMAKE_ENVIRONMENT_PATH]
@@ -205,7 +205,6 @@ class CMakeResolver(DependencyResolver):
 
     def _get_names(self, args, keywords):
         """Get the sequence of argumens after NAMES and until any of the keywords"""
-
         index = -1
         if "NAMES" in args:
             index = args.index("NAMES")
@@ -243,7 +242,7 @@ class CMakeResolver(DependencyResolver):
             "NAMES_PER_DIR",
             "HINTS",
             "PATHS",
-            "PATH_SUFFIXES" "DOC",
+            "PATH_SUFFIXESDOC",
             "REQUIRED",
             "NO_DEFAULT_PATH",
             "NO_PACKAGE_ROOT_PATH",
@@ -262,10 +261,13 @@ class CMakeResolver(DependencyResolver):
             if not name.startswith("lib"):
                 name = f"lib{name}"
             names.add(name)
-        yield file_to_package(
-            rf"({ '|'.join(map(re.escape, names))})(\.so[0-9\.]*|\.a)",
-            file_to_package_cache=file_to_package_cache,
-        ), None
+        yield (
+            file_to_package(
+                rf"({'|'.join(map(re.escape, names))})(\.so[0-9\.]*|\.a)",
+                file_to_package_cache=file_to_package_cache,
+            ),
+            None,
+        )
 
     def _check_include_files(self, includes, variable, *args, file_to_package_cache=None):
         """CHECK_INCLUDE_FILES("<includes>" <variable> [LANGUAGE <language>])
@@ -275,21 +277,17 @@ class CMakeResolver(DependencyResolver):
         yield file_to_package(pattern, file_to_package_cache=file_to_package_cache), None
 
     def _check_include_file(self, include_file, *args, file_to_package_cache=None):
-        """
-        CHECK_INCLUDE_FILE(<include> <variable> [<flags>])
+        """CHECK_INCLUDE_FILE(<include> <variable> [<flags>])
         https://cmake.org/cmake/help/latest/module/CheckIncludeFile.html#module:CheckIncludeFile
         """
         pattern = rf"include/(.*/)*{re.escape(include_file)}"
         yield file_to_package(pattern, file_to_package_cache=file_to_package_cache), None
 
     def _check_include_file_cxx(self, include_file, *args, file_to_package_cache=None):
-        """
-        CHECK_INCLUDE_FILE_CXX(INCLUDE VARIABLE)
+        """CHECK_INCLUDE_FILE_CXX(INCLUDE VARIABLE)
         https://cmake.org/cmake/help/v3.0/module/CheckIncludeFileCXX.html
         """
-        yield from self._check_include_file(
-            include_file, *args, file_to_package_cache=file_to_package_cache
-        )
+        yield from self._check_include_file(include_file, *args, file_to_package_cache=file_to_package_cache)
 
     def _find_path(self, var, *args, file_to_package_cache=None):
         """find_path (<VAR> name1 [path1 path2 ...])
@@ -335,9 +333,10 @@ class CMakeResolver(DependencyResolver):
             if name in keywords:
                 break
             try:
-                yield file_to_package(
-                    f"{re.escape(name)}", file_to_package_cache=file_to_package_cache
-                ), None
+                yield (
+                    file_to_package(f"{re.escape(name)}", file_to_package_cache=file_to_package_cache),
+                    None,
+                )
                 break
             except Exception as e:
                 logger.debug(e)
@@ -368,7 +367,7 @@ class CMakeResolver(DependencyResolver):
                 try:
                     # Replaces the message function by a no-op
                     # Not that message(FATAL_ERROR ...) terminates cmake
-                    with open(orig_cmakelists, "r+t") as cmake_lists:
+                    with open(orig_cmakelists, "r+") as cmake_lists:
                         patched = """function(message)\nendfunction()\n"""
                         patched += cmake_lists.read()
                         cmake_lists.seek(0)
@@ -384,16 +383,15 @@ class CMakeResolver(DependencyResolver):
                             f"--trace-redirect={output}",
                             apath,
                         ],
+                        check=False,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         cwd=build_dir,
                     )
                     if p.returncode != 0:
-                        logger.error(
-                            f"Error running cmake:\n{p.stdout.decode('utf-8')}\n{p.stderr.decode('utf-8')}"
-                        )
+                        logger.error(f"Error running cmake:\n{p.stdout.decode('utf-8')}\n{p.stderr.decode('utf-8')}")
                         exit(1)
-                    with open(output, "rt") as outfd:
+                    with open(output) as outfd:
                         trace = outfd.read()
                 finally:
                     shutil.copyfile(backup, orig_cmakelists)
@@ -418,7 +416,7 @@ class CMakeResolver(DependencyResolver):
                     parsed = cmake_parsing.parse(line)
                 except Exception as e:
                     logger.debug(f"Parsing error: {e}")
-                    pass  # ignore parsing exceptions for now
+                    # ignore parsing exceptions for now
 
                 for token in parsed:
                     try:
@@ -440,9 +438,7 @@ class CMakeResolver(DependencyResolver):
                             ):
                                 # It's a trace of cmake.
                                 continue
-                            body: List[str] = sum(
-                                map(lambda x: x.contents.split(";"), token.body), []
-                            )
+                            body: List[str] = sum(map(lambda x: x.contents.split(";"), token.body), [])
 
                             if command not in ("set", "project"):
                                 logger.info(f"Processing CMAKE command {command} {body}")
@@ -455,27 +451,23 @@ class CMakeResolver(DependencyResolver):
                             elif command == "set":
                                 # detect project version...
                                 # TODO: Revisit the following type error:
-                                value: Optional[str] = (body + [None,])[  # type: ignore
+                                value: Optional[str] = (
+                                    body
+                                    + [
+                                        None,
+                                    ]
+                                )[  # type: ignore
                                     1
                                 ]  # type: ignore
-                                if (
-                                    package_name is not None
-                                    and body[0].lower() == f"{package_name}_version"
-                                ):
+                                if package_name is not None and body[0].lower() == f"{package_name}_version":
                                     package_version = value
                                 bindings[body[0].upper()] = value
                             elif command == "find_package":
-                                package_iter = self._find_package(
-                                    *body, file_to_package_cache=file_to_package_cache
-                                )
+                                package_iter = self._find_package(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "find_path":
-                                package_iter = self._find_path(
-                                    *body, file_to_package_cache=file_to_package_cache
-                                )
+                                package_iter = self._find_path(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "find_library":
-                                package_iter = self._find_library(
-                                    *body, file_to_package_cache=file_to_package_cache
-                                )
+                                package_iter = self._find_library(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "pkg_check_modules":
                                 package_iter = self._pkg_check_modules(
                                     *body, file_to_package_cache=file_to_package_cache
@@ -506,13 +498,10 @@ class CMakeResolver(DependencyResolver):
         for name, version in deps:
             if name not in depsd or depsd[name] is None:
                 depsd[name] = version
-            else:
-                if version is not None and version != depsd[name]:
-                    # conflict
-                    logger.info(
-                        f"Found a conflict in versions for {name} ({version} vs. {depsd[name]}). Setting '*'"
-                    )
-                    depsd[name] = "*"
+            elif version is not None and version != depsd[name]:
+                # conflict
+                logger.info(f"Found a conflict in versions for {name} ({version} vs. {depsd[name]}). Setting '*'")
+                depsd[name] = "*"
 
         if package_version is None:
             package_version = "0.0.0"
@@ -527,7 +516,7 @@ class CMakeResolver(DependencyResolver):
             dependencies=(
                 Dependency(
                     package=name,
-                    semantic_version=SimpleSpec(version is None and "*" or version),
+                    semantic_version=SimpleSpec((version is None and "*") or version),
                     source="ubuntu",
                 )
                 for name, version in depsd.items()

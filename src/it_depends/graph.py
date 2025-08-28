@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Set, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Dict, Set, Tuple
 
 from .graphs import RootedDiGraph
 
@@ -18,7 +18,7 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
         return self.roots
 
     def packages_by_name(self) -> Dict[Tuple[str, str], Set["Package"]]:
-        ret: Dict[Tuple[str, str], Set["Package"]] = {}
+        ret: Dict[Tuple[str, str], Set[Package]] = {}
         for node in self:
             name = node.source, node.name
             if name not in ret:
@@ -28,8 +28,7 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
         return ret
 
     def collapse_versions(self) -> "DependencyGraph":
-        """
-        Group all versions of a package into a single node.
+        """Group all versions of a package into a single node.
         All dependency edges will be grouped into a single edge with a wildcard semantic version.
 
         """
@@ -37,11 +36,12 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
             return self
         graph = DependencyGraph()
         package_instances = self.packages_by_name()
-        packages_by_name: Dict[str, "Package"] = {}
+        packages_by_name: Dict[str, Package] = {}
         # choose the maximum version among all packages of the same name:
         for (package_source, package_name), instances in package_instances.items():
             # convert all of the dependencies to SimpleSpec("*") wildcard versions:
             from .models import Dependency
+
             deps = {
                 Dependency(package=dep.package, source=dep.source)
                 for instance in instances
@@ -63,6 +63,7 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
                             f"Collapsing to {source_repo}."
                         )
                     from .models import SourcePackage
+
                     pkg = SourcePackage(
                         name=package_name,
                         version=version,
@@ -72,6 +73,7 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
                     )
                 else:
                     from .models import Package
+
                     pkg = Package(
                         name=package_name,
                         version=version,
@@ -87,23 +89,20 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
         graph._collapsed = True
         return graph
 
-    def distance_to(
-        self, graph: RootedDiGraph["Package", "SourcePackage"], normalize: bool = False
-    ) -> float:
+    def distance_to(self, graph: RootedDiGraph["Package", "SourcePackage"], normalize: bool = False) -> float:
         if not self._collapsed:
             return self.collapse_versions().distance_to(graph, normalize)
         if not self.source_packages:
             # use our roots instead:
-            compare_from: RootedDiGraph["Package", "Package"] = self.find_roots()
+            compare_from: RootedDiGraph[Package, Package] = self.find_roots()
         else:
             compare_from = self
         if isinstance(graph, DependencyGraph):
-            compare_to: RootedDiGraph["Package", "Package"] = graph.collapse_versions()
+            compare_to: RootedDiGraph[Package, Package] = graph.collapse_versions()
         else:
             compare_to = graph
         if not compare_to.roots:
             compare_to = compare_to.find_roots()
         if compare_from is self:
             return super().distance_to(compare_to, normalize)
-        else:
-            return compare_from.distance_to(compare_to, normalize)
+        return compare_from.distance_to(compare_to, normalize)

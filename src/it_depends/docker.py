@@ -1,17 +1,19 @@
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
-import os
+from collections.abc import Iterable
 from pathlib import Path
 from tempfile import mkdtemp
-from tqdm import tqdm
-from typing import Dict, Iterable, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import docker
-from docker.errors import NotFound as ImageNotFound, DockerException
+from docker.errors import DockerException
+from docker.errors import NotFound as ImageNotFound
 from docker.models.images import Image
+from tqdm import tqdm
 
 from . import version as it_depends_version
 
@@ -24,7 +26,6 @@ def _discover_podman_socket():
     * If the user is non-root, rootless Podman
     * If the user is root, rooted Podman
     """
-
     euid = os.geteuid()
     if euid != 0:
         # Non-root: use XDG_RUNTIME_DIR to try and find the user's Podman socket,
@@ -84,7 +85,7 @@ class Dockerfile:
                     chunk = f.read(1)
                     if len(chunk) == 0:
                         break
-                    elif chunk == b"\n":
+                    if chunk == b"\n":
                         self._len += 1
                         self._line_offsets[self._len] = offset + 1
                     offset += 1
@@ -97,14 +98,14 @@ class Dockerfile:
             _ = len(self)
         if starting_line not in self._line_offsets:
             return None
-        with open(self.path, "r") as f:
+        with open(self.path) as f:
             f.seek(self._line_offsets[starting_line])
             line_offset = 0
             while True:
                 line = f.readline()
                 if line == "":
                     break
-                elif line == step_command:
+                if line == step_command:
                     return starting_line + line_offset
                 line_offset += 1
             return None
@@ -128,9 +129,7 @@ class InMemoryDockerfile(Dockerfile):
     def path(self) -> Path:
         path = super().path
         if path is None:
-            raise ValueError(
-                "InMemoryDockerfile only has a valid path when inside of its context manager"
-            )
+            raise ValueError("InMemoryDockerfile only has a valid path when inside of its context manager")
         return path
 
     def __enter__(self) -> "InMemoryDockerfile":
@@ -196,8 +195,7 @@ class DockerContainer:
                     raise ValueError(f"{self.name} does not exist!")
             else:
                 raise ValueError(
-                    f"{self.name} does not exist! Re-run with `build_if_necessary=True` to automatically "
-                    "build it."
+                    f"{self.name} does not exist! Re-run with `build_if_necessary=True` to automatically build it."
                 )
         if cwd is None:
             cwd = str(Path.cwd())
@@ -206,9 +204,7 @@ class DockerContainer:
         # TTYs
 
         if interactive and (stdin is not None or stdout is not None or stderr is not None):
-            raise ValueError(
-                "if `interactive == True`, all of `stdin`, `stdout`, and `stderr` must be `None`"
-            )
+            raise ValueError("if `interactive == True`, all of `stdin`, `stdout`, and `stderr` must be `None`")
 
         cmd_args = [str(Path("/usr") / "bin" / "env"), "docker", "run"]
 
@@ -241,8 +237,7 @@ class DockerContainer:
 
         if interactive:
             return subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)
-        else:
-            return subprocess.run(cmd_args, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
+        return subprocess.run(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
 
         # self.client.containers.run(self.name, args, remove=remove, mounts=[
         #     Mount(target=str(target), source=str(source), consistency="cached") for source, target in mounts
@@ -282,7 +277,7 @@ class DockerContainer:
         if self.dockerfile is None:
             _ = self.pull()
             return
-        elif not self.dockerfile.exists():
+        if not self.dockerfile.exists():
             raise ValueError("Could not find the Dockerfile.")
         # use the low-level APIClient so we can get streaming build status
         try:
@@ -326,9 +321,7 @@ class DockerContainer:
                                 # Docker didn't tell us the total number of steps, so infer it from our line
                                 # number in the Dockerfile
                                 t.total = len(self.dockerfile)
-                                new_line = self.dockerfile.get_line(
-                                    m.group(4), starting_line=last_line
-                                )
+                                new_line = self.dockerfile.get_line(m.group(4), starting_line=last_line)
                                 if new_line is not None:
                                     t.update(new_line - last_line)
                                     last_line = new_line

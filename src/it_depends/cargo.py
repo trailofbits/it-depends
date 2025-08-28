@@ -1,16 +1,18 @@
-from pathlib import Path
 import json
-import tempfile
+import logging
 import shutil
 import subprocess
-import logging
-from typing import Iterator, Optional, Type, Union, Dict
+import tempfile
+from collections.abc import Iterator
+from pathlib import Path
+from typing import Dict, Optional, Type, Union
 
 from semantic_version.base import Always, BaseSpec
 
 from .dependencies import (
     Dependency,
     DependencyResolver,
+    InMemoryPackageCache,
     Package,
     PackageCache,
     ResolverAvailability,
@@ -18,7 +20,6 @@ from .dependencies import (
     SourcePackage,
     SourceRepository,
     Version,
-    InMemoryPackageCache,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,13 +56,9 @@ def get_dependencies(
     cache: Optional[PackageCache] = None,
 ) -> Iterator[Package]:
     if check_for_cargo and shutil.which("cargo") is None:
-        raise ValueError(
-            "`cargo` does not appear to be installed! Make sure it is installed and in the PATH."
-        )
+        raise ValueError("`cargo` does not appear to be installed! Make sure it is installed and in the PATH.")
 
-    metadata = json.loads(
-        subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=repo.path)
-    )
+    metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=repo.path))
 
     if "workspace_members" in metadata:
         workspace_members = {member[: member.find(" ")] for member in metadata["workspace_members"]}
@@ -109,8 +106,7 @@ class CargoResolver(DependencyResolver):
         if shutil.which("cargo") is None:
             return ResolverAvailability(
                 False,
-                "`cargo` does not appear to be installed! "
-                "Make sure it is installed and in the PATH.",
+                "`cargo` does not appear to be installed! Make sure it is installed and in the PATH.",
             )
         return ResolverAvailability(True)
 
@@ -130,12 +126,11 @@ class CargoResolver(DependencyResolver):
         for package in get_dependencies(repo, check_for_cargo=False):
             if isinstance(package, SourcePackage):
                 result = package
-            else:
-                if cache is not None:
-                    cache.add(package)
-                    for dep in package.dependencies:
-                        if not cache.was_resolved(dep):
-                            cache.set_resolved(dep)
+            elif cache is not None:
+                cache.add(package)
+                for dep in package.dependencies:
+                    if not cache.was_resolved(dep):
+                        cache.set_resolved(dep)
         return result
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
