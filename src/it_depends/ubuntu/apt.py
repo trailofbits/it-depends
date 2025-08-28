@@ -1,34 +1,40 @@
+"""Ubuntu APT package management module."""
+
+from __future__ import annotations
+
 import functools
 import gzip
 import logging
 import re
 from pathlib import Path
 from threading import Lock
-from typing import Dict, List, Optional, Set, Tuple
 from urllib import request
 
-from ..it_depends import APP_DIRS
+from it_depends.it_depends import APP_DIRS
+
 from .docker import run_command
 
 logger = logging.getLogger(__name__)
-all_packages: Optional[Tuple[str, ...]] = None
+all_packages: tuple[str, ...] | None = None
 _APT_LOCK: Lock = Lock()
 
 
-def get_apt_packages() -> Tuple[str, ...]:
+def get_apt_packages() -> tuple[str, ...]:
+    """Get all available APT packages."""
     with _APT_LOCK:
-        global all_packages
+        global all_packages  # noqa: PLW0603
         if all_packages is None:
             logger.info("Rebuilding global apt package list.")
             raw_packages = run_command("apt", "list").decode("utf-8")
             all_packages = tuple(x.split("/")[0] for x in raw_packages.splitlines() if x)
 
-            logger.info(f"Global apt package count {len(all_packages)}")
+            logger.info("Global apt package count %d", len(all_packages))
         return all_packages
 
 
 def search_package(package: str) -> str:
-    found_packages: List[str] = []
+    """Search for a package by name."""
+    found_packages: list[str] = []
     for apt_package in get_apt_packages():
         if package.lower() not in apt_package:
             continue
@@ -39,23 +45,26 @@ def search_package(package: str) -> str:
             found_packages.append(apt_package)
     found_packages.sort(key=len, reverse=True)
     if not found_packages:
-        raise ValueError(f"Package {package} not found in apt package list.")
-    logger.info(f"Found {len(found_packages)} matching packages, Choosing {found_packages[0]}")
+        error_msg = f"Package {package} not found in apt package list."
+        raise ValueError(error_msg)
+    logger.info("Found %d matching packages, Choosing %s", len(found_packages), found_packages[0])
     return found_packages[0]
 
 
-contents_db: Dict[str, List[str]] = {}
-_loaded_dbs: Set[Path] = set()
+contents_db: dict[str, list[str]] = {}
+_loaded_dbs: set[Path] = set()
 
 
 @functools.lru_cache(maxsize=5242880)
-def _file_to_package_contents(filename: str, arch: str = "amd64"):
-    """Downloads and uses apt-file database directly
+def _file_to_package_contents(filename: str, arch: str = "amd64") -> str:  # noqa: C901
+    """Download and use apt-file database directly.
+
     # http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-amd64.gz
     # http://security.ubuntu.com/ubuntu/dists/focal-security/Contents-i386.gz
     """
     if arch not in ("amd64", "i386"):
-        raise ValueError("Only amd64 and i386 supported")
+        error_msg = "Only amd64 and i386 supported"
+        raise ValueError(error_msg)
     selected = None
 
     dbfile = Path(APP_DIRS.user_cache_dir) / f"Contents-{arch}.gz"
@@ -69,7 +78,8 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
         with gzip.open(str(dbfile), "rt") as contents:
             for line in contents.readlines():
                 filename_i, *packages_i = re.split(r"\s+", line[:-1])
-                assert len(packages_i) > 0
+                if len(packages_i) <= 0:
+                    continue
                 contents_db.setdefault(filename_i, []).extend(packages_i)
         _loaded_dbs.add(dbfile)
 
@@ -82,19 +92,22 @@ def _file_to_package_contents(filename: str, arch: str = "amd64"):
                 if selected is None or len(selected[0]) > len(filename_i):
                     selected = filename_i, package_i
     if selected:
-        logger.info(f"Found {matches} matching packages for {filename}. Choosing {selected[1]}")
+        logger.info("Found %d matching packages for %s. Choosing %s", matches, filename, selected[1])
     else:
-        raise ValueError(f"{filename} not found in Contents database")
+        error_msg = f"{filename} not found in Contents database"
+        raise ValueError(error_msg)
     return selected[1]
 
 
 @functools.lru_cache(maxsize=5242880)
-def file_to_packages(filename: str, arch: str = "amd64") -> List[str]:
+def file_to_packages(filename: str, arch: str = "amd64") -> list[str]:
+    """Get packages that provide a specific file."""
     if arch not in ("amd64", "i386"):
-        raise ValueError("Only amd64 and i386 supported")
-    logger.debug(f"Running [{' '.join(['apt-file', '-x', 'search', filename])}]")
+        error_msg = "Only amd64 and i386 supported"
+        raise ValueError(error_msg)
+    logger.debug("Running [apt-file -x search %s]", filename)
     contents = run_command("apt-file", "-x", "search", filename).decode("utf-8")
-    selected: List[str] = []
+    selected: list[str] = []
     for line in contents.split("\n"):
         if not line:
             continue
@@ -104,15 +117,18 @@ def file_to_packages(filename: str, arch: str = "amd64") -> List[str]:
 
 
 def file_to_package(filename: str, arch: str = "amd64") -> str:
+    """Get the package that provides a specific file."""
     packages = file_to_packages(filename, arch)
     if packages:
         _, result = min((len(pkg), pkg) for pkg in packages)
-        logger.info(f"Found {len(packages)} matching packages for {filename}. Choosing {result}")
+        logger.info("Found %d matching packages for %s. Choosing %s", len(packages), filename, result)
         return result
-    raise ValueError(f"{filename} not found in apt-file")
+    error_msg = f"{filename} not found in apt-file"
+    raise ValueError(error_msg)
 
 
-def cached_file_to_package(pattern: str, file_to_package_cache: Optional[List[Tuple[str, str]]] = None) -> str:
+def cached_file_to_package(pattern: str, file_to_package_cache: list[tuple[str, str]] | None = None) -> str:
+    """Get package for a file pattern with caching support."""
     # file_to_package_cache contains all the files that are provided be previous
     # dependencies. If a file pattern is already sastified by current files
     # use the package already included as a dependency

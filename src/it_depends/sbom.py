@@ -1,5 +1,7 @@
+"""Software Bill of Materials (SBOM) generation module."""
+
 from collections.abc import Iterable
-from typing import Dict, FrozenSet, Optional, Tuple, TypeVar
+from typing import TypeVar
 
 from cyclonedx.builder.this import this_component as cdx_lib_component
 from cyclonedx.model import XsUri
@@ -18,27 +20,33 @@ S = TypeVar("S", bound="SBOM")
 
 
 class SBOM:
+    """Software Bill of Materials representation."""
+
     def __init__(
         self,
-        dependencies: Iterable[Tuple[Package, Package]] = (),
+        dependencies: Iterable[tuple[Package, Package]] = (),
         root_packages: Iterable[Package] = (),
-    ):
-        self.dependencies: FrozenSet[Tuple[Package, Package]] = frozenset(dependencies)
-        self.root_packages: FrozenSet[Package] = frozenset(root_packages)
+    ) -> None:
+        """Initialize SBOM with dependencies and root packages."""
+        self.dependencies: frozenset[tuple[Package, Package]] = frozenset(dependencies)
+        self.root_packages: frozenset[Package] = frozenset(root_packages)
 
     @property
-    def packages(self) -> FrozenSet[Package]:
+    def packages(self) -> frozenset[Package]:
+        """Get all packages in the SBOM."""
         return self.root_packages | {p for deps in self.dependencies for p in deps}
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """Return string representation of the SBOM."""
         return ", ".join(p.full_name for p in sorted(self.packages))
 
     def to_cyclonedx(self) -> Bom:
+        """Convert SBOM to CycloneDX format."""
         bom = Bom()
 
-        expanded: Dict[Package, Component] = {}
+        expanded: dict[Package, Component] = {}
 
-        root_component: Optional[Component] = None
+        root_component: Component | None = None
 
         for root_package in sorted(self.root_packages, key=lambda package: package.full_name, reverse=True):
             root_component = Component(
@@ -89,12 +97,15 @@ class SBOM:
         return bom
 
     def __or__(self, other: "SBOM") -> "SBOM":
+        """Combine two SBOMs."""
         return SBOM(self.dependencies | other.dependencies, self.root_packages | other.root_packages)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
+        """Return hash of the SBOM."""
         return hash((self.root_packages, self.dependencies))
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        """Check if two SBOMs are equal."""
         return (
             isinstance(other, SBOM)
             and self.root_packages == other.root_packages
@@ -103,4 +114,5 @@ class SBOM:
 
 
 def cyclonedx_to_json(bom: Bom, indent: int = 2) -> str:
+    """Convert CycloneDX BOM to JSON string."""
     return JsonV1Dot5(bom).output_as_string(indent=indent)

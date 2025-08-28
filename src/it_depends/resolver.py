@@ -1,112 +1,141 @@
+"""Dependency resolver module for managing package dependencies."""
+
+from __future__ import annotations
+
 import functools
-from abc import abstractmethod
-from collections.abc import Iterable, Iterator
+import logging
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, FrozenSet, Optional
+from typing import TYPE_CHECKING
 
-from semantic_version import SimpleSpec, Version
-from semantic_version.base import BaseSpec as SemanticVersion
-
-from .repository import SourceRepository
+from .resolution import PackageSet, SimpleSpec, Version
 
 if TYPE_CHECKING:
-    from .models import Dependency, Package
+    from collections.abc import Iterable, Iterator
+
+    from .models import Dependency, Package, SourcePackage
+    from .repository import SourceRepository
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
 class DockerSetup:
+    """Docker setup configuration for resolvers."""
+
     apt_get_packages: list[str]
     install_package_script: str
-    load_package_script: str
-    baseline_script: str
-    post_install: str = ""
 
 
 class ResolverAvailability:
-    def __init__(self, is_available: bool, reason: str = ""):
+    """Represents the availability status of a resolver."""
+
+    def __init__(self, *, is_available: bool, reason: str = "") -> None:
+        """Initialize resolver availability.
+
+        Args:
+            is_available: Whether the resolver is available
+            reason: Reason for unavailability if not available
+
+        """
         if not is_available and not reason:
-            raise ValueError("You must provide a reason if `not is_available`")
+            error_msg = "You must provide a reason if `not is_available`"
+            raise ValueError(error_msg)
         self.is_available: bool = is_available
         self.reason: str = reason
 
-    def __bool__(self):
+    def __bool__(self) -> bool:
+        """Return availability status."""
         return self.is_available
 
 
-class DependencyResolver:
-    """Finds a set of Packages that agrees with a Dependency specification"""
+class DependencyResolver(ABC):
+    """Find a set of Packages that agrees with a Dependency specification."""
 
     name: str
     description: str
-    _instance = None
 
-    def __new__(class_, *args, **kwargs):
-        """A singleton (Only one default instance exists)"""
-        if not isinstance(class_._instance, class_):
-            class_._instance = super().__new__(class_, *args, **kwargs)
-        return class_._instance
+    _instance: DependencyResolver | None = None
 
-    def __init_subclass__(cls, **kwargs):
+    def __new__(cls, *args: object, **kwargs: object) -> DependencyResolver:  # noqa: PYI034
+        """Create a singleton instance."""
+        if not isinstance(cls._instance, cls):
+            cls._instance = super().__new__(cls, *args, **kwargs)
+        return cls._instance
+
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        """Validate subclass configuration."""
         if not hasattr(cls, "name") or cls.name is None:
-            raise TypeError(f"{cls.__name__} must define a `name` class member")
+            error_msg = f"{cls.__name__} must define a `name` class member"
+            raise TypeError(error_msg)
         if not hasattr(cls, "description") or cls.description is None:
-            raise TypeError(f"{cls.__name__} must define a `description` class member")
+            error_msg = f"{cls.__name__} must define a `description` class member"
+            raise TypeError(error_msg)
         resolvers.cache_clear()
 
     @abstractmethod
-    def resolve(self, dependency: "Dependency") -> Iterator["Package"]:
-        """Yields all packages that satisfy the given dependency"""
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:
+        """Yield all packages that satisfy the given dependency."""
         raise NotImplementedError
 
     @classmethod
-    def parse_spec(cls, spec: str) -> SemanticVersion:
-        """Parses a semantic version string into a semantic version object for this specific resolver"""
+    def parse_spec(cls, spec: str) -> SimpleSpec:
+        """Parse a semantic version string into a semantic version object for this specific resolver."""
         return SimpleSpec.parse(spec)
 
     @classmethod
     def parse_version(cls, version_string: str) -> Version:
-        """Parses a version string into a version object for this specific resolver"""
+        """Parse a version string into a version object for this specific resolver."""
         return Version.coerce(version_string)
 
-    def docker_setup(self) -> Optional[DockerSetup]:
-        """Returns an optional docker setup for running this resolver"""
+    def docker_setup(self) -> DockerSetup | None:
+        """Return an optional docker setup for running this resolver."""
         return None
 
     def is_available(self) -> ResolverAvailability:
-        return ResolverAvailability(True)
+        """Check if this resolver is available."""
+        return ResolverAvailability(is_available=True)
 
     @abstractmethod
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
+        """Check if this resolver can resolve from source."""
         raise NotImplementedError
 
     @abstractmethod
-    def resolve_from_source(self, repo: SourceRepository, cache=None) -> Optional["SourcePackage"]:
-        """Resolves any new `SourcePackage`s in this repo"""
+    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:
+        """Resolve any new `SourcePackage`s in this repo."""
         raise NotImplementedError
 
-    def can_update_dependencies(self, package: "Package") -> bool:
+    def can_update_dependencies(self, _package: Package) -> bool:
+        """Check if this resolver can update dependencies."""
         return False
 
-    def update_dependencies(self, package: "Package") -> "Package":
+    def update_dependencies(self, package: Package) -> Package:
+        """Update dependencies for a package."""
         return package
 
-    def __hash__(self):
+    def __hash__(self) -> int:
+        """Return hash of the resolver."""
         return hash(self.name)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        """Check if two resolvers are equal."""
         return isinstance(other, DependencyResolver) and other.name == self.name
 
 
 class PartialResolution:
+    """Represents a partial resolution of dependencies."""
+
     def __init__(
         self,
         packages: Iterable[Package] = (),
         dependencies: Iterable[Package] = (),
-        parent: Optional["PartialResolution"] = None,
-    ):
-        self._packages: FrozenSet[Package] = frozenset(packages)
-        self._dependencies: FrozenSet[Package] = frozenset(dependencies)
-        self.parent: Optional[PartialResolution] = parent
+        parent: PartialResolution | None = None,
+    ) -> None:
+        """Initialize partial resolution."""
+        self._packages: frozenset[Package] = frozenset(packages)
+        self._dependencies: frozenset[Package] = frozenset(dependencies)
+        self.parent: PartialResolution | None = parent
         if self.parent is not None:
             self.packages: PackageSet = self.parent.packages.copy()
         else:
@@ -123,50 +152,70 @@ class PartialResolution:
 
     @property
     def is_valid(self) -> bool:
+        """Check if the resolution is valid."""
         return self.packages.is_valid
 
     @property
     def is_complete(self) -> bool:
+        """Check if the resolution is complete."""
         return self.packages.is_complete
 
     def __contains__(self, package: Package) -> bool:
+        """Check if package is in the resolution."""
         return package in self.packages
 
-    def add(self, packages: Iterable[Package], depends_on: Package) -> "PartialResolution":
+    def add(self, packages: Iterable[Package], depends_on: Package) -> PartialResolution:
+        """Add packages and dependencies to the resolution."""
         return PartialResolution(packages, (depends_on,), parent=self)
 
-    def packages(self) -> Iterator[Package]:
+    def get_packages(self) -> Iterator[Package]:
+        """Iterate over packages in the resolution."""
         yield from self.packages
 
-    __iter__ = packages
+    __iter__ = get_packages
 
-    def dependencies(self) -> Iterator[Tuple[Package, Package]]:
-        pr: Optional[PartialResolution] = self
+    @property
+    def dependencies_set(self) -> frozenset[Package]:
+        """Get the set of dependencies."""
+        return self._dependencies
+
+    @property
+    def packages_set(self) -> frozenset[Package]:
+        """Get the set of packages."""
+        return self._packages
+
+    def dependencies(self) -> Iterator[tuple[Package, Package]]:
+        """Iterate over dependencies in the resolution."""
+        pr: PartialResolution | None = self
         while pr is not None:
-            for depends_on in sorted(pr._dependencies):
-                for package in pr._packages:
+            # Access the private members through the class since they're needed for iteration
+            for depends_on in sorted(pr.dependencies_set):
+                for package in pr.packages_set:
                     yield package, depends_on
             pr = pr.parent
 
     def __len__(self) -> int:
+        """Return number of packages in the resolution."""
         return len(self.packages)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        """Check if two resolutions are equal."""
         return isinstance(other, PartialResolution) and self.packages == other.packages
 
-    def __hash__(self):
+    def __hash__(self) -> int:
+        """Return hash of the resolution."""
         return hash(self.packages)
 
 
 @functools.lru_cache
-def resolvers() -> FrozenSet[DependencyResolver]:
-    """Collection of all the default instances of DependencyResolvers"""
+def resolvers() -> frozenset[DependencyResolver]:
+    """Get collection of all the default instances of DependencyResolvers."""
     return frozenset(cls() for cls in DependencyResolver.__subclasses__())
 
 
 @functools.lru_cache
 def resolver_by_name(name: str) -> DependencyResolver:
-    """Finds a resolver instance by name. The result is cached."""
+    """Find a resolver instance by name. The result is cached."""
     for instance in resolvers():
         if instance.name == name:
             return instance
@@ -174,9 +223,10 @@ def resolver_by_name(name: str) -> DependencyResolver:
 
 
 def is_known_resolver(name: str) -> bool:
-    """Checks if name is a valid/known resolver name"""
+    """Check if name is a valid/known resolver name."""
     try:
         resolver_by_name(name)
-        return True
     except KeyError:
         return False
+    else:
+        return True
