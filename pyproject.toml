@@ -12,17 +12,17 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "cyclonedx-python-lib>=11",
-    "docker>=7.1",
-    "graphviz>=0.21",
-    "johnnydep>=1.20",
-    "networkx>=3.5",
-    "parse_cmake>=0.4.1",
-    "platformdirs>=4.3.8",
-    "pydantic-settings >=2.10",
-    "semantic_version>=2.10",
-    "sqlalchemy>=2.0",
-    "tqdm>=4.67",
+    "cyclonedx-python-lib ~= 11.0.0",
+    "docker ~= 7.1.0",
+    "graphviz ~= 0.21",
+    "johnnydep ~= 1.20.6",
+    "networkx ~= 3.5",
+    "parse_cmake ~= 0.4.1",
+    "platformdirs ~= 4.4.0",
+    "pydantic-settings ~= 2.7.1",
+    "semantic_version ~= 2.10.0",
+    "sqlalchemy ~= 2.0.43",
+    "tqdm ~= 4.67.1",
 ]
 requires-python = ">=3.9"
 
