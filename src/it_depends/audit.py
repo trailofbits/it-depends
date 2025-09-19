@@ -1,11 +1,17 @@
+"""Vulnerability auditing functionality."""
+
+from __future__ import annotations
+
 import logging
-from abc import ABC
-from collections.abc import Iterable
+from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Dict, FrozenSet, Tuple
+from typing import TYPE_CHECKING, ClassVar
 
 from requests import post
 from tqdm import tqdm
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 from .dependencies import Package, PackageRepository, Vulnerability
 
@@ -13,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 class OSVVulnerability(Vulnerability):
-    """Represents a vulnerability from the OSV project"""
+    """Represents a vulnerability from the OSV project."""
 
     """Additional keys available from the OSV Vulnerability db."""
-    EXTRA_KEYS = [
+    EXTRA_KEYS: ClassVar[list[str]] = [
         "published",
         "modified",
         "withdrawn",
@@ -31,7 +37,8 @@ class OSVVulnerability(Vulnerability):
         "ecosystem_specific",
     ]
 
-    def __init__(self, osv_dict: Dict):
+    def __init__(self, osv_dict: dict) -> None:
+        """Initialize OSV vulnerability from dictionary."""
         # Get the first available information as summary (N/A if none)
         summary = osv_dict.get("summary", "") or osv_dict.get("details", "") or "N/A"
         super().__init__(osv_dict["id"], osv_dict.get("aliases", []), summary)
@@ -41,33 +48,37 @@ class OSVVulnerability(Vulnerability):
             setattr(self, k, osv_dict.get(k))
 
     @classmethod
-    def from_osv_dict(cls, d: Dict):
+    def from_osv_dict(cls, d: dict) -> OSVVulnerability:
+        """Create OSV vulnerability from dictionary."""
         return OSVVulnerability(d)
 
 
 class VulnerabilityProvider(ABC):
     """Interface of a vulnerability provider."""
 
+    @abstractmethod
     def query(self, pkg: Package) -> Iterable[Vulnerability]:
-        """Queries the vulnerability provider for vulnerabilities in pkg"""
+        """Query the vulnerability provider for vulnerabilities in package."""
         raise NotImplementedError
 
 
 class OSVProject(VulnerabilityProvider):
-    """OSV project vulnerability provider"""
+    """OSV project vulnerability provider."""
 
     QUERY_URL = "https://api.osv.dev/v1/query"
 
     def query(self, pkg: Package) -> Iterable[OSVVulnerability]:
-        """Queries the OSV project for vulnerabilities in Package pkg"""
+        """Query the OSV project for vulnerabilities in package."""
         q = {"version": str(pkg.version), "package": {"name": pkg.name}}
-        r = post(OSVProject.QUERY_URL, json=q).json()
+        r = post(OSVProject.QUERY_URL, json=q, timeout=30).json()
         return map(OSVVulnerability.from_osv_dict, r.get("vulns", []))
 
 
-def vulnerabilities(repo: PackageRepository, nworkers=None) -> PackageRepository:
-    def _get_vulninfo(pkg: Package) -> Tuple[Package, FrozenSet[Vulnerability]]:
-        """Enrich a Package with vulnerability information"""
+def vulnerabilities(repo: PackageRepository, nworkers: int | None = None) -> PackageRepository:
+    """Enrich packages with vulnerability information."""
+
+    def _get_vulninfo(pkg: Package) -> tuple[Package, frozenset[Vulnerability]]:
+        """Enrich a Package with vulnerability information."""
         ret = OSVProject().query(pkg)
         # Do not modify pkg here to ensure no concurrent
         # modifications, instead return and let the main
@@ -85,8 +96,8 @@ def vulnerabilities(repo: PackageRepository, nworkers=None) -> PackageRepository
             try:
                 t.update(1)
                 pkg, vulns = future.result()
-            except Exception as exc:
-                logger.error(f"Failed to retrieve vulnerability information. Exception: {exc}")
+            except Exception:  # noqa: PERF203
+                logger.exception("Failed to retrieve vulnerability information")
             else:
                 pkg.update_vulnerabilities(vulns)
 

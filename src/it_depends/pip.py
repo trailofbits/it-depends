@@ -1,11 +1,17 @@
+"""Pip package dependency resolution."""
+
+from __future__ import annotations
+
 import io
 import subprocess
 import sys
-from collections.abc import Iterable, Iterator
 from logging import getLogger
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import List, Optional, Union
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
 
 from johnnydep import JohnnyDist
 from johnnydep.logs import configure_logging
@@ -24,24 +30,27 @@ from .dependencies import (
 )
 
 configure_logging(1)
-log = getLogger(__file__)
+log = getLogger(__name__)
 
 
 class PipResolver(DependencyResolver):
+    """Resolver for Python packages using pip."""
+
     name = "pip"
     description = "classifies the dependencies of Python packages using pip"
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
+        """Check if this resolver can resolve from the given source repository."""
         return (self.is_available and (repo.path / "setup.py").exists()) or (repo.path / "requirements.txt").exists()
 
-    def resolve_from_source(
-        self, repo: SourceRepository, cache: Optional[PackageCache] = None
-    ) -> Optional[SourcePackage]:
+    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:  # noqa: ARG002
+        """Resolve package from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
         return PipSourcePackage.from_repo(repo)
 
-    def docker_setup(self) -> Optional[DockerSetup]:
+    def docker_setup(self) -> DockerSetup | None:
+        """Get Docker setup configuration for pip resolver."""
         return DockerSetup(
             apt_get_packages=["python3", "python3-pip", "python3-dev", "gcc"],
             install_package_script="""#!/usr/bin/env bash
@@ -54,7 +63,16 @@ class PipResolver(DependencyResolver):
         )
 
     @staticmethod
-    def _get_specifier(dist_or_str: Union[JohnnyDist, str]) -> SimpleSpec:
+    def _get_specifier(dist_or_str: JohnnyDist | str) -> SimpleSpec:
+        """Get a SimpleSpec from a JohnnyDist or string.
+
+        Args:
+            dist_or_str: JohnnyDist instance or string specifier
+
+        Returns:
+            SimpleSpec instance
+
+        """
         if isinstance(dist_or_str, JohnnyDist):
             dist_or_str = dist_or_str.specifier
         try:
@@ -63,7 +81,16 @@ class PipResolver(DependencyResolver):
             return SimpleSpec("*")
 
     @staticmethod
-    def parse_requirements_txt_line(line: str) -> Optional[Dependency]:
+    def parse_requirements_txt_line(line: str) -> Dependency | None:
+        """Parse a single line from requirements.txt.
+
+        Args:
+            line: Line from requirements.txt
+
+        Returns:
+            Dependency instance or None if line is empty/invalid
+
+        """
         line = line.strip()
         if not line:
             return None
@@ -82,8 +109,17 @@ class PipResolver(DependencyResolver):
 
     @staticmethod
     def get_dependencies(
-        dist_or_requirements_txt_path: Union[JohnnyDist, Path, str],
+        dist_or_requirements_txt_path: JohnnyDist | Path | str,
     ) -> Iterable[Dependency]:
+        """Get dependencies from a distribution or requirements.txt file.
+
+        Args:
+            dist_or_requirements_txt_path: JohnnyDist, Path, or string path
+
+        Returns:
+            Iterable of Dependency instances
+
+        """
         if isinstance(dist_or_requirements_txt_path, JohnnyDist):
             return (
                 Dependency(
@@ -95,17 +131,24 @@ class PipResolver(DependencyResolver):
             )
         if isinstance(dist_or_requirements_txt_path, str):
             dist_or_requirements_txt_path = Path(dist_or_requirements_txt_path)
-        with open(dist_or_requirements_txt_path / "requirements.txt") as f:
+        with (dist_or_requirements_txt_path / "requirements.txt").open() as f:
             return filter(
                 lambda d: d is not None,
-                (
-                    PipResolver.parse_requirements_txt_line(line)  # type: ignore
-                    for line in f
-                ),
+                (PipResolver.parse_requirements_txt_line(line) for line in f),
             )
 
     @staticmethod
-    def get_version(version_str: str, none_default: Optional[Version] = None) -> Optional[Version]:
+    def get_version(version_str: str, none_default: Version | None = None) -> Version | None:
+        """Parse a version string into a Version object.
+
+        Args:
+            version_str: Version string to parse
+            none_default: Default version if version_str is "none"
+
+        Returns:
+            Version object or None if parsing fails
+
+        """
         if version_str == "none":
             # this will happen if the dist is for a local wheel:
             return none_default
@@ -113,7 +156,8 @@ class PipResolver(DependencyResolver):
             return Version.coerce(version_str)
         except ValueError:
             components = version_str.split(".")
-            if len(components) == 4:
+            version_components_count = 4
+            if len(components) == version_components_count:
                 try:
                     # assume the version component after the last period is the release
                     return Version(
@@ -124,24 +168,35 @@ class PipResolver(DependencyResolver):
                     )
                 except ValueError:
                     pass
-            # TODO: Figure out a better way to handle invalid version strings
+            # TODO(@evandowning): Figure out a better way to handle invalid version strings  # noqa: TD003, FIX002
         return None
 
     def resolve_dist(
         self,
         dist: JohnnyDist,
+        *,  # Force keyword-only arguments
         recurse: bool = True,
-        version: SemanticVersion = SimpleSpec("*"),
+        version: SemanticVersion | None = None,
     ) -> Iterable[Package]:
+        """Resolve packages from a JohnnyDist.
+
+        Args:
+            dist: JohnnyDist to resolve
+            recurse: Whether to recursively resolve dependencies
+            version: Version specification to filter by
+
+        Returns:
+            Iterable of Package instances
+
+        """
+        if version is None:
+            version = SimpleSpec("*")
         queue = [(dist, version)]
-        packages: List[Package] = []
+        packages: list[Package] = []
         while queue:
             dist, sem_version = queue.pop()
-            if dist.version_installed is not None:
-                none_default = Version.coerce(dist.version_installed)
-            else:
-                none_default = None
-            for version in sem_version.filter(
+            none_default = Version.coerce(dist.version_installed) if dist.version_installed is not None else None
+            for pkg_version in sem_version.filter(
                 filter(
                     lambda v: v is not None,
                     (PipResolver.get_version(v_str, none_default=none_default) for v_str in dist.versions_available),
@@ -149,7 +204,7 @@ class PipResolver(DependencyResolver):
             ):
                 package = Package(
                     name=dist.name,
-                    version=version,
+                    version=pkg_version,
                     dependencies=self.get_dependencies(dist),
                     source=self,
                 )
@@ -160,7 +215,15 @@ class PipResolver(DependencyResolver):
         return packages
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        print(dependency)
+        """Resolve a dependency to packages.
+
+        Args:
+            dependency: Dependency to resolve
+
+        Yields:
+            Package instances that satisfy the dependency
+
+        """
         try:
             return iter(
                 self.resolve_dist(
@@ -175,8 +238,20 @@ class PipResolver(DependencyResolver):
 
 
 class PipSourcePackage(SourcePackage):
+    """Source package for Python packages."""
+
     @staticmethod
-    def from_dist(dist: JohnnyDist, source_path: Path) -> "PipSourcePackage":
+    def from_dist(dist: JohnnyDist, source_path: Path) -> PipSourcePackage:
+        """Create a PipSourcePackage from a JohnnyDist.
+
+        Args:
+            dist: JohnnyDist instance
+            source_path: Path to source directory
+
+        Returns:
+            PipSourcePackage instance
+
+        """
         version_str = dist.specifier
         version_str = version_str.removeprefix("==")
         return PipSourcePackage(
@@ -188,7 +263,16 @@ class PipSourcePackage(SourcePackage):
         )
 
     @staticmethod
-    def from_repo(repo: SourceRepository) -> "PipSourcePackage":
+    def from_repo(repo: SourceRepository) -> PipSourcePackage:
+        """Create a PipSourcePackage from a source repository.
+
+        Args:
+            repo: Source repository
+
+        Returns:
+            PipSourcePackage instance
+
+        """
         if (repo.path / "setup.py").exists():
             with TemporaryDirectory() as tmp_dir:
                 try:
@@ -196,7 +280,7 @@ class PipSourcePackage(SourcePackage):
                     stderr = sys.stderr
                 except io.UnsupportedOperation:
                     stderr = None
-                subprocess.check_call(
+                subprocess.check_call(  # noqa: S603
                     [
                         sys.executable,
                         "-m",
@@ -212,10 +296,12 @@ class PipSourcePackage(SourcePackage):
                 wheel = None
                 for whl in Path(tmp_dir).glob("*.whl"):
                     if wheel is not None:
-                        raise ValueError(f"`pip wheel --no-deps {repo.path!s}` produced multiple wheel files!")
+                        msg = f"`pip wheel --no-deps {repo.path!s}` produced multiple wheel files!"
+                        raise ValueError(msg)
                     wheel = whl
                 if wheel is None:
-                    raise ValueError(f"`pip wheel --no-deps {repo.path!s}` did not produce a wheel file!")
+                    msg = f"`pip wheel --no-deps {repo.path!s}` did not produce a wheel file!"
+                    raise ValueError(msg)
                 dist = JohnnyDist(str(wheel))
                 # force JohnnyDist to read the dependencies before deleting the wheel:
                 _ = dist.children
@@ -225,11 +311,11 @@ class PipSourcePackage(SourcePackage):
             # Use the directory name as the package name
             name = repo.path.absolute().name
             if (repo.path / "VERSION").exists():
-                with open(repo.path / "VERSION") as f:
+                with (repo.path / "VERSION").open() as f:
                     version = PipResolver.get_version(f.read().strip())
             else:
                 version = PipResolver.get_version("0.0.0")
-                log.info(f"Could not detect {repo.path} version. Using: {version}")
+                log.info("Could not detect %s version. Using: %s", repo.path, version)
             return PipSourcePackage(
                 name=name,
                 version=version,
@@ -238,4 +324,5 @@ class PipSourcePackage(SourcePackage):
                 source="pip",
             )
         else:
-            raise ValueError(f"{repo.path} neither has a setup.py nor a requirements.txt")
+            msg = f"{repo.path} neither has a setup.py nor a requirements.txt"
+            raise ValueError(msg)

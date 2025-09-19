@@ -1,10 +1,16 @@
+"""Native dependency resolution using Docker containers."""
+
+from __future__ import annotations
+
 import re
-from collections.abc import Iterator
 from logging import getLogger
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Lock
-from typing import Dict, FrozenSet, Optional
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 from tqdm import tqdm
 
@@ -22,6 +28,7 @@ logger = getLogger(__name__)
 
 
 def make_dockerfile(docker_setup: DockerSetup) -> InMemoryDockerfile:
+    """Create a Dockerfile from Docker setup configuration."""
     install_script = InMemoryFile("install.sh", docker_setup.install_package_script.encode("utf-8"))
     run_script = InMemoryFile("run.sh", docker_setup.load_package_script.encode("utf-8"))
     baseline_script = InMemoryFile("baseline.sh", docker_setup.baseline_script.encode("utf-8"))
@@ -50,48 +57,43 @@ RUN chmod +x *.sh
 
 
 STRACE_LIBRARY_REGEX = re.compile(r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
-CONTAINERS_BY_SOURCE: Dict[DependencyResolver, DockerContainer] = {}
-BASELINES_BY_SOURCE: Dict[DependencyResolver, FrozenSet[Dependency]] = {}
+CONTAINERS_BY_SOURCE: dict[DependencyResolver, DockerContainer] = {}
+BASELINES_BY_SOURCE: dict[DependencyResolver, frozenset[Dependency]] = {}
 _CONTAINER_LOCK: Lock = Lock()
 
 
-def get_dependencies(
-    container: DockerContainer, command: str, pre_command: Optional[str] = None
-) -> Iterator[Dependency]:
-    """Yields all dynamic libraries loaded by `command`, in order, including duplicates"""
-    stdout = NamedTemporaryFile(prefix="stdout", delete=False)
-    if pre_command is not None:
-        pre_command = f"{pre_command} > /dev/null 2>/dev/null && "
-    else:
-        pre_command = ""
-    command = f"{pre_command}strace -e open,openat -f {command} 3>&1 1>&2 2>&3"
-    try:
-        container.run(
-            "bash",
-            "-c",
-            command,
-            rebuild=False,
-            interactive=False,
-            stdout=stdout,
-            check_existence=False,
-        )
-        stdout.close()
-        with open(stdout.name) as f:
-            for line in f:
-                m = STRACE_LIBRARY_REGEX.match(line)
-                if m:
-                    path = m.group(2)
-                    if path not in ("/etc/ld.so.cache",) and path.startswith("/"):
-                        yield Dependency(
-                            package=path,
-                            source="ubuntu",  # make the package be from the UbuntuResolver
-                            semantic_version=SemanticVersion.parse("*"),
-                        )
-    finally:
-        Path(stdout.name).unlink()
+def get_dependencies(container: DockerContainer, command: str, pre_command: str | None = None) -> Iterator[Dependency]:
+    """Yield all dynamic libraries loaded by `command`, in order, including duplicates."""
+    with NamedTemporaryFile(prefix="stdout", delete=False) as stdout:
+        pre_command = f"{pre_command} > /dev/null 2>/dev/null && " if pre_command is not None else ""
+        command = f"{pre_command}strace -e open,openat -f {command} 3>&1 1>&2 2>&3"
+        try:
+            container.run(
+                "bash",
+                "-c",
+                command,
+                rebuild=False,
+                interactive=False,
+                stdout=stdout,
+                check_existence=False,
+            )
+            with Path(stdout.name).open() as f:
+                for line in f:
+                    m = STRACE_LIBRARY_REGEX.match(line)
+                    if m:
+                        path = m.group(2)
+                        if path not in ("/etc/ld.so.cache",) and path.startswith("/"):
+                            yield Dependency(
+                                package=path,
+                                source="ubuntu",  # make the package be from the UbuntuResolver
+                                semantic_version=SemanticVersion.parse("*"),
+                            )
+        finally:
+            Path(stdout.name).unlink()
 
 
 def get_package_dependencies(container: DockerContainer, package: Package) -> Iterator[Dependency]:
+    """Get dependencies for a specific package."""
     yield from get_dependencies(
         container=container,
         pre_command=f"./install.sh {package.name} {package.version!s}",
@@ -100,16 +102,19 @@ def get_package_dependencies(container: DockerContainer, package: Package) -> It
 
 
 def get_baseline_dependencies(container: DockerContainer) -> Iterator[Dependency]:
+    """Get baseline dependencies for a container."""
     yield from get_dependencies(container=container, command="./baseline.sh")
 
 
 def container_for(source: DependencyResolver) -> DockerContainer:
+    """Get or create Docker container for a dependency resolver."""
     with _CONTAINER_LOCK:
         if source in CONTAINERS_BY_SOURCE:
             return CONTAINERS_BY_SOURCE[source]
         docker_setup = source.docker_setup()
         if docker_setup is None:
-            raise ValueError(f"source {source.name} does not support native dependency resolution")
+            msg = f"source {source.name} does not support native dependency resolution"
+            raise ValueError(msg)
         with (
             tqdm(
                 desc=f"configuring Docker for {source.name}",
@@ -131,7 +136,8 @@ def container_for(source: DependencyResolver) -> DockerContainer:
             return container
 
 
-def baseline_for(source: DependencyResolver) -> FrozenSet[Dependency]:
+def baseline_for(source: DependencyResolver) -> frozenset[Dependency]:
+    """Get baseline dependencies for a source."""
     with _CONTAINER_LOCK:
         if source not in BASELINES_BY_SOURCE:
             baseline = frozenset(get_baseline_dependencies(container_for(source)))
@@ -140,15 +146,12 @@ def baseline_for(source: DependencyResolver) -> FrozenSet[Dependency]:
         return BASELINES_BY_SOURCE[source]
 
 
-def get_native_dependencies(package: Package, use_baseline: bool = False) -> Iterator[Dependency]:
-    """Yields the native dependencies for an individual package"""
+def get_native_dependencies(package: Package, *, use_baseline: bool = False) -> Iterator[Dependency]:
+    """Yield the native dependencies for an individual package."""
     if not package.resolver.docker_setup():
         return
     container = container_for(package.resolver)
-    if use_baseline:
-        baseline = baseline_for(package.resolver)
-    else:
-        baseline = frozenset()
+    baseline = baseline_for(package.resolver) if use_baseline else frozenset()
     for dep in get_package_dependencies(container, package):
         if dep not in baseline:
             yield dep

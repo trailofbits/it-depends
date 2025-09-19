@@ -14,7 +14,6 @@ For backward compatibility, all classes and functions are re-exported from this 
 # Re-export all the core classes and functions for backward compatibility
 # Re-export commonly used types and classes for backward compatibility
 from collections.abc import Iterable, Iterator
-from typing import Dict, List, Optional, Set, Tuple, Union
 
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
@@ -45,40 +44,27 @@ from .resolver import (
 
 # Keep the __all__ for explicit imports
 __all__ = [
-    # Models
-    "Vulnerability",
-    "Dependency",
     "AliasedDependency",
-    "Package",
-    "SourcePackage",
-    # Repository
-    "SourceRepository",
-    # Graph
+    "Dependency",
     "DependencyGraph",
-    # Cache
-    "PackageCache",
-    "InMemoryPackageCache",
-    "PackageRepository",
-    # Resolver
     "DependencyResolver",
-    "ResolverAvailability",
     "DockerSetup",
-    "resolvers",
-    "resolver_by_name",
-    "is_known_resolver",
-    # Resolution
-    "resolve",
-    "resolve_sbom",
-    # Types and utilities (for backward compatibility)
-    "Dict",
-    "List",
-    "Tuple",
-    "Set",
-    "Optional",
-    "Union",
+    "InMemoryPackageCache",
     "Iterable",
     "Iterator",
-    "SimpleSpec",
-    "Version",
+    "Package",
+    "PackageCache",
+    "PackageRepository",
+    "ResolverAvailability",
     "SemanticVersion",
+    "SimpleSpec",
+    "SourcePackage",
+    "SourceRepository",
+    "Version",
+    "Vulnerability",
+    "is_known_resolver",
+    "resolve",
+    "resolve_sbom",
+    "resolver_by_name",
+    "resolvers",
 ]

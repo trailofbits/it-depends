@@ -1,6 +1,13 @@
-from typing import Dict, Optional, Set, Union
+"""HTML generation for dependency graphs."""
 
-from .dependencies import DependencyGraph, Package, PackageCache
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .dependencies import DependencyGraph, Package, PackageCache
+else:
+    from .dependencies import DependencyGraph, Package, PackageCache
 
 TEMPLATE: str = """<html>
 <head>
@@ -83,28 +90,27 @@ drawGraph();
 """
 
 
-def graph_to_html(
-    graph: Union[DependencyGraph, PackageCache],
+def graph_to_html(  # noqa: C901
+    graph: DependencyGraph | PackageCache,
+    *,
     collapse_versions: bool = True,
-    title: Optional[str] = None,
+    title: str | None = None,
 ) -> str:
+    """Convert dependency graph to HTML visualization."""
     if not isinstance(graph, DependencyGraph):
         graph = graph.to_graph()
     if collapse_versions:
         graph = graph.collapse_versions()
 
     if graph.source_packages:
-        roots: Set[Package] = graph.source_packages  # type: ignore
+        roots: set[Package] = graph.source_packages  # type: ignore[assignment]
     else:
         roots = graph.find_roots().roots
 
-    if not graph.source_packages:
-        layout = "improvedLayout: false"
-    else:
-        layout = "hierarchical: true"
+    layout = "improvedLayout: false" if not graph.source_packages else "hierarchical: true"
 
     # sort the nodes and assign IDs to them (so they are in a deterministic order):
-    node_ids: Dict[Package, int] = {}
+    node_ids: dict[Package, int] = {}
     for node in sorted(graph):
         node_ids[node] = len(node_ids)
 
@@ -124,23 +130,16 @@ def graph_to_html(
             nodes[-1].update({"color": "red"})
         if graph.source_packages:
             nodes[-1]["level"] = max(graph.shortest_path_from_root(package), 0)
-        for pkg1, pkg2, *_ in graph.out_edges(package):  # type: ignore
+        for pkg1, pkg2, *_ in graph.out_edges(package):  # type: ignore[misc]
             dep = graph.get_edge_data(pkg1, pkg2)["dependency"]
-            if collapse_versions:
-                # if we are collapsing versions, omit the version name
-                dep_name = f"{dep.source}:{dep.package}"
-            else:
-                dep_name = str(dep)
+            dep_name = f"{dep.source}:{dep.package}" if collapse_versions else str(dep)
             edges.append({"from": node_ids[pkg1], "to": node_ids[pkg2], "shape": "dot"})
             if dep_name != pkg2.full_name:
                 edges[-1]["label"] = dep_name
 
     if title is None:
         source_packages = ", ".join(p.full_name for p in graph.source_packages)
-        if not source_packages:
-            title = "Dependency Graph"
-        else:
-            title = f"Dependency Graph for {source_packages}"
+        title = "Dependency Graph" if not source_packages else f"Dependency Graph for {source_packages}"
 
     return (
         TEMPLATE.replace("$NODES", repr(nodes))

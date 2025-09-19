@@ -1,12 +1,18 @@
+"""Command-line interface for it-depends."""
+
+from __future__ import annotations
+
 import argparse
 import json
 import sys
 import webbrowser
-from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from pathlib import Path
 from sqlite3 import OperationalError
-from typing import Optional, TextIO, Union
+from typing import TYPE_CHECKING, TextIO
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
 
 from .audit import vulnerabilities
 from .db import DEFAULT_DB_PATH, DBPackageCache
@@ -18,7 +24,7 @@ from .sbom import cyclonedx_to_json
 
 @contextmanager
 def no_stdout() -> Iterator[TextIO]:
-    """A context manager that redirects STDOUT to STDERR"""
+    """Redirect STDOUT to STDERR."""
     saved_stdout = sys.stdout
     sys.stdout = sys.stderr
     try:
@@ -29,20 +35,21 @@ def no_stdout() -> Iterator[TextIO]:
 
 def parse_path_or_package_name(
     path_or_name: str,
-) -> Union[SourceRepository, Dependency]:
+) -> SourceRepository | Dependency:
     repo_path = Path(path_or_name)
     try:
-        dependency: Optional[Dependency] = Dependency.from_string(path_or_name)
+        dependency: Dependency | None = Dependency.from_string(path_or_name)
     except ValueError as e:
         if str(e).endswith("is not a known resolver") and not repo_path.exists():
-            raise ValueError(f"Unknown resolver: {path_or_name}")
+            msg = f"Unknown resolver: {path_or_name}"
+            raise ValueError(msg) from e
         dependency = None
     if dependency is None or repo_path.exists():
         return SourceRepository(path_or_name)
     return dependency
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:  # noqa: C901, PLR0911, PLR0912, PLR0915
     if argv is None:
         argv = sys.argv
 
@@ -169,7 +176,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         repo = parse_path_or_package_name(args.PATH_OR_NAME)
 
         if args.compare is not None:
-            to_compare: Optional[Union[SourceRepository, Dependency]] = parse_path_or_package_name(args.compare)
+            to_compare: SourceRepository | Dependency | None = parse_path_or_package_name(args.compare)
         else:
             to_compare = None
     except ValueError as e:
@@ -196,7 +203,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         db_path.unlink()
                         sys.stderr.write("Cache cleared.\n")
                         break
-                    if choice == "n" or choice == "":
+                    if choice in {"n", ""}:
                         break
             else:
                 db_path.unlink()
@@ -204,10 +211,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     if args.list:
         sys.stdout.flush()
-        if isinstance(repo, SourceRepository):
-            path = repo.path.absolute()
-        else:
-            path = args.PATH_OR_NAME
+        path = repo.path.absolute() if isinstance(repo, SourceRepository) else args.PATH_OR_NAME
         sys.stderr.write(f"Available resolvers for {path}:\n")
         sys.stderr.flush()
         for name, classifier in sorted((c.name, c) for c in resolvers()):
@@ -239,7 +243,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 sys.stderr.write(f"{args.output_file} already exists!\nRe-run with `--force` to overwrite the file.\n")
                 return 1
             else:
-                output_file = open(args.output_file, "w")
+                output_file = Path(args.output_file).open("w")  # noqa: SIM115
             with DBPackageCache(args.database) as cache:
                 try:
                     package_list = resolve(
@@ -256,7 +260,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n")
                     sys.stderr.flush()
 
-                # TODO: Should the cache be updated instead????
+                # TODO(@evandowning): Should the cache be updated instead???? # noqa: TD003, FIX002
                 if args.audit:
                     package_list = vulnerabilities(package_list)
 
@@ -284,16 +288,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     sbom = None
                     for p in package_list.source_packages:
                         for bom in resolve_sbom(p, package_list, order_ascending=not args.latest_resolution):
-                            if sbom is None:
-                                sbom = bom
-                            else:
-                                sbom = sbom | bom
+                            sbom = bom if sbom is None else sbom | bom
                             # only get the first resolution
-                            # TODO: Provide a means for enumerating all valid SBOMs
+                            # TODO(@evandowning): Provide a means for enumerating all valid SBOMs # noqa: TD003, FIX002
                             break
                     output_file.write(cyclonedx_to_json(sbom.to_cyclonedx()))
                 else:
-                    raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
+                    msg = f"TODO: Implement output format {args.output_format}"
+                    raise NotImplementedError(msg)
     except OperationalError as e:
         sys.stderr.write(
             f"Database error: {e!r}\n\nThis can occur if your database was created with an older version "

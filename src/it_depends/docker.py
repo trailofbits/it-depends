@@ -1,24 +1,32 @@
+"""Docker container management for dependency resolution."""
+
+from __future__ import annotations
+
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Iterable
+from typing import TYPE_CHECKING, Self
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import Dict, List, Optional, Tuple, Union
 
 import docker
 from docker.errors import DockerException
 from docker.errors import NotFound as ImageNotFound
-from docker.models.images import Image
+
+if TYPE_CHECKING:
+    from docker.models.images import Image
 from tqdm import tqdm
 
 from . import version as it_depends_version
 
 
-def _discover_podman_socket():
+def _discover_podman_socket() -> str | None:
     """Try to discover a Podman socket.
 
     Discovery is performed in this order:
@@ -47,40 +55,48 @@ def _discover_podman_socket():
 
 
 class Dockerfile:
-    def __init__(self, path: Path):
+    """Dockerfile management."""
+
+    def __init__(self, path: Path) -> None:
+        """Initialize Dockerfile from path."""
         self._path: Path = path
-        self._len: Optional[int] = None
-        self._line_offsets: Dict[int, int] = {}
+        self._len: int | None = None
+        self._line_offsets: dict[int, int] = {}
 
     @property
     def path(self) -> Path:
+        """Get Dockerfile path."""
         return self._path
 
     @path.setter
-    def path(self, new_path: Path):
+    def path(self, new_path: Path) -> None:
+        """Set Dockerfile path."""
         self._path = new_path
         self._len = None
         self._line_offsets = {}
 
-    def __enter__(self) -> "Dockerfile":
+    def __enter__(self) -> Self:
+        """Enter context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        pass
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        """Exit context manager."""
 
     def exists(self) -> bool:
+        """Check if Dockerfile exists."""
         return self.path.exists()
 
     def dir(self) -> Path:
+        """Get Dockerfile directory."""
         return self.path.parent
 
     def __len__(self) -> int:
-        """Returns the number of lines in the file"""
+        """Return the number of lines in the file."""
         if self._len is None:
             self._len = 0
             self._line_offsets[0] = 0  # line 0 starts at offset 0
             offset = 0
-            with open(self.path, "rb") as f:
+            with self.path.open("rb") as f:
                 while True:
                     chunk = f.read(1)
                     if len(chunk) == 0:
@@ -91,14 +107,14 @@ class Dockerfile:
                     offset += 1
         return self._len
 
-    def get_line(self, step_command: str, starting_line: int = 0) -> Optional[int]:
-        """Returns the line number of the associated step command"""
+    def get_line(self, step_command: str, starting_line: int = 0) -> int | None:
+        """Return the line number of the associated step command."""
         if self._len is None:
             # we need to call __len__ to set self._line_offsets
             _ = len(self)
         if starting_line not in self._line_offsets:
             return None
-        with open(self.path) as f:
+        with self.path.open() as f:
             f.seek(self._line_offsets[starting_line])
             line_offset = 0
             while True:
@@ -112,62 +128,75 @@ class Dockerfile:
 
 
 class InMemoryFile:
-    def __init__(self, filename: str, content: bytes):
+    """In-memory file for Docker builds."""
+
+    def __init__(self, filename: str, content: bytes) -> None:
+        """Initialize in-memory file."""
         self.filename: str = filename
         self.content: bytes = content
 
 
 class InMemoryDockerfile(Dockerfile):
-    def __init__(self, content: str, local_files: Iterable[InMemoryFile] = ()):
-        super().__init__(None)  # type: ignore
-        self.content: str = content
-        self.local_files: List[InMemoryFile] = list(local_files)
-        self._entries: int = 0
-        self._tmpdir: Optional[Path] = None
+    """In-memory Dockerfile for builds."""
 
-    @Dockerfile.path.getter  # type: ignore
+    def __init__(self, content: str, local_files: Iterable[InMemoryFile] = ()) -> None:
+        """Initialize in-memory Dockerfile."""
+        super().__init__(None)  # type: ignore[arg-type]
+        self.content: str = content
+        self.local_files: list[InMemoryFile] = list(local_files)
+        self._entries: int = 0
+        self._tmpdir: Path | None = None
+
+    @Dockerfile.path.getter  # type: ignore[misc]
     def path(self) -> Path:
+        """Get Dockerfile path."""
         path = super().path
         if path is None:
-            raise ValueError("InMemoryDockerfile only has a valid path when inside of its context manager")
+            msg = "InMemoryDockerfile only has a valid path when inside of its context manager"
+            raise ValueError(msg)
         return path
 
-    def __enter__(self) -> "InMemoryDockerfile":
+    def __enter__(self) -> Self:
+        """Enter context manager."""
         self._entries += 1
         if self._entries == 1:
             self._tmpdir = Path(mkdtemp())
             for file in self.local_files:
-                with open(self._tmpdir / file.filename, "wb") as f:
+                with (self._tmpdir / file.filename).open("wb") as f:
                     f.write(file.content)
             self.path = self._tmpdir / "Dockerfile"
-            with open(self.path, "w") as d:
+            with self.path.open("w") as d:
                 d.write(self.content)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        """Exit context manager."""
         self._entries -= 1
         if self._entries == 0:
             self.path.unlink()
             shutil.rmtree(self._tmpdir)
-            self.path = None  # type: ignore
+            self.path = None  # type: ignore[assignment]
 
 
 class DockerContainer:
+    """Docker container for dependency resolution."""
+
     def __init__(
         self,
         image_name: str,
-        dockerfile: Optional[Dockerfile] = None,
-        tag: Optional[str] = None,
-    ):
+        dockerfile: Dockerfile | None = None,
+        tag: str | None = None,
+    ) -> None:
+        """Initialize Docker container."""
         self.image_name: str = image_name
         if tag is None:
             self.tag: str = it_depends_version()
         else:
             self.tag = tag
-        self._client: Optional[docker.DockerClient] = None
-        self.dockerfile: Optional[Dockerfile] = dockerfile
+        self._client: docker.DockerClient | None = None
+        self.dockerfile: Dockerfile | None = dockerfile
 
-    def run(
+    def run(  # noqa: C901, PLR0912, PLR0913
         self,
         *args: str,
         check_existence: bool = True,
@@ -175,14 +204,15 @@ class DockerContainer:
         build_if_necessary: bool = True,
         remove: bool = True,
         interactive: bool = True,
-        mounts: Optional[Iterable[Tuple[Union[str, Path], Union[str, Path]]]] = None,
+        mounts: Iterable[tuple[str | Path, str | Path]] | None = None,
         privileged: bool = False,
-        env: Optional[Dict[str, str]] = None,
-        stdin=None,
-        stdout=None,
-        stderr=None,
-        cwd=None,
-    ):
+        env: dict[str, str] | None = None,
+        stdin: object = None,
+        stdout: object = None,
+        stderr: object = None,
+        cwd: str | None = None,
+    ) -> int | None:
+        """Run command in Docker container."""
         if rebuild:
             self.rebuild()
         elif check_existence and not self.exists():
@@ -192,11 +222,11 @@ class DockerContainer:
                 else:
                     self.pull()
                 if not self.exists():
-                    raise ValueError(f"{self.name} does not exist!")
+                    msg = f"{self.name} does not exist!"
+                    raise ValueError(msg)
             else:
-                raise ValueError(
-                    f"{self.name} does not exist! Re-run with `build_if_necessary=True` to automatically build it."
-                )
+                msg = f"{self.name} does not exist! Re-run with `build_if_necessary=True` to automatically build it."
+                raise ValueError(msg)
         if cwd is None:
             cwd = str(Path.cwd())
 
@@ -204,7 +234,8 @@ class DockerContainer:
         # TTYs
 
         if interactive and (stdin is not None or stdout is not None or stderr is not None):
-            raise ValueError("if `interactive == True`, all of `stdin`, `stdout`, and `stderr` must be `None`")
+            msg = "if `interactive == True`, all of `stdin`, `stdout`, and `stderr` must be `None`"
+            raise ValueError(msg)
 
         cmd_args = [str(Path("/usr") / "bin" / "env"), "docker", "run"]
 
@@ -217,10 +248,9 @@ class DockerContainer:
         if mounts is not None:
             for source, target in mounts:
                 cmd_args.append("-v")
-                if not isinstance(source, Path):
-                    source = Path(source)
-                source = source.absolute()
-                cmd_args.append(f"{source!s}:{target!s}:cached")
+                source_path = Path(source) if not isinstance(source, Path) else source
+                source_path = source_path.absolute()
+                cmd_args.append(f"{source_path!s}:{target!s}:cached")
 
         if env is not None:
             for k, v in env.items():
@@ -236,36 +266,34 @@ class DockerContainer:
         cmd_args.extend(args)
 
         if interactive:
-            return subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)
-        return subprocess.run(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
-
-        # self.client.containers.run(self.name, args, remove=remove, mounts=[
-        #     Mount(target=str(target), source=str(source), consistency="cached") for source, target in mounts
-        # ])
+            return subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)  # noqa: S603
+        return subprocess.run(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)  # noqa: S603
 
     @property
     def name(self) -> str:
+        """Get container name."""
         return f"{self.image_name}:{self.tag}"
 
     @property
     def client(self) -> docker.DockerClient:
+        """Get Docker client."""
         if self._client is None:
             self._client = docker.from_env()
         return self._client
 
-    def exists(self) -> Optional[Image]:
+    def exists(self) -> Image | None:
+        """Check if container image exists."""
         for image in self.client.images.list():
             if self.name in image.tags:
                 return image
         return None
 
-    def pull(self, latest: bool = False) -> Image:
-        # We could use the Python API to pull, like this:
-        #     return self.client.images.pull(self.image_name, tag=[self.tag, None][latest])
+    def pull(self, *, latest: bool = False) -> Image:
+        """Pull container image."""
         # However, that doesn't include progress bars. So call the `docker` command instead:
         name = f"{self.image_name}:{[self.tag, 'latest'][latest]}"
         try:
-            subprocess.check_call(["docker", "pull", name])
+            subprocess.check_call(["docker", "pull", name])  # noqa: S603, S607
             for image in self.client.images.list():
                 if name in image.tags:
                     return image
@@ -273,18 +301,21 @@ class DockerContainer:
             pass
         raise ImageNotFound(name)
 
-    def rebuild(self, nocache: bool = False):
+    def rebuild(self, *, nocache: bool = False) -> None:  # noqa: C901
+        """Rebuild container image."""
         if self.dockerfile is None:
             _ = self.pull()
             return
         if not self.dockerfile.exists():
-            raise ValueError("Could not find the Dockerfile.")
+            msg = "Could not find the Dockerfile."
+            raise ValueError(msg)
         # use the low-level APIClient so we can get streaming build status
         try:
             sock = _discover_podman_socket()
             cli = docker.APIClient(base_url=sock)
         except DockerException as e:
-            raise ValueError(f"Could not connect to socket: sock={sock} {e}") from e
+            msg = f"Could not connect to socket: sock={sock} {e}"
+            raise ValueError(msg) from e
         with tqdm(desc="Archiving the build directory", unit=" steps", leave=False) as t:
             last_line = 0
             last_step = None
@@ -298,13 +329,13 @@ class DockerContainer:
                 t.desc = f"Building {self.name}"
                 for line in raw_line.split(b"\n"):
                     try:
-                        line = json.loads(line)
+                        parsed_line = json.loads(line)
                     except json.decoder.JSONDecodeError:
                         continue
-                    if "stream" in line:
+                    if "stream" in parsed_line:
                         m = re.match(
                             r"^Step\s+(\d+)(/(\d+))?\s+:\s+(.+)$",
-                            line["stream"],
+                            parsed_line["stream"],
                             re.MULTILINE,
                         )
                         if m:
@@ -325,4 +356,4 @@ class DockerContainer:
                                 if new_line is not None:
                                     t.update(new_line - last_line)
                                     last_line = new_line
-                        t.write(line["stream"].replace("\n", "").strip())
+                        t.write(parsed_line["stream"].replace("\n", "").strip())

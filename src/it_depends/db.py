@@ -1,8 +1,15 @@
-from collections.abc import Iterable, Iterator
-from pathlib import Path
-from typing import Any, Dict, FrozenSet, Optional, Tuple, Union
+"""Database models and package cache implementations."""
 
-from semantic_version import Version
+from __future__ import annotations
+
+from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Iterator
+
+if TYPE_CHECKING:
+    from semantic_version import Version
 from sqlalchemy import (
     Column,
     ForeignKey,
@@ -18,12 +25,14 @@ from sqlalchemy.orm import relationship, sessionmaker
 
 from .dependencies import (
     Dependency,
-    DependencyResolver,
     Package,
     PackageCache,
     SemanticVersion,
     resolver_by_name,
 )
+
+if TYPE_CHECKING:
+    from .dependencies import DependencyResolver
 from .it_depends import APP_DIRS
 
 DEFAULT_DB_PATH = Path(APP_DIRS.user_cache_dir) / "dependencies.sqlite"
@@ -31,7 +40,9 @@ DEFAULT_DB_PATH = Path(APP_DIRS.user_cache_dir) / "dependencies.sqlite"
 Base = declarative_base()
 
 
-class Resolution(Base):  # type: ignore
+class Resolution(Base):  # type: ignore[misc]
+    """Database model for package resolutions."""
+
     __tablename__ = "resolutions"
 
     id = Column(Integer, primary_key=True)
@@ -42,7 +53,9 @@ class Resolution(Base):  # type: ignore
     __table_args__ = (UniqueConstraint("package", "version", "source", name="resolution_unique_constraint"),)
 
 
-class Updated(Base):  # type: ignore
+class Updated(Base):  # type: ignore[misc]
+    """Database model for package updates."""
+
     __tablename__ = "updated"
 
     id = Column(Integer, primary_key=True)
@@ -54,7 +67,9 @@ class Updated(Base):  # type: ignore
     __table_args__ = (UniqueConstraint("package", "version", "source", "resolver", name="updated_unique_constraint"),)
 
 
-class DBDependency(Base, Dependency):  # type: ignore
+class DBDependency(Base, Dependency):  # type: ignore[misc]
+    """Database model for dependencies."""
+
     __tablename__ = "dependencies"
 
     id = Column(Integer, primary_key=True)
@@ -73,27 +88,33 @@ class DBDependency(Base, Dependency):  # type: ignore
         ),
     )
 
-    def __init__(self, package: "DBPackage", dep: Dependency):
+    def __init__(self, package: DBPackage, dep: Dependency) -> None:
+        """Initialize a database dependency from a package and dependency."""
         # We intentionally skip calling super().__init__()
         self.from_package_id = package.id
         self.source = dep.source
         self.package = dep.package
-        self.semantic_version = dep.semantic_version  # type: ignore
+        self.semantic_version = dep.semantic_version  # type: ignore[assignment]
 
-    @hybrid_property  # type: ignore
+    @hybrid_property  # type: ignore[misc]
     def semantic_version(self) -> SemanticVersion:
+        """Get the semantic version of the dependency."""
         resolver = resolver_by_name(self.source)
         return resolver.parse_spec(self.semantic_version_string)
 
-    @semantic_version.setter  # type: ignore
-    def semantic_version(self, new_version: Union[SemanticVersion, str]):
+    @semantic_version.setter  # type: ignore[misc]
+    def semantic_version(self, new_version: SemanticVersion | str) -> None:
+        """Set the semantic version of the dependency."""
         self.semantic_version_string = str(new_version)
 
 
 class DependencyMapping:
-    def __init__(self, package: "DBPackage"):
+    """Mapping of dependencies for a package."""
+
+    def __init__(self, package: DBPackage) -> None:
+        """Initialize dependency mapping for a package."""
         super().__init__()
-        self._deps: Dict[str, Dependency] = {
+        self._deps: dict[str, Dependency] = {
             dep.package: Dependency(
                 package=dep.package,
                 source=dep.source,
@@ -102,32 +123,41 @@ class DependencyMapping:
             for dep in package.raw_dependencies
         }
 
-    def items(self) -> Iterator[Tuple[str, Dependency]]:
+    def items(self) -> Iterator[tuple[str, Dependency]]:
+        """Return iterator over (name, dependency) pairs."""
         yield from self._deps.items()
 
     def keys(self) -> Iterable[str]:
+        """Return iterator over dependency names."""
         return self._deps.keys()
 
     def values(self) -> Iterable[Dependency]:
+        """Return iterator over dependencies."""
         return self._deps.values()
 
-    def __setitem__(self, dep_name: str, dep: Dependency):
+    def __setitem__(self, dep_name: str, dep: Dependency) -> None:
+        """Set a dependency by name."""
         self._deps[dep_name] = dep
 
-    def __delitem__(self, dep_name: str):
-        pass
+    def __delitem__(self, dep_name: str) -> None:
+        """Delete a dependency by name."""
 
     def __getitem__(self, package_name: str) -> Dependency:
+        """Get a dependency by name."""
         return self._deps[package_name]
 
     def __len__(self) -> int:
+        """Return the number of dependencies."""
         return len(self._deps)
 
     def __iter__(self) -> Iterator[str]:
+        """Return iterator over dependency names."""
         return iter(self._deps)
 
 
-class DBPackage(Base, Package):  # type: ignore
+class DBPackage(Base, Package):  # type: ignore[misc]
+    """Database model for packages."""
+
     __tablename__ = "packages"
 
     id = Column(Integer, primary_key=True)
@@ -143,7 +173,8 @@ class DBPackage(Base, Package):  # type: ignore
         cascade="all, delete, delete-orphan",
     )
 
-    def __init__(self, package: Package):
+    def __init__(self, package: Package) -> None:
+        """Initialize a database package from a package."""
         # We intentionally skip calling super().__init__()
         self.name = package.name
         self.version = package.version
@@ -151,10 +182,12 @@ class DBPackage(Base, Package):  # type: ignore
 
     @property
     def resolver(self) -> DependencyResolver:
+        """Get the resolver for this package."""
         return resolver_by_name(self.source)
 
     @staticmethod
-    def from_package(package: Package, session) -> "DBPackage":
+    def from_package(package: Package, session: Any) -> DBPackage:  # noqa: ANN401
+        """Create a DBPackage from a Package and add to session."""
         if not isinstance(package, DBPackage):
             dep_pkg = package
             package = DBPackage(package)
@@ -166,6 +199,7 @@ class DBPackage(Base, Package):  # type: ignore
         return package
 
     def to_package(self) -> Package:
+        """Convert to a Package object."""
         return Package(
             source=self.source,
             name=self.name,
@@ -182,42 +216,54 @@ class DBPackage(Base, Package):  # type: ignore
 
     @property
     def version(self) -> Version:
+        """Get the version of the package."""
         return self.resolver.parse_version(self.version_str)
 
     @version.setter
-    def version(self, new_version: Union[Version, str]):
+    def version(self, new_version: Version | str) -> None:
+        """Set the version of the package."""
         self.version_str = str(new_version)
 
     @property
-    def dependencies(self) -> DependencyMapping:  # type: ignore
+    def dependencies(self) -> DependencyMapping:  # type: ignore[misc]
+        """Get the dependencies of the package."""
         return DependencyMapping(self)
 
 
 class SourceFilteredPackageCache(PackageCache):
-    def __init__(self, source: Optional[str], parent: "DBPackageCache"):
+    """Package cache filtered by source."""
+
+    def __init__(self, source: str | None, parent: DBPackageCache) -> None:
+        """Initialize source-filtered package cache."""
         super().__init__()
-        self.source: Optional[str] = source
+        self.source: str | None = source
         self.parent: DBPackageCache = parent
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Return the number of packages in the cache."""
         return self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).count()
 
     def __iter__(self) -> Iterator[Package]:
+        """Return iterator over packages in the cache."""
         yield from [
             p.to_package()
             for p in self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).all()
         ]
 
     def was_resolved(self, dependency: Dependency) -> bool:
+        """Check if a dependency was resolved."""
         return self.parent.was_resolved(dependency)
 
-    def set_resolved(self, dependency: Dependency):
+    def set_resolved(self, dependency: Dependency) -> None:
+        """Mark a dependency as resolved."""
         self.parent.set_resolved(dependency)
 
-    def from_source(self, source: Optional[str]) -> "PackageCache":
+    def from_source(self, source: str | None) -> PackageCache:
+        """Get a package cache filtered by source."""
         return SourceFilteredPackageCache(source, self.parent)
 
     def package_versions(self, package_name: str) -> Iterator[Package]:
+        """Get all versions of a package by name."""
         yield from [
             p.to_package()
             for p in self.parent.session.query(DBPackage)
@@ -228,29 +274,38 @@ class SourceFilteredPackageCache(PackageCache):
             .all()
         ]
 
-    def package_full_names(self) -> FrozenSet[str]:
+    def package_full_names(self) -> frozenset[str]:
+        """Get all full names of packages in the cache."""
         return frozenset(
             self.parent.session.query(distinct(DBPackage.name)).filter(DBPackage.source_name.like(self.source)).all()
         )
 
-    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
+    def match(self, to_match: str | Package | Dependency) -> Iterator[Package]:
+        """Match packages against a pattern."""
         return self.parent.match(to_match)
 
-    def add(self, package: Package):
+    def add(self, package: Package) -> None:
+        """Add a package to the cache."""
         return self.parent.add(package)
 
-    def set_updated(self, package: Package, resolver: str):
+    def set_updated(self, package: Package, resolver: str) -> None:
+        """Mark a package as updated by a resolver."""
         return self.parent.set_updated(package, resolver)
 
     def was_updated(self, package: Package, resolver: str) -> bool:
+        """Check if a package was updated by a resolver."""
         return self.parent.was_updated(package, resolver)
 
-    def updated_by(self, package: Package) -> FrozenSet[str]:
+    def updated_by(self, package: Package) -> frozenset[str]:
+        """Get all resolvers that updated a package."""
         return self.parent.updated_by(package)
 
 
 class DBPackageCache(PackageCache):
-    def __init__(self, db: Union[str, Path] = ":memory:"):
+    """Database-backed package cache."""
+
+    def __init__(self, db: str | Path = ":memory:") -> None:
+        """Initialize database package cache."""
         super().__init__()
         if db == ":memory:":
             db = "sqlite:///:memory:"
@@ -265,31 +320,32 @@ class DBPackageCache(PackageCache):
         self.db: str = db
         self._session = None
 
-    def open(self):
-        if isinstance(self.db, str):
-            db = create_engine(self.db)
-        else:
-            db = self.db
+    def open(self) -> None:
+        """Open the database connection."""
+        db = create_engine(self.db) if isinstance(self.db, str) else self.db
         self._session = sessionmaker(bind=db)()
         Base.metadata.create_all(db)
 
-    def close(self):
+    def close(self) -> None:
+        """Close the database connection."""
         self._session = None
 
     @property
-    def session(self):
+    def session(self) -> Any:  # noqa: ANN401
+        """Get the database session."""
         return self._session
 
-    def add(self, package: Package):
+    def add(self, package: Package) -> None:
+        """Add a package to the cache."""
         self.extend((package,))
 
-    def extend(self, packages: Iterable[Package]):
+    def extend(self, packages: Iterable[Package]) -> None:
+        """Add multiple packages to the cache."""
         for package in packages:
             for existing in self.match(package):
                 if len(existing.dependencies) > len(package.dependencies):
-                    raise ValueError(
-                        f"Package {package!s} has already been resolved with more dependencies: {existing!s}"
-                    )
+                    msg = f"Package {package!s} has already been resolved with more dependencies: {existing!s}"
+                    raise ValueError(msg)
                 if existing.dependencies != package.dependencies:
                     existing.dependencies = package.dependencies
                     self.session.commit()
@@ -305,31 +361,37 @@ class DBPackageCache(PackageCache):
                 _ = DBPackage.from_package(package, self.session)
         self.session.commit()
 
-    def __len__(self):
+    def __len__(self) -> int:
+        """Return the number of packages in the cache."""
         return self.session.query(DBPackage).count()
 
     def __iter__(self) -> Iterator[Package]:
+        """Return iterator over packages in the cache."""
         yield from self.session.query(DBPackage).all()
 
-    def from_source(self, source: Optional[str]) -> SourceFilteredPackageCache:
+    def from_source(self, source: str | None) -> SourceFilteredPackageCache:
+        """Get a package cache filtered by source."""
         return SourceFilteredPackageCache(source, self)
 
     def package_versions(self, package_full_name: str) -> Iterator[Package]:
+        """Get all versions of a package by full name."""
         yield from [
             p.to_package() for p in self.session.query(DBPackage).filter(DBPackage.name.like(package_full_name)).all()
         ]
 
-    def package_full_names(self) -> FrozenSet[str]:
+    def package_full_names(self) -> frozenset[str]:
+        """Get all full names of packages in the cache."""
         return frozenset(
             f"{result[0]}:{result[1]}"
             for result in self.session.query(distinct(DBPackage.source), distinct(DBPackage.name)).all()
         )
 
-    def _make_query(self, to_match: Union[str, Package], source: Optional[str] = None):
+    def _make_query(self, to_match: str | Package, source: str | None = None) -> Any:  # noqa: ANN401
+        """Create a database query for matching packages."""
         if source is None and isinstance(to_match, Package):
             source = to_match.source
         if source is not None:
-            filters: Tuple[Any, ...] = (DBPackage.source.like(source),)
+            filters: tuple[Any, ...] = (DBPackage.source.like(source),)
         else:
             filters = ()
         if isinstance(to_match, Package):
@@ -340,20 +402,19 @@ class DBPackageCache(PackageCache):
             )
         return self.session.query(DBPackage).filter(DBPackage.name.like(to_match), *filters)
 
-    def match(self, to_match: Union[str, Package, Dependency]) -> Iterator[Package]:
+    def match(self, to_match: str | Package | Dependency) -> Iterator[Package]:
+        """Match packages against a pattern."""
         if isinstance(to_match, Dependency):
             for package in self._make_query(to_match.package, source=to_match.source):
                 if package.version in to_match.semantic_version:
                     yield package.to_package()
         else:
-            if isinstance(to_match, Package):
-                source: Optional[str] = to_match.source
-            else:
-                source = None
+            source: str | None = to_match.source if isinstance(to_match, Package) else None
             # we intentionally build a list before yielding so that we don't keep the session query lingering
             yield from [package.to_package() for package in self._make_query(to_match, source=source).all()]
 
     def was_resolved(self, dependency: Dependency) -> bool:
+        """Check if a dependency was resolved."""
         return (
             self.session.query(Resolution)
             .filter(
@@ -366,7 +427,8 @@ class DBPackageCache(PackageCache):
             > 0
         )
 
-    def set_resolved(self, dependency: Dependency):
+    def set_resolved(self, dependency: Dependency) -> None:
+        """Mark a dependency as resolved."""
         if self.was_resolved(dependency):
             return
         self.session.add(
@@ -378,7 +440,8 @@ class DBPackageCache(PackageCache):
         )
         self.session.commit()
 
-    def updated_by(self, package: Package) -> FrozenSet[str]:
+    def updated_by(self, package: Package) -> frozenset[str]:
+        """Get all resolvers that updated a package."""
         return frozenset(
             u.resolver
             for u in self.session.query(Updated).filter(
@@ -389,6 +452,7 @@ class DBPackageCache(PackageCache):
         )
 
     def was_updated(self, package: Package, resolver: str) -> bool:
+        """Check if a package was updated by a resolver."""
         if package.source == resolver:
             return True
         return (
@@ -404,7 +468,8 @@ class DBPackageCache(PackageCache):
             > 0
         )
 
-    def set_updated(self, package: Package, resolver: str):
+    def set_updated(self, package: Package, resolver: str) -> None:
+        """Mark a package as updated by a resolver."""
         if self.was_updated(package, resolver):
             return
         self.session.add(

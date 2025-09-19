@@ -1,24 +1,34 @@
+"""Dependency graph implementation."""
+
+from __future__ import annotations
+
 import logging
-from typing import TYPE_CHECKING, Dict, Set, Tuple
+from typing import TYPE_CHECKING
 
 from .graphs import RootedDiGraph
 
 if TYPE_CHECKING:
     from .models import Package, SourcePackage
+else:
+    from .models import Dependency, Package, SourcePackage
 
 logger = logging.getLogger(__name__)
 
 
 class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
+    """Dependency graph for packages and source packages."""
+
     root_type = "SourcePackage"
     _collapsed: bool = False
 
     @property
-    def source_packages(self) -> Set["SourcePackage"]:
+    def source_packages(self) -> set[SourcePackage]:
+        """Get all source packages in the graph."""
         return self.roots
 
-    def packages_by_name(self) -> Dict[Tuple[str, str], Set["Package"]]:
-        ret: Dict[Tuple[str, str], Set[Package]] = {}
+    def packages_by_name(self) -> dict[tuple[str, str], set[Package]]:
+        """Group packages by (source, name) tuple."""
+        ret: dict[tuple[str, str], set[Package]] = {}
         for node in self:
             name = node.source, node.name
             if name not in ret:
@@ -27,20 +37,19 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
                 ret[name].add(node)
         return ret
 
-    def collapse_versions(self) -> "DependencyGraph":
+    def collapse_versions(self) -> DependencyGraph:
         """Group all versions of a package into a single node.
-        All dependency edges will be grouped into a single edge with a wildcard semantic version.
 
+        All dependency edges will be grouped into a single edge with a wildcard semantic version.
         """
         if self._collapsed:
             return self
         graph = DependencyGraph()
         package_instances = self.packages_by_name()
-        packages_by_name: Dict[str, Package] = {}
+        packages_by_name: dict[str, Package] = {}
         # choose the maximum version among all packages of the same name:
         for (package_source, package_name), instances in package_instances.items():
             # convert all of the dependencies to SimpleSpec("*") wildcard versions:
-            from .models import Dependency
 
             deps = {
                 Dependency(package=dep.package, source=dep.source)
@@ -57,12 +66,12 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
                     source_repos = {s.source_repo for s in source_packages_in_instances}
                     source_repo = next(iter(source_repos))
                     if len(source_repos) > 1:
-                        logger.warning(
+                        msg = (
                             f"package {package_source}:{package_name} is provided by multiple source "
                             f"repositories: {', '.join(map(str, source_repos))}. "
                             f"Collapsing to {source_repo}."
                         )
-                    from .models import SourcePackage
+                        logger.warning(msg)
 
                     pkg = SourcePackage(
                         name=package_name,
@@ -72,8 +81,6 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
                         dependencies=deps,
                     )
                 else:
-                    from .models import Package
-
                     pkg = Package(
                         name=package_name,
                         version=version,
@@ -89,7 +96,8 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
         graph._collapsed = True
         return graph
 
-    def distance_to(self, graph: RootedDiGraph["Package", "SourcePackage"], normalize: bool = False) -> float:
+    def distance_to(self, graph: RootedDiGraph[Package, SourcePackage], *, normalize: bool = False) -> float:
+        """Calculate distance to another graph."""
         if not self._collapsed:
             return self.collapse_versions().distance_to(graph, normalize)
         if not self.source_packages:

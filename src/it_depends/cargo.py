@@ -1,11 +1,17 @@
+"""Cargo package dependency resolution."""
+
+from __future__ import annotations
+
 import json
 import logging
 import shutil
 import subprocess
 import tempfile
-from collections.abc import Iterator
 from pathlib import Path
-from typing import Dict, Optional, Type, Union
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 from semantic_version.base import Always, BaseSpec
 
@@ -27,38 +33,49 @@ logger = logging.getLogger(__name__)
 
 @BaseSpec.register_syntax
 class CargoSpec(SimpleSpec):
+    """Cargo-specific version specification."""
+
     SYNTAX = "cargo"
 
     class Parser(SimpleSpec.Parser):
+        """Parser for Cargo version specifications."""
+
         @classmethod
-        def parse(cls, expression):
+        def parse(cls, expression: str) -> CargoSpec:
+            """Parse a Cargo version specification."""
             # The only difference here is that cargo clauses can have whitespace, so we need to strip each block:
             blocks = [b.strip() for b in expression.split(",")]
             clause = Always()
             for block in blocks:
                 if not cls.NAIVE_SPEC.match(block):
-                    raise ValueError("Invalid simple block %r" % block)
+                    msg = f"Invalid simple block {block!r}"
+                    raise ValueError(msg)
                 clause &= cls.parse_block(block)
 
             return clause
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """Return string representation of the spec."""
         # remove the whitespace to canonicalize the spec
         return ",".join(b.strip() for b in self.expression.split(","))
 
-    def __or__(self, other):
+    def __or__(self, other: CargoSpec) -> CargoSpec:
+        """Combine two CargoSpec instances."""
         return CargoSpec(f"{self.expression},{other.expression}")
 
 
 def get_dependencies(
     repo: SourceRepository,
+    *,
     check_for_cargo: bool = True,
-    cache: Optional[PackageCache] = None,
+    cache: PackageCache | None = None,  # noqa: ARG001
 ) -> Iterator[Package]:
+    """Get dependencies from a Cargo project."""
     if check_for_cargo and shutil.which("cargo") is None:
-        raise ValueError("`cargo` does not appear to be installed! Make sure it is installed and in the PATH.")
+        cargo_error = "`cargo` does not appear to be installed! Make sure it is installed and in the PATH."
+        raise ValueError(cargo_error)
 
-    metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=repo.path))
+    metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=repo.path))  # noqa: S607
 
     if "workspace_members" in metadata:
         workspace_members = {member[: member.find(" ")] for member in metadata["workspace_members"]}
@@ -67,13 +84,13 @@ def get_dependencies(
 
     for package in metadata["packages"]:
         if package["name"] in workspace_members:
-            _class: Type[Union[SourcePackage, Package]] = SourcePackage
+            _class: type[SourcePackage | Package] = SourcePackage
             kwargs = {"source_repo": repo}
         else:
             _class = Package
             kwargs = {}
 
-        dependencies: Dict[str, Dependency] = {}
+        dependencies: dict[str, Dependency] = {}
         for dep in package["dependencies"]:
             if dep["kind"] is not None:
                 continue
@@ -88,7 +105,7 @@ def get_dependencies(
                     source=CargoResolver(),
                 )
 
-        yield _class(  # type: ignore
+        yield _class(  # type: ignore[call-arg]
             name=package["name"],
             version=Version.coerce(package["version"]),
             source="cargo",
@@ -99,27 +116,31 @@ def get_dependencies(
 
 
 class CargoResolver(DependencyResolver):
+    """Cargo dependency resolver for Rust packages."""
+
     name = "cargo"
     description = "classifies the dependencies of Rust packages using `cargo metadata`"
 
     def is_available(self) -> ResolverAvailability:
+        """Check if Cargo is available."""
         if shutil.which("cargo") is None:
             return ResolverAvailability(
-                False,
-                "`cargo` does not appear to be installed! Make sure it is installed and in the PATH.",
+                available=False,
+                reason="`cargo` does not appear to be installed! Make sure it is installed and in the PATH.",
             )
-        return ResolverAvailability(True)
+        return ResolverAvailability(available=True)
 
     @classmethod
     def parse_spec(cls, spec: str) -> CargoSpec:
+        """Parse a Cargo version specification."""
         return CargoSpec(spec)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
+        """Check if this resolver can resolve dependencies from the given repository."""
         return bool(self.is_available()) and (repo.path / "Cargo.toml").exists()
 
-    def resolve_from_source(
-        self, repo: SourceRepository, cache: Optional[PackageCache] = None
-    ) -> Optional[SourcePackage]:
+    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:
+        """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
         result = None
@@ -134,13 +155,10 @@ class CargoResolver(DependencyResolver):
         return result
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
-        """search_result = subprocess.check_output(["cargo", "search", "--limit", "100", str(dependency.package)]).decode()
-        for line in search_result.splitlines():
-            pkgid = (line.split("#", 1)[0].strip())
-            if pkgid.startswith(f"{dependency.package}"):
-                break
-        else:
-            return
+        """Resolve a dependency to available packages.
+
+        This method searches for packages matching the dependency specification
+        and returns an iterator of available packages.
         """
         pkgid = dependency.package
 
@@ -151,17 +169,18 @@ class CargoResolver(DependencyResolver):
         semantic_versions = semantic_version.split(",")
         cache = InMemoryPackageCache()
         with cache:
-            for semantic_version in map(str.strip, semantic_versions):
-                if semantic_version[0].isnumeric():
-                    semantic_version = "=" + semantic_version
-                pkgid = f'{pkgid.split("=")[0].strip()} = "{semantic_version}"'
+            for version_str in map(str.strip, semantic_versions):
+                processed_version = version_str
+                if processed_version[0].isnumeric():
+                    processed_version = "=" + processed_version
+                pkgid = f'{pkgid.split("=")[0].strip()} = "{processed_version}"'
 
-                logger.debug(f"Found {pkgid} for {dependency} in crates.io")
+                logger.debug("Found %s for %s in crates.io", pkgid, dependency)
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    subprocess.check_output(["cargo", "init"], cwd=tmpdir)
-                    with open(Path(tmpdir) / "Cargo.toml", "a") as f:
+                    subprocess.check_output(["cargo", "init"], cwd=tmpdir)  # noqa: S607
+                    with Path(tmpdir).joinpath("Cargo.toml").open("a") as f:
                         f.write(f"{pkgid}\n")
                     self.resolve_from_source(SourceRepository(path=tmpdir), cache)
         cache.set_resolved(dependency)
-        # TODO: propagate up any other info we have in this cache
+        # TODO(@evandowning): propagate up any other info we have in this cache  # noqa: TD003, FIX002
         return cache.match(dependency)
