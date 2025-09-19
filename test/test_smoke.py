@@ -11,14 +11,10 @@ import requests
 from it_depends.dependencies import (
     Dependency,
     InMemoryPackageCache,
-    List,
-    Optional,
     Package,
     PackageRepository,
     SimpleSpec,
     SourceRepository,
-    Tuple,
-    Union,
     resolve,
     resolver_by_name,
     resolvers,
@@ -82,7 +78,7 @@ class TestResolvers(TestCase):
 
         """
         cache = InMemoryPackageCache()
-        to_test: List[Tuple[Union[Dependency, SourceRepository], int]] = [
+        to_test: list[tuple[Dependency | SourceRepository, int]] = [
             (Dependency.from_string(dep_name), 5)
             for dep_name in (
                 "pip:cvedb@*",
@@ -103,7 +99,7 @@ class TestResolvers(TestCase):
                 first_result: set[Package] = set()
                 for i in range(num_attempts):
                     if i < num_attempts // 2:
-                        attempt_cache: Optional[InMemoryPackageCache] = None
+                        attempt_cache: InMemoryPackageCache | None = None
                     else:
                         attempt_cache = cache
                     result = set(resolve(dep, cache=attempt_cache))

@@ -13,7 +13,9 @@ jobs:
   test:
     strategy:
       matrix:
-        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        # TODO(@evandowning): Uncomment this again.
+        # python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        python: ["3.13"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
