@@ -52,7 +52,7 @@ class CargoSpec(SimpleSpec):
                     raise ValueError(msg)
                 clause &= cls.parse_block(block)
 
-            return clause
+            return clause  # type: ignore[no-any-return]
 
     def __str__(self) -> str:
         """Return string representation of the spec."""
@@ -105,7 +105,7 @@ def get_dependencies(
                     source=CargoResolver(),
                 )
 
-        yield _class(  # type: ignore[call-arg]
+        yield _class(
             name=package["name"],
             version=Version.coerce(package["version"]),
             source="cargo",
@@ -125,10 +125,10 @@ class CargoResolver(DependencyResolver):
         """Check if Cargo is available."""
         if shutil.which("cargo") is None:
             return ResolverAvailability(
-                available=False,
+                is_available=False,
                 reason="`cargo` does not appear to be installed! Make sure it is installed and in the PATH.",
             )
-        return ResolverAvailability(available=True)
+        return ResolverAvailability(is_available=True)
 
     @classmethod
     def parse_spec(cls, spec: str) -> CargoSpec:
@@ -139,7 +139,7 @@ class CargoResolver(DependencyResolver):
         """Check if this resolver can resolve dependencies from the given repository."""
         return bool(self.is_available()) and (repo.path / "Cargo.toml").exists()
 
-    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:
+    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
@@ -147,11 +147,11 @@ class CargoResolver(DependencyResolver):
         for package in get_dependencies(repo, check_for_cargo=False):
             if isinstance(package, SourcePackage):
                 result = package
-            elif cache is not None:
+            elif cache is not None and hasattr(cache, "add"):
                 cache.add(package)
                 for dep in package.dependencies:
-                    if not cache.was_resolved(dep):
-                        cache.set_resolved(dep)
+                    if not cache.was_resolved(dep):  # type: ignore[attr-defined]
+                        cache.set_resolved(dep)  # type: ignore[attr-defined]
         return result
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:

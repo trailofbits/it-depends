@@ -19,15 +19,12 @@ from sqlalchemy import (
     create_engine,
     distinct,
 )
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import relationship, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
 from .dependencies import (
     Dependency,
     Package,
     PackageCache,
-    SemanticVersion,
     resolver_by_name,
 )
 
@@ -37,10 +34,12 @@ from .it_depends import APP_DIRS
 
 DEFAULT_DB_PATH = Path(APP_DIRS.user_cache_dir) / "dependencies.sqlite"
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    """Base class for all database models."""
 
 
-class Resolution(Base):  # type: ignore[misc]
+class Resolution(Base):
     """Database model for package resolutions."""
 
     __tablename__ = "resolutions"
@@ -53,7 +52,7 @@ class Resolution(Base):  # type: ignore[misc]
     __table_args__ = (UniqueConstraint("package", "version", "source", name="resolution_unique_constraint"),)
 
 
-class Updated(Base):  # type: ignore[misc]
+class Updated(Base):
     """Database model for package updates."""
 
     __tablename__ = "updated"
@@ -67,7 +66,7 @@ class Updated(Base):  # type: ignore[misc]
     __table_args__ = (UniqueConstraint("package", "version", "source", "resolver", name="updated_unique_constraint"),)
 
 
-class DBDependency(Base, Dependency):  # type: ignore[misc]
+class DBDependency(Base, Dependency):
     """Database model for dependencies."""
 
     __tablename__ = "dependencies"
@@ -75,8 +74,8 @@ class DBDependency(Base, Dependency):  # type: ignore[misc]
     id = Column(Integer, primary_key=True)
     from_package_id = Column(Integer, ForeignKey("packages.id"))
     from_package = relationship("DBPackage", back_populates="raw_dependencies")
-    source = Column(String, nullable=False)
-    package = Column(String, nullable=False)
+    source = Column(String, nullable=False)  # type: ignore[assignment]
+    package = Column(String, nullable=False)  # type: ignore[assignment]
     semantic_version_string = Column("semantic_version", String, nullable=True)
 
     __table_args__ = (
@@ -92,20 +91,9 @@ class DBDependency(Base, Dependency):  # type: ignore[misc]
         """Initialize a database dependency from a package and dependency."""
         # We intentionally skip calling super().__init__()
         self.from_package_id = package.id
-        self.source = dep.source
-        self.package = dep.package
-        self.semantic_version = dep.semantic_version  # type: ignore[assignment]
-
-    @hybrid_property  # type: ignore[misc]
-    def semantic_version(self) -> SemanticVersion:
-        """Get the semantic version of the dependency."""
-        resolver = resolver_by_name(self.source)
-        return resolver.parse_spec(self.semantic_version_string)
-
-    @semantic_version.setter  # type: ignore[misc]
-    def semantic_version(self, new_version: SemanticVersion | str) -> None:
-        """Set the semantic version of the dependency."""
-        self.semantic_version_string = str(new_version)
+        self.source = dep.source  # type: ignore[assignment]
+        self.package = dep.package  # type: ignore[assignment]
+        self.semantic_version_string = str(dep.semantic_version)  # type: ignore[assignment]
 
 
 class DependencyMapping:
@@ -155,15 +143,16 @@ class DependencyMapping:
         return iter(self._deps)
 
 
-class DBPackage(Base, Package):  # type: ignore[misc]
+class DBPackage(Base, Package):
     """Database model for packages."""
 
     __tablename__ = "packages"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False)
+    name = Column(String, nullable=False)  # type: ignore[assignment]
     version_str = Column("version", String, nullable=False)
-    source = Column("source", String, nullable=False)
+    source = Column("source", String, nullable=False)  # type: ignore[assignment]
+    source_name = Column("source_name", String, nullable=False)
 
     __table_args__ = (UniqueConstraint("name", "version", "source", name="package_unique_constraint"),)
 
@@ -176,9 +165,9 @@ class DBPackage(Base, Package):  # type: ignore[misc]
     def __init__(self, package: Package) -> None:
         """Initialize a database package from a package."""
         # We intentionally skip calling super().__init__()
-        self.name = package.name
-        self.version = package.version
-        self.source = package.source
+        self.name = package.name  # type: ignore[assignment]
+        self.version_str = str(package.version)  # type: ignore[assignment]
+        self.source = package.source  # type: ignore[assignment]
 
     @property
     def resolver(self) -> DependencyResolver:
@@ -201,8 +190,8 @@ class DBPackage(Base, Package):  # type: ignore[misc]
     def to_package(self) -> Package:
         """Convert to a Package object."""
         return Package(
-            source=self.source,
-            name=self.name,
+            source=self.source,  # type: ignore[arg-type]
+            name=self.name,  # type: ignore[arg-type]
             version=self.version,
             dependencies=(
                 Dependency(
@@ -217,15 +206,15 @@ class DBPackage(Base, Package):  # type: ignore[misc]
     @property
     def version(self) -> Version:
         """Get the version of the package."""
-        return self.resolver.parse_version(self.version_str)
+        return self.resolver.parse_version(self.version_str)  # type: ignore[arg-type]
 
     @version.setter
     def version(self, new_version: Version | str) -> None:
         """Set the version of the package."""
-        self.version_str = str(new_version)
+        self.version_str = str(new_version)  # type: ignore[assignment]
 
     @property
-    def dependencies(self) -> DependencyMapping:  # type: ignore[misc]
+    def dependencies(self) -> DependencyMapping:  # type: ignore[override]
         """Get the dependencies of the package."""
         return DependencyMapping(self)
 
@@ -239,9 +228,17 @@ class SourceFilteredPackageCache(PackageCache):
         self.source: str | None = source
         self.parent: DBPackageCache = parent
 
+    def open(self) -> None:
+        """Open the cache."""
+        self.parent.open()
+
+    def close(self) -> None:
+        """Close the cache."""
+        self.parent.close()
+
     def __len__(self) -> int:
         """Return the number of packages in the cache."""
-        return self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).count()
+        return self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).count()  # type: ignore[no-any-return]
 
     def __iter__(self) -> Iterator[Package]:
         """Return iterator over packages in the cache."""
@@ -318,7 +315,7 @@ class DBPackageCache(PackageCache):
             db.parent.mkdir(parents=True, exist_ok=True)
             db = f"sqlite:///{db.absolute()!s}?check_same_thread=False"
         self.db: str = db
-        self._session = None
+        self._session: Any = None
 
     def open(self) -> None:
         """Open the database connection."""
@@ -363,7 +360,7 @@ class DBPackageCache(PackageCache):
 
     def __len__(self) -> int:
         """Return the number of packages in the cache."""
-        return self.session.query(DBPackage).count()
+        return self.session.query(DBPackage).count()  # type: ignore[no-any-return]
 
     def __iter__(self) -> Iterator[Package]:
         """Return iterator over packages in the cache."""
@@ -415,7 +412,7 @@ class DBPackageCache(PackageCache):
 
     def was_resolved(self, dependency: Dependency) -> bool:
         """Check if a dependency was resolved."""
-        return (
+        count: int = (
             self.session.query(Resolution)
             .filter(
                 Resolution.package.like(dependency.package),
@@ -424,8 +421,8 @@ class DBPackageCache(PackageCache):
             )
             .limit(1)
             .count()
-            > 0
         )
+        return count > 0
 
     def set_resolved(self, dependency: Dependency) -> None:
         """Mark a dependency as resolved."""
@@ -455,7 +452,7 @@ class DBPackageCache(PackageCache):
         """Check if a package was updated by a resolver."""
         if package.source == resolver:
             return True
-        return (
+        count: int = (
             self.session.query(Updated)
             .filter(
                 Updated.source.like(package.source),
@@ -465,8 +462,8 @@ class DBPackageCache(PackageCache):
             )
             .limit(1)
             .count()
-            > 0
         )
+        return count > 0
 
     def set_updated(self, package: Package, resolver: str) -> None:
         """Mark a package as updated by a resolver."""

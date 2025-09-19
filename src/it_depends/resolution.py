@@ -20,8 +20,6 @@ from .sbom import SBOM
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-    from .models import Dependency, Package
-
 logger = logging.getLogger(__name__)
 
 
@@ -69,7 +67,7 @@ def _update_package(package: Package, depth: int) -> _PackageResult:
     return _PackageResult(
         package=package,
         was_updated=len(uir) > 0,
-        updated_in_resolvers=uir,
+        updated_in_resolvers=set(uir),
         depth=depth,
     )
 
@@ -77,7 +75,7 @@ def _update_package(package: Package, depth: int) -> _PackageResult:
 def _resolve_dependency(dep: Dependency, depth: int) -> _DependencyResult:
     """Resolve a dependency to packages."""
     for resolver in resolvers():
-        if resolver.can_resolve_from_source(dep):
+        if resolver.name == dep.source:
             try:
                 packages = list(resolver.resolve(dep))
                 return _DependencyResult(dep=dep, packages=packages, depth=depth)
@@ -86,7 +84,7 @@ def _resolve_dependency(dep: Dependency, depth: int) -> _DependencyResult:
     return _DependencyResult(dep=dep, packages=[], depth=depth)
 
 
-def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_ascending: bool = True) -> Iterator[SBOM]:  # noqa: C901
+def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_ascending: bool = True) -> Iterator[SBOM]:  # noqa: C901, ARG001
     """Generate SBOMs from packages.
 
     Args:
@@ -117,22 +115,24 @@ def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_as
         if current.is_complete:
             yield SBOM(
                 dependencies=current.dependencies(),
-                root_packages=current.packages(),
+                root_packages=list(current.packages),
             )
             continue
 
-        for package in current.packages():
+        for package in current.packages:
             if not package.dependencies:
                 continue
 
             for dep in package.dependencies:
-                if dep in current:
+                # Check if dependency is already satisfied by a package in the resolution
+                if any(dep.match(pkg) for pkg in current.packages):
                     continue
 
                 try:
-                    packages_for_dep = list(resolve(dep, packages=packages))
+                    packages_for_dep = list(resolve(dep))
                     if packages_for_dep:
-                        new_resolution = current.add(packages_for_dep, dep)
+                        # Use the first package as the dependency
+                        new_resolution = current.add(packages_for_dep, packages_for_dep[0])
                         if new_resolution.is_valid and new_resolution not in history:
                             stack.append(new_resolution)
                 except Exception:  # noqa: S110, BLE001
@@ -164,10 +164,12 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
 
     try:
         with tqdm(desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t:
+            # Initialize variables
+            unresolved_dependencies: list[tuple[Dependency, int]] = []
+            unupdated_packages: list[tuple[Package, int]] = []
+
             if isinstance(repo_or_spec, SourceRepository):
                 # Resolve from source repository
-                unresolved_dependencies: list[tuple[Dependency, int]] = []
-                unupdated_packages: list[tuple[Package, int]] = []
                 found_source_package = False
                 for resolver in resolvers():
                     if resolver.can_resolve_from_source(repo_or_spec):
@@ -181,15 +183,13 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 if not found_source_package:
                     error_msg = f"Can not resolve {repo_or_spec}"
                     raise ValueError(error_msg)
-            elif hasattr(repo_or_spec, "package"):  # Dependency
-                unresolved_dependencies: list[tuple[Dependency, int]] = [(repo_or_spec, 0)]
-                unupdated_packages: list[tuple[Package, int]] = []
-            elif hasattr(repo_or_spec, "name"):  # Package
-                unresolved_dependencies: list[tuple[Dependency, int]] = []
-                unupdated_packages: list[tuple[Package, int]] = [(repo_or_spec, 0)]
+            elif isinstance(repo_or_spec, Dependency):
+                unresolved_dependencies = [(repo_or_spec, 0)]
+            elif isinstance(repo_or_spec, Package):
+                unupdated_packages = [(repo_or_spec, 0)]
             else:
                 error_msg = "repo_or_spec must be either a Package, Dependency, or SourceRepository"
-                raise ValueError(error_msg)
+                raise TypeError(error_msg)
 
             t.total = len(unupdated_packages) + len(unresolved_dependencies)
 
@@ -214,7 +214,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                                 futures.add(pool.submit(_resolve_dependency, dep, at_depth + 1))
                             else:
                                 result = _resolve_dependency(dep, at_depth + 1)
-                                new_deps = {d for d, _ in result.packages}
+                                new_deps = {d for pkg in result.packages for d in pkg.dependencies}
                                 queued.update(new_deps)
 
             def process_resolution(
@@ -267,7 +267,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 not_updated: list[tuple[Package, int]] = []
                 was_updatable = False
                 for package, depth in unupdated_packages:
-                    if cache and cache.was_updated(package):
+                    if cache and any(cache.was_updated(package, resolver.name) for resolver in resolvers()):
                         was_updatable = True
                         if was_updatable:
                             # every resolver that could have updated this package did update it in the cache
@@ -286,7 +286,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 # loop through the unresolved deps and see if any are cached:
                 not_cached: list[tuple[Dependency, int]] = []
                 for dep, depth in unresolved_dependencies:
-                    if dep is not repo_or_spec and cache.was_resolved(dep):
+                    if dep is not repo_or_spec and cache and cache.was_resolved(dep):
                         packages = cache.match(dep)
                         process_resolution(dep, packages, depth, already_cached=True)
                         t.update(1)

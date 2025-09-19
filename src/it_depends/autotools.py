@@ -14,7 +14,6 @@ from pathlib import Path
 from .dependencies import (
     Dependency,
     DependencyResolver,
-    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourcePackage,
@@ -44,17 +43,17 @@ class AutotoolsResolver(DependencyResolver):
         """Check if autotools resolver is available."""
         if shutil.which("autoconf") is None:
             return ResolverAvailability(
-                available=False,
+                is_available=False,
                 reason="`autoconf` does not appear to be installed! Make sure it is installed and in the PATH.",
             )
-        return ResolverAvailability(available=True)
+        return ResolverAvailability(is_available=True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         """Check if resolver can resolve from source repository."""
         return bool(self.is_available()) and (repo.path / "configure.ac").exists()
 
     @staticmethod
-    def _ac_check_header(header_file: str, file_to_package_cache: list[tuple[str]] | None = None) -> Dependency:
+    def _ac_check_header(header_file: str, file_to_package_cache: list[tuple[str, str]] | None = None) -> Dependency:
         """Macro: AC_CHECK_HEADER.
 
         Checks if the system header file header-file is compilable.
@@ -65,7 +64,7 @@ class AutotoolsResolver(DependencyResolver):
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
     @staticmethod
-    def _ac_check_lib(function: str, file_to_package_cache: list[tuple[str]] | None = None) -> Dependency:
+    def _ac_check_lib(function: str, file_to_package_cache: list[tuple[str, str]] | None = None) -> Dependency:
         """Macro: AC_CHECK_LIB.
 
         Checks for the presence of certain C, C++, or Fortran library archive files.
@@ -81,7 +80,7 @@ class AutotoolsResolver(DependencyResolver):
 
     @staticmethod
     def _pkg_check_modules(
-        module_name: str, version: str | None = None, file_to_package_cache: list[tuple[str]] | None = None
+        module_name: str, version: str | None = None, file_to_package_cache: list[tuple[str, str]] | None = None
     ) -> Dependency:
         """Macro: PKG_CHECK_MODULES.
 
@@ -132,7 +131,7 @@ class AutotoolsResolver(DependencyResolver):
     def resolve_from_source(
         self,
         repo: SourceRepository,
-        cache: PackageCache | None = None,  # noqa: ARG002
+        cache: object | None = None,  # noqa: ARG002
     ) -> SourcePackage | None:
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
@@ -161,7 +160,7 @@ class AutotoolsResolver(DependencyResolver):
             ).decode("utf8")
             configure = subprocess.check_output(["autoconf", tmp.name], cwd=repo.path).decode("utf8")  # noqa: S603, S607
 
-        file_to_package_cache: list[tuple[str]] = []
+        file_to_package_cache: list[tuple[str, str]] = []
         deps = []
         for macro_line in trace.split("\n"):
             logger.debug("Handling: %s", macro_line)

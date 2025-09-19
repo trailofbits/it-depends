@@ -292,7 +292,8 @@ def main(argv: Sequence[str] | None = None) -> int:  # noqa: C901, PLR0911, PLR0
                             # only get the first resolution
                             # TODO(@evandowning): Provide a means for enumerating all valid SBOMs # noqa: TD003, FIX002
                             break
-                    output_file.write(cyclonedx_to_json(sbom.to_cyclonedx()))
+                    if sbom is not None:
+                        output_file.write(cyclonedx_to_json(sbom.to_cyclonedx()))
                 else:
                     msg = f"TODO: Implement output format {args.output_format}"
                     raise NotImplementedError(msg)

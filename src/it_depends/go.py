@@ -30,7 +30,6 @@ from .dependencies import (
     Dependency,
     DependencyResolver,
     Package,
-    PackageCache,
     SemanticVersion,
     SourcePackage,
     SourceRepository,
@@ -69,9 +68,12 @@ class MetadataParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Handle HTML start tags."""
         if tag == "meta":
-            attrs = dict(attrs)
-            if attrs.get("name", "") == "go-import":
-                fields = attrs.get("content", "").split(" ")
+            attrs_dict = dict(attrs)
+            if attrs_dict.get("name", "") == "go-import":
+                content = attrs_dict.get("content", "")
+                if content is None:
+                    content = ""
+                fields = content.split(" ")
                 go_import_field_count = 3
                 if len(fields) == go_import_field_count:
                     self.metadata.append(MetaImport(*fields))
@@ -128,7 +130,7 @@ class GoSpec(SimpleSpec):
 
     def __contains__(self, item: object) -> bool:
         """Check if item is contained in this Go spec."""
-        return item == self.clause.target
+        return bool(item == self.clause.target)
 
 
 class GoModule:
@@ -420,7 +422,7 @@ class GoResolver(DependencyResolver):
         module = GoModule.from_import(dependency.package, version_string)
         yield Package(
             name=module.name,
-            version=GoVersion(version_string),  # type: ignore[arg-type]
+            version=GoVersion(version_string),
             source=dependency.source,
             dependencies=[
                 Dependency(
@@ -456,13 +458,13 @@ class GoResolver(DependencyResolver):
             Parsed Version object
 
         """
-        return GoVersion(version_string)  # type: ignore[arg-type]
+        return GoVersion(version_string)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         """Check if this resolver can resolve from the given source repository."""
         return bool(self.is_available()) and (repo.path / "go.mod").exists()
 
-    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:  # noqa: ARG002
+    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:  # noqa: ARG002
         """Resolve package from source repository.
 
         Args:
@@ -484,7 +486,7 @@ class GoResolver(DependencyResolver):
         version = f"{version}????" if git_hash is None else f"{version}{git_hash}"
         return SourcePackage(
             name=module.name,
-            version=GoVersion(version),  # type: ignore[arg-type]
+            version=GoVersion(version),
             source_repo=repo,
             source=self.name,
             dependencies=[

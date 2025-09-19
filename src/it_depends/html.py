@@ -130,7 +130,7 @@ def graph_to_html(  # noqa: C901
             nodes[-1].update({"color": "red"})
         if graph.source_packages:
             nodes[-1]["level"] = max(graph.shortest_path_from_root(package), 0)
-        for pkg1, pkg2, *_ in graph.out_edges(package):  # type: ignore[misc]
+        for pkg1, pkg2, *_ in graph.out_edges(package):
             dep = graph.get_edge_data(pkg1, pkg2)["dependency"]
             dep_name = f"{dep.source}:{dep.package}" if collapse_versions else str(dep)
             edges.append({"from": node_ids[pkg1], "to": node_ids[pkg2], "shape": "dot"})

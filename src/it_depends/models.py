@@ -11,13 +11,13 @@ if TYPE_CHECKING:
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
 
+from .resolver import DependencyResolver, is_known_resolver, resolver_by_name
+
 # Module-level constants to avoid function calls in defaults
 _WILDCARD_SPEC = SimpleSpec("*")
 
 if TYPE_CHECKING:
     from .repository import SourceRepository
-else:
-    from .resolver import DependencyResolver, is_known_resolver, resolver_by_name
 
 
 class Vulnerability:
@@ -143,7 +143,7 @@ class Dependency:
         """Check if this dependency includes another dependency."""
         if not isinstance(other, Dependency) or (self.package != other.package and self.source != other.source):
             return False
-        return self.semantic_version.clause.includes(other.semantic_version.clause)
+        return bool(self.semantic_version.clause.includes(other.semantic_version.clause))
 
     def __hash__(self) -> int:
         """Compute hash for dependency."""

@@ -3,22 +3,17 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
 
 from .graphs import RootedDiGraph
-
-if TYPE_CHECKING:
-    from .models import Package, SourcePackage
-else:
-    from .models import Dependency, Package, SourcePackage
+from .models import Dependency, Package, SourcePackage
 
 logger = logging.getLogger(__name__)
 
 
-class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
+class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
     """Dependency graph for packages and source packages."""
 
-    root_type = "SourcePackage"
+    root_type = SourcePackage
     _collapsed: bool = False
 
     @property
@@ -88,18 +83,18 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
                         dependencies=deps,
                     )
             packages_by_name[pkg.full_name] = pkg
-            graph.add_node(pkg)
-        for pkg in graph:
+            graph.add_node(pkg)  # type: ignore[arg-type]
+        for pkg in graph:  # type: ignore[assignment]
             for dep in pkg.dependencies:
                 if dep.package_full_name in packages_by_name:
-                    graph.add_edge(pkg, packages_by_name[dep.package_full_name], dependency=dep)
+                    graph.add_edge(pkg, packages_by_name[dep.package_full_name], dependency=dep)  # type: ignore[arg-type]
         graph._collapsed = True
         return graph
 
     def distance_to(self, graph: RootedDiGraph[Package, SourcePackage], *, normalize: bool = False) -> float:
         """Calculate distance to another graph."""
         if not self._collapsed:
-            return self.collapse_versions().distance_to(graph, normalize)
+            return self.collapse_versions().distance_to(graph, normalize=normalize)
         if not self.source_packages:
             # use our roots instead:
             compare_from: RootedDiGraph[Package, Package] = self.find_roots()
@@ -112,5 +107,5 @@ class DependencyGraph(RootedDiGraph["Package", "SourcePackage"]):
         if not compare_to.roots:
             compare_to = compare_to.find_roots()
         if compare_from is self:
-            return super().distance_to(compare_to, normalize)
-        return compare_from.distance_to(compare_to, normalize)
+            return super().distance_to(compare_to, normalize=normalize)
+        return compare_from.distance_to(compare_to, normalize=normalize)

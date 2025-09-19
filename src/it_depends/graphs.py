@@ -42,13 +42,13 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
             path_lengths = [self.shortest_path_length(root, node) for root in self.roots]
             return min(length for length in path_lengths if length >= 0)
         if self._shortest_path_from_root is None:
-            self._shortest_path_from_root = nx.single_source_shortest_path_length(self, next(iter(self.roots)))  # type: ignore[assignment]
+            self._shortest_path_from_root = nx.single_source_shortest_path_length(self, next(iter(self.roots)))
         return self._shortest_path_from_root[node]
 
     def shortest_path_length(self, from_node: T | R, to_node: T) -> int:
         """Get shortest path length between two nodes."""
         if self._all_pairs_shortest_paths is None:
-            self._all_pairs_shortest_paths = dict(nx.all_pairs_shortest_path_length(self))  # type: ignore[assignment]
+            self._all_pairs_shortest_paths = dict(nx.all_pairs_shortest_path_length(self))
         if (
             from_node not in self._all_pairs_shortest_paths or to_node not in self._all_pairs_shortest_paths[from_node]  # type: ignore[index]
         ):
@@ -112,7 +112,7 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
         graph.root_type = self.root_type  # type: ignore[assignment]
         graph.add_nodes_from(self.nodes)
         graph.add_edges_from(self.edges)
-        graph.roots = {n for n, d in self.in_degree() if d == 0}  # type: ignore[assignment]
+        graph.roots = {n for n, d in self.in_degree() if d == 0}
         return graph
 
     def __iter__(self) -> Iterator[T]:
@@ -121,7 +121,7 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
 
     def distance_to(self, graph: RootedDiGraph[T, R], *, normalize: bool = False) -> float:
         """Calculate distance to another graph."""
-        return compare_rooted_graphs(self, graph, normalize)
+        return compare_rooted_graphs(self, graph, normalize=normalize)
 
 
 def compare_rooted_graphs(

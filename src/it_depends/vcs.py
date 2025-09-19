@@ -54,7 +54,8 @@ class VCS:
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Set the default instance when subclassing."""
-        cls._DEFAULT_INSTANCE = cls()
+        # This will be overridden by subclasses that call super().__init__()
+        cls._DEFAULT_INSTANCE = None  # type: ignore[assignment]
 
     @classmethod
     def default_instance(cls) -> Self:
@@ -102,6 +103,8 @@ class Git(VCS):
             scheme=("git", "https", "http", "git+ssh", "ssh"),
             ping_cmd=("ls-remote", "{scheme}://{repo}"),
         )
+        # Set the default instance after initialization
+        self.__class__._DEFAULT_INSTANCE = self  # noqa: SLF001
 
 
 VCSes: list[VCS] = [vcs.default_instance() for vcs in (Git,)]
@@ -286,7 +289,7 @@ def parse_go_vcs(s: str) -> list[GoVCSRule] | None:
         if not Path(pattern).is_absolute():
             msg = f"Relative pattern not allowed in GOVCS: {pattern!r}"
             raise GoVCSConfigError(msg)
-        if have.get(pattern, default=""):
+        if have.get(pattern, ""):
             msg = f"Unreachable pattern in GOVCS: {item!r} after {have[pattern]!r}"
             raise GoVCSConfigError(msg)
         have[pattern] = item

@@ -132,20 +132,22 @@ class PackageCache(ABC):
         """Convert cache to dependency graph."""
         graph = DependencyGraph()
         for package in self:
-            graph.add_node(package)
+            graph.add_node(package)  # type: ignore[arg-type]
             for dep in package.dependencies:
                 for p in self.match(dep):
                     if p not in self:
                         msg = "Package not in cache"
                         raise AssertionError(msg)
-                    graph.add_edge(package, p, dependency=dep)
+                    graph.add_edge(package, p, dependency=dep)  # type: ignore[arg-type]
         return graph
 
-    def to_obj(self) -> dict[str, dict[str, dict[str, str | bool]]]:
+    def to_obj(self) -> dict[str, dict[str, dict[str, str | bool | list[str] | dict[str, str]]]]:
         """Convert cache to object representation."""
 
-        def package_to_dict(package: Package) -> dict[str, str | bool]:
-            ret = {
+        def package_to_dict(package: Package) -> dict[str, str | bool | list[str] | dict[str, str]]:
+            ret: dict[str, str | bool | list[str] | dict[str, str]] = {
+                "name": package.name,
+                "version": str(package.version),
                 "dependencies": {
                     f"{dep.source}:{dep.package}": str(dep.semantic_version) for dep in package.dependencies
                 },
@@ -154,6 +156,8 @@ class PackageCache(ABC):
             }
             if hasattr(package, "source_repo"):  # SourcePackage
                 ret["is_source_package"] = True
+            else:
+                ret["is_source_package"] = False
             return ret
 
         return {
@@ -166,7 +170,7 @@ class PackageCache(ABC):
     @property
     def source_packages(self) -> set[SourcePackage]:
         """Get all source packages in the cache."""
-        return {package for package in self if hasattr(package, "source_repo")}
+        return {package for package in self if hasattr(package, "source_repo")}  # type: ignore[misc]
 
     def to_dot(self, sources: Iterable[Package] | None = None) -> Digraph:  # noqa: C901
         """Render a Graphviz Dot graph of the dependency hierarchy.
@@ -255,6 +259,12 @@ class InMemoryPackageCache(PackageCache):
             self._cache = _cache
         self._resolved: dict[str, set[Dependency]] = defaultdict(set)  # source:package -> dep
         self._updated: dict[Package, set[str]] = defaultdict(set)  # source:package -> dep
+
+    def open(self) -> None:
+        """Open the cache."""
+
+    def close(self) -> None:
+        """Close the cache."""
 
     def __len__(self) -> int:
         """Return the number of packages in the cache."""

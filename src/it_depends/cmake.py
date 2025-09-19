@@ -32,7 +32,6 @@ except ImportError:
 from .dependencies import (
     Dependency,
     DependencyResolver,
-    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourcePackage,
@@ -75,21 +74,21 @@ class CMakeResolver(DependencyResolver):
         """Check if CMake resolver is available."""
         if cmake_parsing is None:
             return ResolverAvailability(
-                available=False,
+                is_available=False,
                 reason="`parse_cmake` does not appear to be installed! Please run `pip install parse_cmake`",
             )
 
         if shutil.which("cmake") is None:
             return ResolverAvailability(
-                available=False,
+                is_available=False,
                 reason="`cmake` does not appear to be installed! Make sure it is installed and in the PATH.",
             )
 
-        return ResolverAvailability(available=True)
+        return ResolverAvailability(is_available=True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         """Check if CMake resolver can resolve from source repository."""
-        return self.is_available and (repo.path / "CMakeLists.txt").exists()
+        return bool(self.is_available()) and (repo.path / "CMakeLists.txt").exists()
 
     def _find_package(
         self,
@@ -202,14 +201,14 @@ class CMakeResolver(DependencyResolver):
             module_name = re.split("(<|>|=|<=|>=)", keyword)[0]
             version_range = keyword[len(module_name) :].strip()
             if not version_range:
-                version_range = None
-            module_specs.append((module_name, version_range))
+                version_range = None  # type: ignore[assignment]
+            module_specs.append((module_name, version_range))  # type: ignore[arg-type]
 
         for module_name, version_range in module_specs:
             yield (
                 file_to_package(
                     rf"{re.escape(module_name)}\.pc",
-                    file_to_package_cache=file_to_package_cache,
+                    file_to_package_cache=list(file_to_package_cache.items()) if file_to_package_cache else None,
                 ),
                 version_range,
             )
@@ -269,7 +268,7 @@ class CMakeResolver(DependencyResolver):
             "ONLY_CMAKE_FIND_ROOT_PATH",
             "NO_CMAKE_FIND_ROOT_PATH",
         )
-        args = self._get_names(args[1:], keywords)
+        args = self._get_names(list(args[1:]), list(keywords))
 
         names = set()
         for name in args:
@@ -278,7 +277,7 @@ class CMakeResolver(DependencyResolver):
         yield (
             file_to_package(
                 rf"({'|'.join(map(re.escape, names))})(\.so[0-9\.]*|\.a)",
-                file_to_package_cache=file_to_package_cache,
+                file_to_package_cache=list(file_to_package_cache.items()) if file_to_package_cache else None,
             ),
             None,
         )
@@ -381,7 +380,7 @@ class CMakeResolver(DependencyResolver):
             except Exception as e:  # noqa: BLE001
                 logger.debug(e)
 
-    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:  # noqa: ARG002, C901, PLR0912, PLR0915
+    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:  # noqa: ARG002, C901, PLR0912, PLR0915
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
@@ -489,7 +488,7 @@ class CMakeResolver(DependencyResolver):
                             elif command == "set":
                                 # detect project version...
                                 # TODO(@evandowning): Revisit the following type error: # noqa: TD003, FIX002
-                                value: str | None = [*body, None][1]  # type: ignore[assignment]
+                                value: str | None = [*body, None][1]
                                 if package_name is not None and body[0].lower() == f"{package_name}_version":
                                     package_version = value
                                 bindings[body[0].upper()] = value
@@ -498,10 +497,18 @@ class CMakeResolver(DependencyResolver):
                             elif command == "find_path":
                                 package_iter = self._find_path(*body, file_to_package_cache=file_to_package_cache)
                             elif command == "find_library":
-                                package_iter = self._find_library(*body, file_to_package_cache=file_to_package_cache)
+                                package_iter = self._find_library(
+                                    *body,
+                                    file_to_package_cache=dict(file_to_package_cache)
+                                    if file_to_package_cache
+                                    else None,
+                                )
                             elif command == "pkg_check_modules":
                                 package_iter = self._pkg_check_modules(
-                                    *body, file_to_package_cache=file_to_package_cache
+                                    *body,
+                                    file_to_package_cache=dict(file_to_package_cache)
+                                    if file_to_package_cache
+                                    else None,
                                 )
                             elif command == "check_include_file":
                                 package_iter = self._check_include_file(

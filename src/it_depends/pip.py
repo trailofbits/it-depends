@@ -21,7 +21,6 @@ from .dependencies import (
     DependencyResolver,
     DockerSetup,
     Package,
-    PackageCache,
     SemanticVersion,
     SimpleSpec,
     SourcePackage,
@@ -41,9 +40,9 @@ class PipResolver(DependencyResolver):
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         """Check if this resolver can resolve from the given source repository."""
-        return (self.is_available and (repo.path / "setup.py").exists()) or (repo.path / "requirements.txt").exists()
+        return (self.is_available() and (repo.path / "setup.py").exists()) or (repo.path / "requirements.txt").exists()
 
-    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:  # noqa: ARG002
+    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:  # noqa: ARG002
         """Resolve package from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
@@ -132,10 +131,7 @@ class PipResolver(DependencyResolver):
         if isinstance(dist_or_requirements_txt_path, str):
             dist_or_requirements_txt_path = Path(dist_or_requirements_txt_path)
         with (dist_or_requirements_txt_path / "requirements.txt").open() as f:
-            return filter(
-                lambda d: d is not None,
-                (PipResolver.parse_requirements_txt_line(line) for line in f),
-            )
+            return [d for d in (PipResolver.parse_requirements_txt_line(line) for line in f) if d is not None]
 
     @staticmethod
     def get_version(version_str: str, none_default: Version | None = None) -> Version | None:

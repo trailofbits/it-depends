@@ -141,13 +141,13 @@ class InMemoryDockerfile(Dockerfile):
 
     def __init__(self, content: str, local_files: Iterable[InMemoryFile] = ()) -> None:
         """Initialize in-memory Dockerfile."""
-        super().__init__(None)  # type: ignore[arg-type]
+        super().__init__(Path.cwd() / "dummy")  # Dummy path, will be overridden
         self.content: str = content
         self.local_files: list[InMemoryFile] = list(local_files)
         self._entries: int = 0
         self._tmpdir: Path | None = None
 
-    @Dockerfile.path.getter  # type: ignore[misc]
+    @property
     def path(self) -> Path:
         """Get Dockerfile path."""
         path = super().path
@@ -155,6 +155,11 @@ class InMemoryDockerfile(Dockerfile):
             msg = "InMemoryDockerfile only has a valid path when inside of its context manager"
             raise ValueError(msg)
         return path
+
+    @path.setter
+    def path(self, new_path: Path) -> None:
+        """Set Dockerfile path."""
+        self._path = new_path
 
     def __enter__(self) -> Self:
         """Enter context manager."""
@@ -173,8 +178,10 @@ class InMemoryDockerfile(Dockerfile):
         """Exit context manager."""
         self._entries -= 1
         if self._entries == 0:
-            self.path.unlink()
-            shutil.rmtree(self._tmpdir)
+            if self.path is not None:
+                self.path.unlink()
+            if self._tmpdir is not None:
+                shutil.rmtree(self._tmpdir)
             self.path = None  # type: ignore[assignment]
 
 
@@ -207,11 +214,11 @@ class DockerContainer:
         mounts: Iterable[tuple[str | Path, str | Path]] | None = None,
         privileged: bool = False,
         env: dict[str, str] | None = None,
-        stdin: object = None,
-        stdout: object = None,
-        stderr: object = None,
+        stdin: int | None = None,
+        stdout: int | None = None,
+        stderr: int | None = None,
         cwd: str | None = None,
-    ) -> int | None:
+    ) -> subprocess.CompletedProcess[bytes]:
         """Run command in Docker container."""
         if rebuild:
             self.rebuild()
@@ -266,7 +273,8 @@ class DockerContainer:
         cmd_args.extend(args)
 
         if interactive:
-            return subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)  # noqa: S603
+            returncode = subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)  # noqa: S603
+            return subprocess.CompletedProcess(cmd_args, returncode)
         return subprocess.run(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)  # noqa: S603
 
     @property

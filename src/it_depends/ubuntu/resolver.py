@@ -12,15 +12,11 @@ from typing import TYPE_CHECKING
 from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
-    Dict,
-    List,
     Package,
-    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourcePackage,
     SourceRepository,
-    Tuple,
     Version,
 )
 from it_depends.native import get_native_dependencies
@@ -68,7 +64,7 @@ class UbuntuResolver(DependencyResolver):
         # Example depends line:
         # Depends: libc6 (>= 2.29), libgcc-s1 (>= 3.4), libstdc++6 (>= 9)
         version: Version | None = None
-        packages: Dict[Tuple[str, Version], List[List[Dependency]]] = {}
+        packages: dict[tuple[str, Version], list[list[Dependency]]] = {}
 
         # Process version lines
         for line in contents.split("\n"):
@@ -89,7 +85,7 @@ class UbuntuResolver(DependencyResolver):
                 name=pkg_name,
                 version=version,
                 source=UbuntuResolver(),
-                dependencies=set().union(*duplicates),  # type: ignore[arg-type]
+                dependencies=set().union(*duplicates),
             )
             for (pkg_name, version), duplicates in packages.items()
         ]
@@ -108,7 +104,7 @@ class UbuntuResolver(DependencyResolver):
 
     @staticmethod
     def _parse_dependencies_line(
-        line: str, package_name: str, version: Version, packages: Dict[Tuple[str, Version], List[List[Dependency]]]
+        line: str, package_name: str, version: Version, packages: dict[tuple[str, Version], list[list[Dependency]]]
     ) -> None:
         """Parse dependencies information from apt output line."""
         deps = []
@@ -177,16 +173,16 @@ class UbuntuResolver(DependencyResolver):
         """Check if the resolver is available."""
         if shutil.which("docker") is None:
             return ResolverAvailability(
-                available=False,
+                is_available=False,
                 reason="`Ubuntu` classifier needs to have Docker installed. Try apt install docker.io.",
             )
-        return ResolverAvailability(available=True)
+        return ResolverAvailability(is_available=True)
 
     def can_resolve_from_source(self, _repo: SourceRepository) -> bool:
         """Check if the resolver can resolve from source."""
         return False
 
-    def resolve_from_source(self, _repo: SourceRepository, _cache: PackageCache | None = None) -> SourcePackage | None:
+    def resolve_from_source(self, _repo: SourceRepository, _cache: object | None = None) -> SourcePackage | None:
         """Resolve from source repository."""
         return None
 

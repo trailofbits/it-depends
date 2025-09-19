@@ -74,7 +74,7 @@ def get_dependencies(container: DockerContainer, command: str, pre_command: str 
                 command,
                 rebuild=False,
                 interactive=False,
-                stdout=stdout,
+                stdout=stdout.fileno(),
                 check_existence=False,
             )
             with Path(stdout.name).open() as f:
