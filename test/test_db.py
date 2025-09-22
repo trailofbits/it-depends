@@ -1,4 +1,5 @@
 import gc
+from collections.abc import Iterator
 from unittest import TestCase
 
 import pytest
@@ -30,6 +31,9 @@ class TestDB(TestCase):
                 return False
 
             def resolve_from_source(self, repo: SourceRepository, cache=None) -> None:  # noqa: ANN001
+                raise NotImplementedError
+
+            def resolve(self, dependency: Dependency) -> Iterator[Package]:
                 raise NotImplementedError
 
         self.unknown = UnusedResolver

@@ -118,17 +118,17 @@ def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_as
         if current.is_complete:
             yield SBOM(
                 dependencies=current.dependencies(),
-                root_packages=list(current.packages),
+                root_packages=list(current.packages),  # type: ignore[call-overload]
             )
             continue
 
-        for package in current.packages:
+        for package in current.packages:  # type: ignore[attr-defined]
             if not package.dependencies:
                 continue
 
             for dep in package.dependencies:
                 # Check if dependency is already satisfied by a package in the resolution
-                if any(dep.match(pkg) for pkg in current.packages):
+                if any(dep.match(pkg) for pkg in current.packages):  # type: ignore[attr-defined]
                     continue
 
                 try:

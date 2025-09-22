@@ -141,69 +141,55 @@ class PartialResolution:
         self._dependencies: frozenset[Package] = frozenset(dependencies)
         self.parent: PartialResolution | None = parent
         if self.parent is not None:
-            self.packages: set[Package] = self.parent.packages.copy()
+            self.packages: set[Package] = self.parent.packages.copy()  # type: ignore[method-assign,attr-defined]
         else:
-            self.packages = set()
+            self.packages = set()  # type: ignore[method-assign,assignment]
         for package in self._packages:
-            self.packages.add(package)
+            self.packages.add(package)  # type: ignore[attr-defined]
             if not self.is_valid:
                 break
         if self.is_valid:
             for dep in self._dependencies:
-                self.packages.add(dep)
+                self.packages.add(dep)  # type: ignore[attr-defined]
                 if not self.is_valid:
                     break
 
     @property
     def is_valid(self) -> bool:
         """Check if the resolution is valid."""
-        # Check if there are any conflicting packages
-        package_names = {pkg.name for pkg in self.packages}
-        return len(package_names) == len(self.packages)
+        return self.packages.is_valid  # type: ignore[attr-defined,no-any-return]
 
     @property
     def is_complete(self) -> bool:
         """Check if the resolution is complete."""
-        # For now, assume all resolutions are complete
-        return True
+        return self.packages.is_complete  # type: ignore[attr-defined,no-any-return]
 
     def __contains__(self, package: Package) -> bool:
         """Check if package is in the resolution."""
-        return package in self.packages
+        return package in self.packages  # type: ignore[operator]
 
     def add(self, packages: Iterable[Package], depends_on: Package) -> PartialResolution:
         """Add packages and dependencies to the resolution."""
         return PartialResolution(packages, (depends_on,), parent=self)
 
-    def get_packages(self) -> Iterator[Package]:
+    def packages(self) -> Iterator[Package]:
         """Iterate over packages in the resolution."""
-        yield from self.packages
+        yield from self.packages  # type: ignore[misc]
 
-    __iter__ = get_packages
-
-    @property
-    def dependencies_set(self) -> frozenset[Package]:
-        """Get the set of dependencies."""
-        return self._dependencies
-
-    @property
-    def packages_set(self) -> frozenset[Package]:
-        """Get the set of packages."""
-        return self._packages
+    __iter__ = packages
 
     def dependencies(self) -> Iterator[tuple[Package, Package]]:
         """Iterate over dependencies in the resolution."""
         pr: PartialResolution | None = self
         while pr is not None:
-            # Access the private members through the class since they're needed for iteration
-            for depends_on in sorted(pr.dependencies_set):
-                for package in pr.packages_set:
+            for depends_on in sorted(pr._dependencies):  # noqa: SLF001
+                for package in pr._packages:  # noqa: SLF001
                     yield package, depends_on
             pr = pr.parent
 
     def __len__(self) -> int:
         """Return number of packages in the resolution."""
-        return len(self.packages)
+        return len(self.packages)  # type: ignore[arg-type]
 
     def __eq__(self, other: object) -> bool:
         """Check if two resolutions are equal."""
