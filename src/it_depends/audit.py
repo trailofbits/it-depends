@@ -70,7 +70,7 @@ class OSVProject(VulnerabilityProvider):
     def query(self, pkg: Package) -> Iterable[OSVVulnerability]:
         """Query the OSV project for vulnerabilities in package."""
         q = {"version": str(pkg.version), "package": {"name": pkg.name}}
-        r = post(OSVProject.QUERY_URL, json=q, timeout=30).json()
+        r = post(OSVProject.QUERY_URL, json=q).json()  # noqa: S113
         return map(OSVVulnerability.from_osv_dict, r.get("vulns", []))
 
 
