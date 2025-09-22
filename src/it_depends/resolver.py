@@ -57,7 +57,6 @@ class DependencyResolver(ABC):
 
     name: str
     description: str
-
     _instance: DependencyResolver | None = None
 
     def __new__(cls, *args: object, **kwargs: object) -> DependencyResolver:  # noqa: PYI034
@@ -79,6 +78,8 @@ class DependencyResolver(ABC):
     @abstractmethod
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         """Yield all packages that satisfy the given dependency."""
+        error_msg = f"{self} does not implement `resolve()`"
+        logger.info(error_msg)
         raise NotImplementedError
 
     @classmethod

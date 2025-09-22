@@ -1,5 +1,5 @@
 import logging
-import secrets
+import random
 import string
 import threading
 import time
@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 def _rand_str(n: int) -> str:
     """Returns a random string of length n (upper, lower and digits)"""
-    return "".join(secrets.choice(string.ascii_lowercase + string.ascii_uppercase + string.digits) for i in range(n))
+    return "".join(random.choice(string.ascii_lowercase + string.ascii_uppercase + string.digits) for i in range(n))  # noqa: S311
 
 
 def _version_str() -> str:
     """Returns a typical version string (x.y.z)"""
-    return f"{secrets.randbelow(30)}.{secrets.randbelow(5)}.{secrets.randbelow(9)}"
+    return f"{random.randint(0, 30)}.{random.randint(0, 5)}.{random.randint(0, 9)}"  # noqa: S311
 
 
 def _random_package() -> Package:
@@ -38,21 +38,21 @@ def _random_vulnerability() -> Vulnerability:
     """Create a random vulnerability"""
     return Vulnerability(
         _rand_str(10),
-        [_rand_str(3) for _ in range(secrets.randbelow(7)) if secrets.randbelow(100) < 90],  # noqa: PLR2004
-        _rand_str(secrets.randbelow(10)),
+        [_rand_str(3) for _ in range(random.randint(0, 7)) if random.randint(0, 100) < 90],  # noqa: PLR2004, S311
+        _rand_str(random.randint(0, 10)),  # noqa: S311
     )
 
 
 def _random_vulnerabilities(max_count: int) -> list[Vulnerability]:
     """Return up to max_count vulnerabilities"""
-    return [_random_vulnerability() for _ in range(secrets.randbelow(max_count))]
+    return [_random_vulnerability() for _ in range(random.randint(0, max_count))]  # noqa: S311
 
 
 class TestAudit(TestCase):
     def setUp(self) -> None:
         # To be able to repeat a failing test the seed for random is logged
         seed = int(time.time())
-        secrets.seed(seed)
+        random.seed(seed)
         logger.warning("Using seed: %s", seed)
 
     @patch("it_depends.audit.post")

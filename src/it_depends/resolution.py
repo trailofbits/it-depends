@@ -5,14 +5,13 @@ from __future__ import annotations
 import logging
 import sys
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from contextlib import suppress
 from multiprocessing import cpu_count
 from typing import TYPE_CHECKING
 
 from tqdm import tqdm
 
 from .cache import PackageCache, PackageRepository
-from .models import Dependency, Package
+from .models import Dependency, Package, SourcePackage
 from .repository import SourceRepository
 from .resolver import PartialResolution, resolvers
 from .sbom import SBOM
@@ -31,6 +30,10 @@ class _DependencyResult:
         self.dep: Dependency = dep
         self.packages: list[Package] = packages
         self.depth: int = depth
+
+
+def _process_dep(dep: Dependency, depth: int) -> _DependencyResult:
+    return _DependencyResult(dep=dep, packages=list(dep.resolver.resolve(dep)), depth=depth)
 
 
 class _PackageResult:
@@ -173,13 +176,11 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 found_source_package = False
                 for resolver in resolvers():
                     if resolver.can_resolve_from_source(repo_or_spec):
-                        try:
-                            source_package = resolver.resolve_from_source(repo_or_spec, cache)
-                            if source_package:
-                                found_source_package = True
-                                unupdated_packages.append((source_package, 0))
-                        except Exception:  # noqa: S110, BLE001
-                            pass
+                        source_package = resolver.resolve_from_source(repo_or_spec, cache=cache)
+                        if source_package is None:
+                            continue
+                        found_source_package = True
+                        unupdated_packages.append((source_package, 0))
                 if not found_source_package:
                     error_msg = f"Can not resolve {repo_or_spec}"
                     raise ValueError(error_msg)
@@ -201,118 +202,147 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
             def process_updated_package(
                 updated_package: Package,
                 at_depth: int,
-                *,
-                updated_in_resolvers: set[str],  # noqa: ARG001
-                was_updated: bool = True,  # noqa: ARG001
+                updated_in_resolvers: set[str],
+                was_updated: bool = True,  # noqa: FBT001, FBT002
             ) -> None:
                 repo.add(updated_package)
-                if at_depth < depth_limit or depth_limit < 0:
-                    for dep in updated_package.dependencies:
-                        if dep not in queued:
-                            queued.add(dep)
-                            if max_workers > 1:
-                                futures.add(pool.submit(_resolve_dependency, dep, at_depth + 1))
-                            else:
-                                result = _resolve_dependency(dep, at_depth + 1)
-                                new_deps = {d for pkg in result.packages for d in pkg.dependencies}
-                                queued.update(new_deps)
+                if not isinstance(updated_package, SourcePackage) and updated_package is not repo_or_spec:
+                    if not cache:
+                        return
+                    if was_updated:
+                        cache.add(updated_package)
+                    for r in updated_in_resolvers:
+                        repo.set_updated(updated_package, r)
+                        cache.set_updated(updated_package, r)
+                if depth_limit < 0 or at_depth < depth_limit:
+                    new_deps = {d for d in updated_package.dependencies if d not in queued}
+                    unresolved_dependencies.extend((d, at_depth + 1) for d in sorted(new_deps))
+                    t.total += len(new_deps)
+                    queued.update(new_deps)
 
             def process_resolution(
                 dep: Dependency,
                 packages: Iterable[Package],
                 at_depth: int,
-                *,
-                already_cached: bool = False,  # noqa: ARG001
+                already_cached: bool = False,  # noqa: FBT001, FBT002
             ) -> None:
                 """Process a dependency resolution."""
                 repo.set_resolved(dep)
                 packages = list(packages)
-                for package in packages:
-                    if package not in repo:
-                        repo.add(package)
-                        if at_depth < depth_limit or depth_limit < 0:
-                            if max_workers > 1:
-                                futures.add(pool.submit(_update_package, package, at_depth + 1))
-                            else:
-                                result = _update_package(package, at_depth + 1)
-                                process_updated_package(
-                                    result.package,
-                                    result.depth,
-                                    updated_in_resolvers=result.updated_in_resolvers,
-                                    was_updated=result.was_updated,
-                                )
+                if not already_cached and cache is not None and dep is not repo_or_spec:
+                    cache.set_resolved(dep)
+                    cache.extend(packages)
+                unupdated_packages.extend((p, at_depth) for p in packages)
+                t.total += len(packages)
 
-            while unresolved_dependencies or unupdated_packages:
-                if max_workers > 1 and futures:
-                    done, futures = wait(futures, return_when=FIRST_COMPLETED)
-                    for future in done:
-                        try:
-                            result = future.result()
-                            if isinstance(result, _DependencyResult):
-                                process_resolution(result.dep, result.packages, result.depth)
-                            elif isinstance(result, _PackageResult):
-                                process_updated_package(
-                                    result.package,
-                                    result.depth,
-                                    updated_in_resolvers=result.updated_in_resolvers,
-                                    was_updated=result.was_updated,
-                                )
-                            else:
-                                error_msg = f"Unexpected future result: {result!r}"
-                                raise NotImplementedError(error_msg)  # noqa: TRY301
-                        except Exception:  # noqa: S110, PERF203, BLE001
-                            pass
+            while unresolved_dependencies or unupdated_packages or futures:
+                # while there are more unresolved dependencies, unupdated packages,
+                # or concurrent jobs that are still running:
 
-                # loop through the unupdated packages and see if any are cached:
-                not_updated: list[tuple[Package, int]] = []
-                was_updatable = False
-                for package, depth in unupdated_packages:
-                    if cache and any(cache.was_updated(package, resolver.name) for resolver in resolvers()):
-                        was_updatable = True
-                        if was_updatable:
-                            # every resolver that could have updated this package did update it in the cache
+                reached_fixed_point = cache is None
+                while not reached_fixed_point:
+                    reached_fixed_point = True
 
-                            with suppress(StopIteration):
-                                # retrieve the package from the cache
-                                cached_package = next(iter(cache.match(package)))
-                            process_updated_package(cached_package, depth, updated_in_resolvers=set())
+                    # loop through the unupdated packages and see if any are cached:
+                    not_updated: list[tuple[Package, int]] = []
+                    was_updatable = False
+                    for package, depth in unupdated_packages:
+                        for resolver in resolvers():
+                            if resolver.can_update_dependencies(package):
+                                was_updatable = True
+                                if not cache or not cache.was_updated(package, resolver.name):
+                                    not_updated.append((package, depth))
+                                    break
+                        else:
+                            if was_updatable:
+                                # every resolver that could have updated this package did update it in the cache
+                                try:
+                                    # retrieve the package from the cache
+                                    if not cache:
+                                        break
+                                    package = next(iter(cache.match(package)))  # noqa: PLW2901
+                                except StopIteration:
+                                    pass
+                            process_updated_package(package, depth, updated_in_resolvers=set())
+                            t.update(1)
+
+                    if unupdated_packages != not_updated:
+                        reached_fixed_point = False
+                        unupdated_packages = not_updated
+
+                    # loop through the unresolved deps and see if any are cached:
+                    not_cached: list[tuple[Dependency, int]] = []
+                    for dep, depth in unresolved_dependencies:
+                        if dep is not repo_or_spec and cache and cache.was_resolved(dep):
+                            matches = cache.match(dep)
+                            process_resolution(dep, matches, depth, already_cached=True)
                             t.update(1)
                         else:
-                            not_updated.append((package, depth))
-                    else:
-                        not_updated.append((package, depth))
-                unupdated_packages = not_updated
+                            not_cached.append((dep, depth))
+                    if unresolved_dependencies != not_cached:
+                        reached_fixed_point = False
+                        unresolved_dependencies = not_cached
 
-                # loop through the unresolved deps and see if any are cached:
-                not_cached: list[tuple[Dependency, int]] = []
-                for dep, depth in unresolved_dependencies:
-                    if dep is not repo_or_spec and cache and cache.was_resolved(dep):
-                        packages = cache.match(dep)
-                        process_resolution(dep, packages, depth, already_cached=True)
+                if max_workers <= 1:
+                    # don't use concurrency
+                    if unupdated_packages:
                         t.update(1)
-                    else:
-                        not_cached.append((dep, depth))
-                unresolved_dependencies = not_cached
-
-                if not unresolved_dependencies and not unupdated_packages:
-                    break
-
-            if max_workers > 1:
-                pool.shutdown(wait=True)
+                        pkg_result = _update_package(*unupdated_packages[0])
+                        unupdated_packages = unupdated_packages[1:]
+                        process_updated_package(
+                            pkg_result.package,
+                            pkg_result.depth,
+                            pkg_result.updated_in_resolvers,
+                            pkg_result.was_updated,
+                        )
+                    if unresolved_dependencies:
+                        t.update(1)
+                        dep_result = _process_dep(*unresolved_dependencies[0])
+                        unresolved_dependencies = unresolved_dependencies[1:]
+                        process_resolution(dep_result.dep, dep_result.packages, dep_result.depth)
+                else:
+                    # new_jobs is the number of new concurrent resolutions we can start without exceeding max_workers
+                    new_jobs = max_workers - len(futures)
+                    # create `new_jobs` package update jobs:
+                    futures |= {
+                        pool.submit(_update_package, package, depth) for package, depth in unupdated_packages[:new_jobs]
+                    }
+                    unupdated_packages = unupdated_packages[new_jobs:]
+                    new_jobs = max_workers - len(futures)
+                    # create `new_jobs` new resolution jobs:
+                    futures |= {
+                        pool.submit(_process_dep, dep, depth) for dep, depth in unresolved_dependencies[:new_jobs]
+                    }
+                    unresolved_dependencies = unresolved_dependencies[new_jobs:]
+                    if futures:
+                        done, futures = wait(futures, return_when=FIRST_COMPLETED)
+                        for finished in done:
+                            t.update(1)
+                            result = finished.result()
+                            if isinstance(result, _PackageResult):
+                                process_updated_package(
+                                    result.package,
+                                    result.depth,
+                                    result.updated_in_resolvers,
+                                    result.was_updated,
+                                )
+                            elif isinstance(result, _DependencyResult):
+                                process_resolution(result.dep, result.packages, result.depth)
+                            else:
+                                error_msg = f"Unexpected future result: {result!r}"
+                                raise NotImplementedError(error_msg)
 
     except KeyboardInterrupt:
-        if max_workers > 1:
-            pool.shutdown(wait=False)
-        if hasattr(sys, "stdin") and sys.stdin.isatty():
+        if sys.stderr.isatty() and sys.stdin.isatty():
             try:
-                sys.stderr.write("Would you like to output the partial results? [Yn] ")
-                choice = input().lower()
-                if choice in {"", "y"}:
-                    return repo
-                if choice == "n":
-                    raise
-            except (EOFError, NameError):
-                pass
+                while True:
+                    sys.stderr.write("Would you like to output the partial results? [Yn] ")
+                    choice = input().lower()
+                    if choice in {"", "y"}:
+                        return repo
+                    if choice == "n":
+                        sys.exit(1)
+            except KeyboardInterrupt:
+                sys.exit(1)
         raise
-
     return repo

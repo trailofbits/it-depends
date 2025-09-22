@@ -69,9 +69,9 @@ it-depends /path/to/project
 or alternatively specify a package from a public package repository:
 
 ```shell
-it-depends pip:numpy
-it-depends apt:libc6@2.31
-it-depends npm:lodash@>=4.17.0
+it-depends "pip:numpy"
+it-depends "apt:libc6@2.31"
+it-depends "npm:lodash@>=4.17.0"
 ```
 
 It-Depends will output the full dependency hierarchy in JSON format. Additional output formats such
