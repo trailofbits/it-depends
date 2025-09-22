@@ -70,7 +70,7 @@ or alternatively specify a package from a public package repository:
 
 ```shell
 it-depends "pip:numpy"
-it-depends "apt:libc6@2.31"
+it-depends "ubuntu:libc6@2.31"
 it-depends "npm:lodash@>=4.17.0"
 ```
 

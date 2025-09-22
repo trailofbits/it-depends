@@ -60,5 +60,5 @@ Description: Dynamic Kernel Module Support Framework
             assert str(deps[0]) == (
                 "ubuntu:dkms@2.8.1[ubuntu:build-essential@*,ubuntu:c-compiler@*,"
                 "ubuntu:coreutils@>=7.4,ubuntu:dctrl-tools@*,ubuntu:dpkg-dev@*,"
-                "ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]",
+                "ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]"
             )
