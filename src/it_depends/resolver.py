@@ -5,15 +5,19 @@ from __future__ import annotations
 import functools
 import logging
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from semantic_version import SimpleSpec, Version
+from semantic_version.base import AllOf, BaseSpec
+
+from .models import Dependency
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-    from .models import Dependency, Package, SourcePackage
+    from .models import Package, SourcePackage
     from .repository import SourceRepository
 
 logger = logging.getLogger(__name__)
@@ -127,6 +131,113 @@ class DependencyResolver(ABC):
         return isinstance(other, DependencyResolver) and other.name == self.name
 
 
+class CompoundSpec(BaseSpec):
+    """Represents a compound spec."""
+
+    def __init__(self, *to_combine: BaseSpec) -> None:
+        """Initialize a compound spec."""
+        super(CompoundSpec, self).__init__(",".join(s.expression for s in to_combine))  # noqa: UP008
+        self.clause = AllOf(*(s.clause for s in to_combine))
+
+    @classmethod
+    def _parse_to_clause(cls, expression: str) -> BaseSpec:  # noqa: ARG003
+        """Convert an expression to a clause."""
+        # Placeholder, we actually set self.clause in self.__init__
+        return
+
+
+class PackageSet:
+    """Represents a set of packages and their dependencies."""
+
+    def __init__(self) -> None:
+        """Initialize the package set."""
+        self._packages: dict[tuple[str, str], Package] = {}
+        self._unsatisfied: dict[tuple[str, str], dict[Dependency, set[Package]]] = defaultdict(lambda: defaultdict(set))
+        self.is_valid: bool = True
+        self.is_complete: bool = True
+
+    def __eq__(self, other: object) -> bool:
+        """Check if two package sets are equal."""
+        return isinstance(other, PackageSet) and self._packages.values() == other._packages.values()
+
+    def __hash__(self) -> int:
+        """Return hash of the package set."""
+        return hash(frozenset(self._packages.values()))
+
+    def __len__(self) -> int:
+        """Return number of packages in the package set."""
+        return len(self._packages)
+
+    def __iter__(self) -> Iterator[Package]:
+        """Iterate over packages in the package set."""
+        yield from self._packages.values()
+
+    def __contains__(self, package: Package) -> bool:
+        """Check if a package is in the package set."""
+        pkg_spec = (package.name, package.source)
+        return pkg_spec in self._packages and self._packages[pkg_spec] == package
+
+    def unsatisfied_dependencies(self) -> Iterator[tuple[Dependency, frozenset[Package]]]:
+        """Iterate over unsatisfied dependencies in the package set."""
+        for (pkg_name, pkg_source), deps in sorted(
+            # try the dependencies with the most options first
+            self._unsatisfied.items(),
+            key=lambda x: (len(x[1]), x[0]),
+        ):
+            if len(deps) == 0:
+                continue
+            elif len(deps) == 1:
+                dep, packages = next(iter(deps.items()))
+            else:
+                # there are multiple requirements for the same dependency
+                spec = CompoundSpec(*(d.semantic_version for d in deps.keys()))  # noqa: SIM118
+                dep = Dependency(pkg_name, pkg_source, spec)
+                packages = {p for packages in deps.values() for p in packages}
+
+            yield dep, frozenset(packages)
+
+    def copy(self) -> PackageSet:
+        """Copy the package set."""
+        ret = PackageSet()
+        ret._packages = self._packages.copy()
+        ret._unsatisfied = defaultdict(lambda: defaultdict(set))
+        for dep_spec, deps in self._unsatisfied.items():
+            ret._unsatisfied[dep_spec] = defaultdict(set)
+            for dep, packages in deps.items():
+                ret._unsatisfied[dep_spec][dep] = set(packages)
+                assert all(p in ret for p in packages)  # noqa: S101
+        ret.is_valid = self.is_valid
+        ret.is_complete = self.is_complete
+        return ret
+
+    def add(self, package: Package) -> None:
+        """Add a package to the package set."""
+        pkg_spec = (package.name, package.source)
+        if pkg_spec in self._packages and self._packages[pkg_spec].version != package.version:
+            self.is_valid = False
+        if not self.is_valid:
+            return
+        self._packages[pkg_spec] = package
+        if pkg_spec in self._unsatisfied:
+            # there are some existing packages that have unsatisfied dependencies that could be
+            # satisfied by this new package
+            for dep in list(self._unsatisfied[pkg_spec].keys()):
+                if dep.match(package):
+                    del self._unsatisfied[pkg_spec][dep]
+                    if len(self._unsatisfied[pkg_spec]) == 0:
+                        del self._unsatisfied[pkg_spec]
+        # add any new unsatisfied dependencies for this package
+        for dep in package.dependencies:
+            dep_spec = (dep.package, dep.source)
+            if dep_spec not in self._packages:
+                self._unsatisfied[dep_spec][dep].add(package)
+            elif not dep.match(self._packages[dep_spec]):
+                self.is_valid = False
+                break
+
+        self.is_complete = self.is_valid and len(self._unsatisfied) == 0
+
+
 class PartialResolution:
     """Represents a partial resolution of dependencies."""
 
@@ -141,9 +252,9 @@ class PartialResolution:
         self._dependencies: frozenset[Package] = frozenset(dependencies)
         self.parent: PartialResolution | None = parent
         if self.parent is not None:
-            self.packages: set[Package] = self.parent.packages.copy()  # type: ignore[method-assign,attr-defined]
+            self.packages: PackageSet = self.parent.packages.copy()  # type: ignore[method-assign,attr-defined]
         else:
-            self.packages = set()  # type: ignore[method-assign,assignment]
+            self.packages = PackageSet()  # type: ignore[method-assign,assignment]
         for package in self._packages:
             self.packages.add(package)  # type: ignore[attr-defined]
             if not self.is_valid:
@@ -206,7 +317,6 @@ def resolvers() -> frozenset[DependencyResolver]:
     return frozenset(
         cls()  # type: ignore[abstract]
         for cls in DependencyResolver.__subclasses__()
-        if not getattr(cls, "__abstractmethods__", None) and not cls.__abstractmethods__
     )
 
 

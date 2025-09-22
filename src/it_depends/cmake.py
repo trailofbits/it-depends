@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
+
+    from .models import Package
 from os import chdir
 
 from .ubuntu.apt import (
@@ -379,6 +381,10 @@ class CMakeResolver(DependencyResolver):
                 break
             except Exception as e:  # noqa: BLE001
                 logger.debug(e)
+
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:  # noqa: ARG002
+        """Resolve a dependency to packages."""
+        return NotImplementedError  # type: ignore[return-value]
 
     def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:  # noqa: ARG002, C901, PLR0912, PLR0915
         """Resolve dependencies from source repository."""

@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .dependencies import (
     Dependency,
@@ -20,6 +21,12 @@ from .dependencies import (
     SourceRepository,
     Version,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from .models import Package
+
 from .ubuntu.apt import cached_file_to_package as file_to_package
 
 logger = logging.getLogger(__name__)
@@ -127,6 +134,10 @@ class AutotoolsResolver(DependencyResolver):
             msg = f"Could not find a binding for variable/s in {token}"
             raise ValueError(msg)
         return token
+
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:  # noqa: ARG002
+        """Resolve a dependency to packages."""
+        return NotImplementedError  # type: ignore[return-value]
 
     def resolve_from_source(
         self,
