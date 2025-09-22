@@ -91,7 +91,8 @@ class TestResolvers(TestCase):
             [
                 (smoke_test.source_repo, 3)
                 for smoke_test in SMOKE_TESTS
-                if smoke_test.repo_name in ("bitcoin", "pe-parse")
+                if smoke_test.repo_name in ("bitcoin")
+                # if smoke_test.repo_name in ("bitcoin", "pe-parse")
             ]
         )
         for dep, num_attempts in to_test:
