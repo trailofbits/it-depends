@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+
     from .resolver import DependencyResolver
 
 from semantic_version import SimpleSpec, Version
@@ -74,7 +75,8 @@ class Dependency:
         if not isinstance(semantic_version, SemanticVersion):
             msg = "semantic_version must be a SemanticVersion instance"
             raise TypeError(msg)
-        from .resolver import DependencyResolver, is_known_resolver
+        from .resolver import DependencyResolver, is_known_resolver  # noqa: PLC0415
+
         if isinstance(source, DependencyResolver):
             source = source.name
         if not is_known_resolver(source):
@@ -92,7 +94,8 @@ class Dependency:
     @property
     def resolver(self) -> DependencyResolver:
         """Get the resolver for this dependency's source."""
-        from .resolver import resolver_by_name
+        from .resolver import resolver_by_name  # noqa: PLC0415
+
         return resolver_by_name(self.source)
 
     @classmethod
@@ -111,7 +114,8 @@ class Dependency:
             package, *remainder = tail.split("@", 1)
             version_string = "@".join(remainder)
             if version_string:
-                from .resolver import resolver_by_name
+                from .resolver import resolver_by_name  # noqa: PLC0415
+
                 resolver = resolver_by_name(source)
                 version = resolver.parse_spec(version_string)
             else:
@@ -233,7 +237,8 @@ class Package:
         self.name: str = name
         self.version: Version = version
         self.dependencies: frozenset[Dependency] = frozenset(dependencies)
-        from .resolver import DependencyResolver
+        from .resolver import DependencyResolver  # noqa: PLC0415
+
         if isinstance(source, DependencyResolver):
             self.source: str = source.name
         else:
@@ -281,7 +286,8 @@ class Package:
             The resolver for this package's source
 
         """
-        from .resolver import resolver_by_name
+        from .resolver import resolver_by_name  # noqa: PLC0415
+
         return resolver_by_name(self.source)
 
     @classmethod
