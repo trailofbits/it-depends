@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 if TYPE_CHECKING:
     from semantic_version import Version
+    from semantic_version.base import BaseSpec as SemanticVersion
 from sqlalchemy import (
     Column,
     ForeignKey,
@@ -19,6 +20,7 @@ from sqlalchemy import (
     create_engine,
     distinct,
 )
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
 
 from .dependencies import (
@@ -95,6 +97,17 @@ class DBDependency(Base, Dependency):
         self.package = dep.package  # type: ignore[assignment]
         self.semantic_version_string = str(dep.semantic_version)  # type: ignore[assignment]
 
+    @hybrid_property
+    def semantic_version(self) -> SemanticVersion:
+        """Get the semantic version of the dependency."""
+        resolver = resolver_by_name(self.source)
+        return resolver.parse_spec(self.semantic_version_string)
+
+    @semantic_version.setter  # type: ignore[no-redef]
+    def semantic_version(self, new_version: SemanticVersion | str) -> None:
+        """Set the semantic version of the dependency."""
+        self.semantic_version_string = str(new_version)
+
 
 class DependencyMapping:
     """Mapping of dependencies for a package."""
@@ -152,7 +165,6 @@ class DBPackage(Base, Package):
     name = Column(String, nullable=False)  # type: ignore[assignment]
     version_str = Column("version", String, nullable=False)
     source = Column("source", String, nullable=False)  # type: ignore[assignment]
-    source_name = Column("source_name", String, nullable=False)
 
     __table_args__ = (UniqueConstraint("name", "version", "source", name="package_unique_constraint"),)
 
@@ -238,13 +250,13 @@ class SourceFilteredPackageCache(PackageCache):
 
     def __len__(self) -> int:
         """Return the number of packages in the cache."""
-        return self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).count()  # type: ignore[no-any-return]
+        return self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).count()  # type: ignore[attr-defined,no-any-return]
 
     def __iter__(self) -> Iterator[Package]:
         """Return iterator over packages in the cache."""
         yield from [
             p.to_package()
-            for p in self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).all()
+            for p in self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).all()  # type: ignore[attr-defined]
         ]
 
     def was_resolved(self, dependency: Dependency) -> bool:
@@ -266,7 +278,7 @@ class SourceFilteredPackageCache(PackageCache):
             for p in self.parent.session.query(DBPackage)
             .filter(
                 DBPackage.name.like(package_name),
-                DBPackage.source_name.like(self.source),
+                DBPackage.source_name.like(self.source),  # type: ignore[attr-defined]
             )
             .all()
         ]
@@ -274,7 +286,7 @@ class SourceFilteredPackageCache(PackageCache):
     def package_full_names(self) -> frozenset[str]:
         """Get all full names of packages in the cache."""
         return frozenset(
-            self.parent.session.query(distinct(DBPackage.name)).filter(DBPackage.source_name.like(self.source)).all()
+            self.parent.session.query(distinct(DBPackage.name)).filter(DBPackage.source_name.like(self.source)).all()  # type: ignore[attr-defined]
         )
 
     def match(self, to_match: str | Package | Dependency) -> Iterator[Package]:
