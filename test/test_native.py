@@ -20,10 +20,8 @@ class TestNative(TestCase):
         }
         arch = arch_string()
         assert deps == {
-            {
-                f"/lib/{arch}-linux-gnu/libtinfo.so.6",
-                f"/lib/{arch}-linux-gnu/libnss_files.so.2",
-                f"/lib/{arch}-linux-gnu/libc.so.6",
-                f"/lib/{arch}-linux-gnu/libdl.so.2",
-            }
+            f"/lib/{arch}-linux-gnu/libtinfo.so.6",
+            f"/lib/{arch}-linux-gnu/libnss_files.so.2",
+            f"/lib/{arch}-linux-gnu/libc.so.6",
+            f"/lib/{arch}-linux-gnu/libdl.so.2",
         }

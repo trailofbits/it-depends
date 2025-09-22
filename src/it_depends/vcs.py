@@ -54,13 +54,12 @@ class VCS:
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Set the default instance when subclassing."""
-        # This will be overridden by subclasses that call super().__init__()
-        cls._DEFAULT_INSTANCE = None  # type: ignore[assignment]
+        cls._DEFAULT_INSTANCE = cls()  # type: ignore[call-arg]
 
     @classmethod
     def default_instance(cls) -> Self:
         """Get the default instance of this VCS class."""
-        return cast("Self", cls._DEFAULT_INSTANCE)
+        return cast("T", cls._DEFAULT_INSTANCE)  # type: ignore[valid-type]
 
     def ping(self, repo: str) -> str | None:
         """Test if a repository is accessible.
@@ -103,8 +102,6 @@ class Git(VCS):
             scheme=("git", "https", "http", "git+ssh", "ssh"),
             ping_cmd=("ls-remote", "{scheme}://{repo}"),
         )
-        # Set the default instance after initialization
-        self.__class__._DEFAULT_INSTANCE = self  # noqa: SLF001
 
 
 VCSes: list[VCS] = [vcs.default_instance() for vcs in (Git,)]
