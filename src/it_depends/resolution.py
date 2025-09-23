@@ -166,7 +166,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
         max_workers = cpu_count()
 
     try:
-        with tqdm(desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t:
+        with tqdm(desc=f"Resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t:
             # Initialize variables
             unresolved_dependencies: list[tuple[Dependency, int]] = []
             unupdated_packages: list[tuple[Package, int]] = []

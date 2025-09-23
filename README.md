@@ -63,15 +63,15 @@ it-depends
 or alternatively point it to the path directly:
 
 ```shell
-it-depends /path/to/project
+it-depends --target /path/to/project
 ```
 
 or alternatively specify a package from a public package repository:
 
 ```shell
-it-depends "pip:numpy"
-it-depends "ubuntu:libc6@2.31"
-it-depends "npm:lodash@>=4.17.0"
+it-depends --target "pip:numpy"
+it-depends --target "ubuntu:libc6@2.31"
+it-depends --target "npm:lodash@>=4.17.0"
 ```
 
 It-Depends will output the full dependency hierarchy in JSON format. Additional output formats such
@@ -88,7 +88,7 @@ By default, It-Depends recursively resolves all packages' dependencies to constr
 depth of the recursion can be limited using the `--depth-limit` option. For example,
 
 ```shell
-it-depends pip:graphtage --depth-limit 1
+it-depends --target "pip:graphtage" --depth-limit 1
 ```
 
 will only enumerate the direct dependencies of Graphtage.

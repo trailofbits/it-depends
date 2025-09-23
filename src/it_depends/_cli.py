@@ -47,11 +47,11 @@ def main() -> None:  # noqa: C901, PLR0911, PLR0912, PLR0915
     if settings.max_workers == -1:
         settings.max_workers = os.cpu_count() or 1
 
-    logger.info("Starting it-depends with settings: %s", settings)
-
     if settings.version:
         logger.info("it-depends version %s", it_depends_version)
         return
+
+    logger.info("Starting it-depends with settings: %s", settings)
 
     # Parse the target(s) -- either a path or a package name
     try:
@@ -77,19 +77,16 @@ def main() -> None:  # noqa: C901, PLR0911, PLR0912, PLR0915
         path = repo.path.absolute() if isinstance(repo, SourceRepository) else settings.target
         logger.info("Available resolvers for %s:", path)
         for name, classifier in sorted((c.name, c) for c in resolvers()):
-            logger.info(
-                "%s...[!n]",
-                name,
-            )
+            logger.info("%s...[!n]", name)
             available = classifier.is_available()
             if not available:
-                logger.info("not available: %s", available.reason)
+                logger.info("[!n]not available: %s\n", available.reason)
             elif isinstance(repo, SourceRepository) and not classifier.can_resolve_from_source(repo):
-                logger.info("incompatible with this path")
+                logger.info("[!n]incompatible with this path\n")
             elif isinstance(repo, Dependency) and repo.source != classifier.name:
-                logger.info("incompatible with this package specifier")
+                logger.info("[!n]incompatible with this package specifier\n")
             else:
-                logger.info("enabled")
+                logger.info("[!n]enabled\n")
         return
 
     try:

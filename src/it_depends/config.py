@@ -3,20 +3,16 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import TYPE_CHECKING
+from pathlib import Path  # noqa: TC003
 
 from pydantic import Field
 from pydantic_settings import (
     BaseSettings,
     CliImplicitFlag,
-    CliPositionalArg,
     SettingsConfigDict,
 )
 
 from .db import DEFAULT_DB_PATH
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 class OutputFormat(str, Enum):
@@ -31,8 +27,8 @@ class OutputFormat(str, Enum):
 class Settings(BaseSettings):
     """Settings for it-depends."""
 
-    target: CliPositionalArg[str] = Field(
-        default="",
+    target: str = Field(
+        default=".",
         description="""Directory or package name to analyze. If a package
             name is provided, it must be in the form of
             RESOLVER_NAME:PACKAGE_NAME[@OPTIONAL_VERSION], where RESOLVER_NAME
