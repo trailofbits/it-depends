@@ -92,7 +92,7 @@ class TestResolvers(TestCase):
                 (smoke_test.source_repo, 3)
                 for smoke_test in SMOKE_TESTS
                 if smoke_test.repo_name in ("bitcoin")
-                # if smoke_test.repo_name in ("bitcoin", "pe-parse")
+                # TODO(@evandowning): if smoke_test.repo_name in ("bitcoin", "pe-parse")  # noqa: FIX002,TD003
             ]
         )
         for dep, num_attempts in to_test:
