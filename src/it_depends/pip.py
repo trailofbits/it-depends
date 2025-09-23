@@ -10,6 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
@@ -40,7 +41,11 @@ class PipResolver(DependencyResolver):
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         """Check if this resolver can resolve from the given source repository."""
-        return (self.is_available() and (repo.path / "setup.py").exists()) or (repo.path / "requirements.txt").exists()
+        return (
+            (self.is_available() and (repo.path / "setup.py").exists()) or 
+            (repo.path / "requirements.txt").exists() or 
+            (repo.path / "pyproject.toml").exists()
+        )
 
     def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:  # noqa: ARG002
         """Resolve package from source repository."""
@@ -132,6 +137,7 @@ class PipResolver(DependencyResolver):
             dist_or_requirements_txt_path = Path(dist_or_requirements_txt_path)
         with (dist_or_requirements_txt_path / "requirements.txt").open() as f:
             return [d for d in (PipResolver.parse_requirements_txt_line(line) for line in f) if d is not None]
+
 
     @staticmethod
     def get_version(version_str: str, none_default: Version | None = None) -> Version | None:
@@ -302,6 +308,40 @@ class PipSourcePackage(SourcePackage):
                 # force JohnnyDist to read the dependencies before deleting the wheel:
                 _ = dist.children
                 return PipSourcePackage.from_dist(dist, repo.path)
+        elif (repo.path / "pyproject.toml").exists():
+            # We have a pyproject.toml file - use the same approach as setup.py
+            with TemporaryDirectory() as tmp_dir:
+                try:
+                    _ = sys.stderr.fileno()
+                    stderr = sys.stderr
+                except io.UnsupportedOperation:
+                    stderr = None
+                subprocess.check_call(  # noqa: S603
+                    [
+                        sys.executable,
+                        "-m",
+                        "pip",
+                        "wheel",
+                        "--no-deps",
+                        "-w",
+                        tmp_dir,
+                        str(repo.path.absolute()),
+                    ],
+                    stdout=stderr,
+                )
+                wheel = None
+                for whl in Path(tmp_dir).glob("*.whl"):
+                    if wheel is not None:
+                        msg = f"`pip wheel --no-deps {repo.path!s}` produced multiple wheel files!"
+                        raise ValueError(msg)
+                    wheel = whl
+                if wheel is None:
+                    msg = f"`pip wheel --no-deps {repo.path!s}` did not produce a wheel file!"
+                    raise ValueError(msg)
+                dist = JohnnyDist(str(wheel))
+                # force JohnnyDist to read the dependencies before deleting the wheel:
+                _ = dist.children
+                return PipSourcePackage.from_dist(dist, repo.path)
         elif (repo.path / "requirements.txt").exists():
             # We just have a requirements.txt and no setup.py
             # Use the directory name as the package name
@@ -320,5 +360,5 @@ class PipSourcePackage(SourcePackage):
                 source="pip",
             )
         else:
-            msg = f"{repo.path} neither has a setup.py nor a requirements.txt"
+            msg = f"{repo.path} neither has a setup.py, requirements.txt, nor pyproject.toml"
             raise ValueError(msg)
