@@ -235,6 +235,9 @@ class PipResolver(DependencyResolver):
         except ValueError as e:
             log.warning(str(e))
             return iter(())
+        except Exception:
+            log.exception("Error resolving dependency %s", dependency)
+            return iter(())
 
 
 class PipSourcePackage(SourcePackage):
