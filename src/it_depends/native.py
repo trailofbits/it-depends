@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 from tqdm import tqdm
 
-from . import version as it_depends_version
+from . import __version__ as it_depends_version
 from .dependencies import (
     Dependency,
     DependencyResolver,
@@ -128,7 +128,7 @@ def container_for(source: DependencyResolver) -> DockerContainer:
             container = DockerContainer(
                 f"trailofbits/it-depends-{source.name!s}",
                 dockerfile,
-                tag=it_depends_version(),
+                tag=it_depends_version,
             )
             t.update(1)
             container.rebuild()

@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from docker.models.images import Image
 from tqdm import tqdm
 
-from . import version as it_depends_version
+from . import __version__ as it_depends_version
 
 
 def _discover_podman_socket() -> str | None:
@@ -197,7 +197,7 @@ class DockerContainer:
         """Initialize Docker container."""
         self.image_name: str = image_name
         if tag is None:
-            self.tag: str = it_depends_version()
+            self.tag: str = it_depends_version
         else:
             self.tag = tag
         self._client: docker.DockerClient | None = None

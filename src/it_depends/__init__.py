@@ -6,8 +6,6 @@ from importlib import import_module
 from pathlib import Path
 from pkgutil import iter_modules
 
-from .it_depends import version as version
-
 # Automatically load all modules in the `it_depends` package,
 # so all DependencyResolvers will auto-register themselves:
 package_dir = Path(__file__).resolve().parent

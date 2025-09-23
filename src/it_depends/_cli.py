@@ -14,11 +14,11 @@ from typing import TYPE_CHECKING, TextIO
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
 
+from . import __version__ as it_depends_version
 from .audit import vulnerabilities
 from .db import DEFAULT_DB_PATH, DBPackageCache
 from .dependencies import Dependency, SourceRepository, resolve, resolve_sbom, resolvers
 from .html import graph_to_html
-from .it_depends import version as it_depends_version
 from .sbom import cyclonedx_to_json
 
 
@@ -166,8 +166,7 @@ def main(argv: Sequence[str] | None = None) -> int:  # noqa: C901, PLR0911, PLR0
     if args.version:
         sys.stderr.write("it-depends version ")
         sys.stderr.flush()
-        version = it_depends_version()
-        sys.stdout.write(str(version))
+        sys.stdout.write(str(it_depends_version))
         sys.stdout.flush()
         sys.stderr.write("\n")
         return 0
