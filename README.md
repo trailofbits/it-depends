@@ -123,7 +123,6 @@ git clone https://github.com/trailofbits/it-depends
 cd it-depends
 make dev
 source .venv/bin/activate
-git config core.hooksPath ./hooks  # Optionally enable git commit hooks for linting
 ```
 
 Format and test code before contributing
