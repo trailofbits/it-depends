@@ -8,7 +8,14 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import TYPE_CHECKING, Self
+from sys import version_info
+
+if version_info < (3, 11):
+    from typing_extensions import Self
+else:
+    from typing import Self
+
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

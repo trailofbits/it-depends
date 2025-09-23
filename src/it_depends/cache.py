@@ -4,7 +4,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import TYPE_CHECKING, Self
+from sys import version_info
+from typing import TYPE_CHECKING
+
+if version_info < (3, 11):
+    from typing_extensions import Self
+else:
+    from typing import Self
 
 from graphviz import Digraph
 
