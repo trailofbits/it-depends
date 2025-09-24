@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 from tqdm import tqdm
 
-from .cache import PackageCache, PackageRepository
+from .cache import InMemoryPackageCache, PackageCache, PackageRepository
 from .models import Dependency, Package, SourcePackage
 from .repository import SourceRepository
 from .resolver import PartialResolution, resolvers
@@ -89,7 +89,7 @@ def _resolve_dependency(dep: Dependency, depth: int) -> _DependencyResult:
     return _DependencyResult(dep=dep, packages=[], depth=depth)
 
 
-def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_ascending: bool = True) -> Iterator[SBOM]:  # noqa: C901, ARG001
+def resolve_sbom(root_package: Package, packages: PackageCache, order_ascending: bool = True) -> Iterator[SBOM]:  # noqa: FBT001, FBT002
     """Generate SBOMs from packages.
 
     Args:
@@ -112,37 +112,21 @@ def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_as
     history: set[PartialResolution] = {pr for pr in stack if pr.is_valid}
 
     while stack:
-        current = stack.pop()
-        if current in history:
+        pr = stack.pop()
+        if pr.is_complete:
+            yield SBOM(pr.dependencies(), root_packages=(root_package,))
             continue
-        history.add(current)
-
-        if current.is_complete:
-            yield SBOM(
-                dependencies=current.dependencies(),
-                root_packages=list(current.packages),  # type: ignore[call-overload]
-            )
+        elif not pr.is_valid:
             continue
 
-        for package in current.packages:  # type: ignore[attr-defined]
-            if not package.dependencies:
+        for dep, required_by in pr.packages.unsatisfied_dependencies():  # type: ignore[attr-defined]
+            if not PartialResolution(packages=required_by, parent=pr).is_valid:
                 continue
-
-            for dep in package.dependencies:
-                # Check if dependency is already satisfied by a package in the resolution
-                if any(dep.match(pkg) for pkg in current.packages):  # type: ignore[attr-defined]
-                    continue
-
-                try:
-                    packages_for_dep = list(resolve(dep))
-                    if packages_for_dep:
-                        # Use the first package as the dependency
-                        new_resolution = current.add(packages_for_dep, packages_for_dep[0])
-                        if new_resolution.is_valid and new_resolution not in history:
-                            stack.append(new_resolution)
-                except Exception:
-                    logger.exception("Error updating dependencies")
-                    continue
+            for match in sorted(packages.match(dep), key=lambda p: p.version, reverse=order_ascending):
+                next_pr = pr.add(required_by, match)
+                if next_pr.is_valid and next_pr not in history:
+                    history.add(next_pr)
+                    stack.append(next_pr)
 
 
 def resolve(  # noqa: C901, PLR0912, PLR0915
@@ -164,6 +148,9 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
 
     if repo is None:
         repo = PackageRepository()
+
+    if cache is None:
+        cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
 
     if max_workers is None:
         max_workers = cpu_count()
@@ -210,8 +197,6 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
             ) -> None:
                 repo.add(updated_package)
                 if not isinstance(updated_package, SourcePackage) and updated_package is not repo_or_spec:
-                    if not cache:
-                        return
                     if was_updated:
                         cache.add(updated_package)
                     for r in updated_in_resolvers:
