@@ -209,25 +209,27 @@ def main(argv: Sequence[str] | None = None) -> int:  # noqa: C901, PLR0911, PLR0
                 sys.stderr.write("Cache cleared.\n")
 
     if args.list:
+        # NOTE: This is so the user can pipe the output to another command.
+        #       For example, $ it-depends --list | xargs -n1 ...
         sys.stdout.flush()
         path = repo.path.absolute() if isinstance(repo, SourceRepository) else args.PATH_OR_NAME
-        sys.stdout.write(f"Available resolvers for {path}:\n")
-        sys.stdout.flush()
+        sys.stderr.write(f"Available resolvers for {path}:\n")
+        sys.stderr.flush()
         for name, classifier in sorted((c.name, c) for c in resolvers()):
             sys.stdout.write(name + " " * (12 - len(name)))
             sys.stdout.flush()
             available = classifier.is_available()
             if not available:
-                sys.stdout.write(f"\tnot available: {available.reason}")
-                sys.stdout.flush()
+                sys.stderr.write(f"\tnot available: {available.reason}")
+                sys.stderr.flush()
             elif isinstance(repo, SourceRepository) and not classifier.can_resolve_from_source(repo):
-                sys.stdout.write("\tincompatible with this path")
-                sys.stdout.flush()
+                sys.stderr.write("\tincompatible with this path")
+                sys.stderr.flush()
             elif isinstance(repo, Dependency) and repo.source != classifier.name:
-                sys.stdout.write("\tincompatible with this package specifier")
+                sys.stderr.write("\tincompatible with this package specifier")
             else:
-                sys.stdout.write("\tenabled")
-                sys.stdout.flush()
+                sys.stderr.write("\tenabled")
+                sys.stderr.flush()
 
             sys.stdout.write("\n")
             sys.stdout.flush()
