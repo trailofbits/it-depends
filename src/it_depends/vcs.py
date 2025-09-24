@@ -13,12 +13,12 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from re import Pattern
-from typing import TYPE_CHECKING, Callable, TypeVar, cast
+from typing import TYPE_CHECKING, TypeVar, cast
 
 from typing_extensions import Self
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
 
 
 class VCSResolutionError(ValueError):

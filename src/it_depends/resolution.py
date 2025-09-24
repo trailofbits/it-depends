@@ -65,8 +65,10 @@ def _update_package(package: Package, depth: int) -> _PackageResult:
                 if updated_package.dependencies != old_deps:
                     uir.append(resolver.name)
                     package = updated_package
-            except Exception:  # noqa: S110, BLE001
-                pass
+            except ValueError as e:
+                logger.warning("Error updating dependencies: %s", str(e))
+            except Exception:
+                logger.exception("Error updating dependencies")
     return _PackageResult(
         package=package,
         was_updated=len(uir) > 0,
@@ -82,8 +84,8 @@ def _resolve_dependency(dep: Dependency, depth: int) -> _DependencyResult:
             try:
                 packages = list(resolver.resolve(dep))
                 return _DependencyResult(dep=dep, packages=packages, depth=depth)
-            except Exception:  # noqa: S110, BLE001
-                pass
+            except Exception:
+                logger.exception("Error updating dependencies")
     return _DependencyResult(dep=dep, packages=[], depth=depth)
 
 
@@ -138,8 +140,9 @@ def resolve_sbom(root_package: Package, packages: PackageRepository, *, order_as
                         new_resolution = current.add(packages_for_dep, packages_for_dep[0])
                         if new_resolution.is_valid and new_resolution not in history:
                             stack.append(new_resolution)
-                except Exception:  # noqa: S110, BLE001
-                    pass
+                except Exception:
+                    logger.exception("Error updating dependencies")
+                    continue
 
 
 def resolve(  # noqa: C901, PLR0912, PLR0915

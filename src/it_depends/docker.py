@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import shutil
@@ -31,6 +32,8 @@ if TYPE_CHECKING:
 from tqdm import tqdm
 
 from . import __version__ as it_depends_version
+
+logger = logging.getLogger(__name__)
 
 
 def _discover_podman_socket() -> str | None:

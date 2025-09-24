@@ -122,7 +122,8 @@ class UbuntuResolver(DependencyResolver):
                     dep_version = dep_version.split("-", maxsplit=1)[0]
                     dep_version = dep_version.replace(" ", "")
                     SimpleSpec(dep_version.replace(" ", ""))
-                except Exception:  # noqa: BLE001
+                except Exception:
+                    logger.exception("Error parsing dependencies line")
                     dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
 
                 deps.append((dep_package, dep_version))

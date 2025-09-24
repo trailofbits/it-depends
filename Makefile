@@ -59,8 +59,8 @@ lint: $(VENV)/pyvenv.cfg
 		uv run mypy
 		uv run interrogate -c pyproject.toml .
 
-.PHONY: reformat
-reformat:
+.PHONY: format
+format:
 	uv run ruff format && \
 		uv run ruff check --fix
 

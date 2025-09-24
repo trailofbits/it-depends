@@ -1,9 +1,9 @@
 import json
 import logging
 import zipfile
+from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
-from typing import Callable
 from unittest import TestCase
 
 import requests

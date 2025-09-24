@@ -128,7 +128,7 @@ source .venv/bin/activate
 Format and test code before contributing
 
 ```shell
-make reformat lint test
+make format lint test
 ```
 
 ## Acknowledgements
