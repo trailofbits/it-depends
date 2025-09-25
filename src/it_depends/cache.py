@@ -14,12 +14,14 @@ else:
 
 from graphviz import Digraph
 
+from .models import Dependency, SourcePackage
+from .resolver import DependencyResolver
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
     from .graph import DependencyGraph
-    from .models import Dependency, Package, SourcePackage, Version
-    from .resolver import DependencyResolver
+    from .models import Package, Version
 else:
     from .graph import DependencyGraph
     from .models import Package
@@ -160,7 +162,7 @@ class PackageCache(ABC):
                 "vulnerabilities": [v.to_compact_str() for v in package.vulnerabilities],
                 "source": package.source,
             }
-            if hasattr(package, "source_repo"):  # SourcePackage
+            if isinstance(package, SourcePackage):
                 ret["is_source_package"] = True
             else:
                 ret["is_source_package"] = False
@@ -176,7 +178,7 @@ class PackageCache(ABC):
     @property
     def source_packages(self) -> set[SourcePackage]:
         """Get all source packages in the cache."""
-        return {package for package in self if hasattr(package, "source_repo")}  # type: ignore[misc]
+        return {package for package in self if isinstance(package, SourcePackage)}
 
     def to_dot(self, sources: Iterable[Package] | None = None) -> Digraph:  # noqa: C901
         """Render a Graphviz Dot graph of the dependency hierarchy.
@@ -302,7 +304,7 @@ class InMemoryPackageCache(PackageCache):
 
     def from_source(self, source: str | DependencyResolver) -> PackageCache:
         """Get a cache filtered by source."""
-        if hasattr(source, "name"):
+        if isinstance(source, DependencyResolver):
             source = source.name
         return InMemoryPackageCache({source: self._cache.setdefault(source, {})})
 
@@ -325,11 +327,11 @@ class InMemoryPackageCache(PackageCache):
         """Match packages against a pattern."""
         if isinstance(to_match, str):
             to_match = Package.from_string(to_match)
-        if hasattr(to_match, "to_dependency"):  # Package
+        if isinstance(to_match, Package):
             to_match = to_match.to_dependency()
-        if not hasattr(to_match, "source"):  # Dependency
+        if not isinstance(to_match, Dependency):
             msg = "Expected Dependency object"
-            raise AssertionError(msg)
+            raise TypeError(msg)
         source_dict = self._cache.get(to_match.source, {})
         for version, package in source_dict.get(to_match.package, {}).items():
             if to_match.semantic_version is not None and version in to_match.semantic_version:
