@@ -31,7 +31,7 @@ version = { attr = "it_depends.__version__" }
 
 [project.optional-dependencies]
 doc = ["pdoc"]
-test = ["pytest", "pytest-cov", "pretend", "coverage[toml]"]
+test = ["pytest", "pytest-cov", "pytest-timeout", "pretend", "coverage[toml]"]
 lint = [
     # NOTE: ruff is under active development, so we pin conservatively here
     # and let Dependabot periodically perform this update.
