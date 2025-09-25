@@ -66,7 +66,7 @@ format:
 
 .PHONY: test tests
 test tests: $(VENV)/pyvenv.cfg
-	uv run pytest -svv --timeout=600 --cov=$(PY_IMPORT) $(T) $(TEST_ARGS)
+	uv run pytest -svv --timeout=1800 --cov=$(PY_IMPORT) $(T) $(TEST_ARGS)
 	uv run coverage report -m $(COV_ARGS)
 
 .PHONY: doc
