@@ -140,7 +140,7 @@ class CompoundSpec(BaseSpec):
         self.clause = AllOf(*(s.clause for s in to_combine))
 
     @classmethod
-    def _parse_to_clause(cls, expression: str) -> BaseSpec:  # noqa: ARG003
+    def _parse_to_clause(cls, expression: str) -> None:  # noqa: ARG003
         """Convert an expression to a clause."""
         # Placeholder, we actually set self.clause in self.__init__
         return

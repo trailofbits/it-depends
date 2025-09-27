@@ -87,8 +87,6 @@ class TestResolvers(TestCase):
                 "npm:crypto-js@4.0.0",
             )
         ]
-        # TODO(@evandowning): Uncomment this again. # noqa: FIX002,TD003
-        """
         to_test.extend(
             [
                 (smoke_test.source_repo, 3)
@@ -96,7 +94,6 @@ class TestResolvers(TestCase):
                 if smoke_test.repo_name in ("bitcoin", "pe-parse")
             ]
         )
-        """
         for dep, num_attempts in to_test:
             with self.subTest(msg="Testing the determinism of dep", dep=dep):
                 first_result: set[Package] = set()

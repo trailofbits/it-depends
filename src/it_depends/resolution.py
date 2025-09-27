@@ -131,7 +131,6 @@ def resolve_sbom(root_package: Package, packages: PackageCache, order_ascending:
 
 def resolve(  # noqa: C901, PLR0912, PLR0915
     repo_or_spec: Package | Dependency | SourceRepository,
-    *,
     cache: PackageCache | None = None,
     depth_limit: int = -1,
     repo: PackageRepository | None = None,
@@ -146,14 +145,14 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
     if depth_limit == 0:
         return PackageRepository()
 
+    if max_workers is None:
+        max_workers = cpu_count()
+
     if repo is None:
         repo = PackageRepository()
 
     if cache is None:
         cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
-
-    if max_workers is None:
-        max_workers = cpu_count()
 
     try:
         with tqdm(desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t:
@@ -244,10 +243,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                         else:
                             if was_updatable:
                                 # every resolver that could have updated this package did update it in the cache
-                                try:
-                                    # retrieve the package from the cache
-                                    if not cache:
-                                        break
+                                try:  # noqa: SIM105
                                     package = next(iter(cache.match(package)))  # noqa: PLW2901
                                 except StopIteration:
                                     pass
