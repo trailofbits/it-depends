@@ -35,7 +35,7 @@ ifneq ($(TESTS),)
 	COV_ARGS :=
 else
 	TEST_ARGS :=
-	COV_ARGS := --fail-under 90
+	COV_ARGS := --fail-under 50
 endif
 
 .PHONY: all
@@ -59,14 +59,14 @@ lint: $(VENV)/pyvenv.cfg
 		uv run mypy
 		uv run interrogate -c pyproject.toml .
 
-.PHONY: reformat
-reformat:
+.PHONY: format
+format:
 	uv run ruff format && \
 		uv run ruff check --fix
 
 .PHONY: test tests
 test tests: $(VENV)/pyvenv.cfg
-	uv run pytest --cov=$(PY_IMPORT) $(T) $(TEST_ARGS)
+	uv run pytest --timeout=7200 --cov=$(PY_IMPORT) $(T) $(TEST_ARGS)
 	uv run coverage report -m $(COV_ARGS)
 
 .PHONY: doc

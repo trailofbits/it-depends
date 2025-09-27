@@ -1,89 +1,115 @@
-import sys
+"""Dependency resolution module for managing package dependencies."""
+
+from __future__ import annotations
+
 import logging
+import sys
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from multiprocessing import cpu_count
-from typing import List, Optional, Set, Tuple, Union, Iterable, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from tqdm import tqdm
 
-from .resolver import resolvers
-from .cache import PackageCache, InMemoryPackageCache, PackageRepository
+from .cache import InMemoryPackageCache, PackageCache, PackageRepository
+from .models import Dependency, Package, SourcePackage
 from .repository import SourceRepository
+from .resolver import PartialResolution, resolvers
+from .sbom import SBOM
 
 if TYPE_CHECKING:
-    from .models import Package, Dependency, SourcePackage
-    from .resolver import PartialResolution
+    from collections.abc import Iterable, Iterator
 
 logger = logging.getLogger(__name__)
 
+
 class _DependencyResult:
-    def __init__(self, dep: "Dependency", packages: List["Package"], depth: int):
-        self.dep: "Dependency" = dep
-        self.packages: List["Package"] = packages
+    """Result of dependency resolution."""
+
+    def __init__(self, dep: Dependency, packages: list[Package], depth: int) -> None:
+        """Initialize dependency result."""
+        self.dep: Dependency = dep
+        self.packages: list[Package] = packages
         self.depth: int = depth
 
 
-def _process_dep(dep: "Dependency", depth: int) -> _DependencyResult:
+def _process_dep(dep: Dependency, depth: int) -> _DependencyResult:
     return _DependencyResult(dep=dep, packages=list(dep.resolver.resolve(dep)), depth=depth)
 
 
 class _PackageResult:
+    """Result of package update."""
+
     def __init__(
         self,
-        package: "Package",
+        package: Package,
+        *,
         was_updated: bool,
-        updated_in_resolvers: Iterable[str],
+        updated_in_resolvers: set[str],
         depth: int,
-    ):
-        self.package: "Package" = package
+    ) -> None:
+        """Initialize package result."""
+        self.package: Package = package
         self.was_updated: bool = was_updated
-        self.updated_in_resolvers: Set[str] = set(updated_in_resolvers)
+        self.updated_in_resolvers: set[str] = set(updated_in_resolvers)
         self.depth: int = depth
 
 
-def _update_package(package: "Package", depth: int) -> _PackageResult:
+def _update_package(package: Package, depth: int) -> _PackageResult:
+    """Update a package's dependencies."""
     old_deps = frozenset(package.dependencies)
-    uir: List[str] = []
+    uir: list[str] = []
     for resolver in resolvers():
         if resolver.can_update_dependencies(package):
-            package = resolver.update_dependencies(package)
-            uir.append(resolver.name)
+            try:
+                updated_package = resolver.update_dependencies(package)
+                if updated_package.dependencies != old_deps:
+                    uir.append(resolver.name)
+                    package = updated_package
+            except ValueError as e:
+                logger.warning("Error updating dependencies: %s", str(e))
+            except Exception:
+                logger.exception("Error updating dependencies")
     return _PackageResult(
         package=package,
-        was_updated=package.dependencies != old_deps,
-        updated_in_resolvers=uir,
+        was_updated=len(uir) > 0,
+        updated_in_resolvers=set(uir),
         depth=depth,
     )
 
 
-def resolve_sbom(root_package: "Package", packages: "PackageRepository", order_ascending: bool = True):
-    """
-    Generates SBOMs from packages.
-    
+def _resolve_dependency(dep: Dependency, depth: int) -> _DependencyResult:
+    """Resolve a dependency to packages."""
+    for resolver in resolvers():
+        if resolver.name == dep.source:
+            try:
+                packages = list(resolver.resolve(dep))
+                return _DependencyResult(dep=dep, packages=packages, depth=depth)
+            except Exception:
+                logger.exception("Error updating dependencies")
+    return _DependencyResult(dep=dep, packages=[], depth=depth)
+
+
+def resolve_sbom(root_package: Package, packages: PackageCache, order_ascending: bool = True) -> Iterator[SBOM]:  # noqa: FBT001, FBT002
+    """Generate SBOMs from packages.
+
     Args:
         root_package: The root package to generate SBOMs for
         packages: The package repository containing all packages
         order_ascending: If True, prefer older versions; if False, prefer newer versions
-        
+
     Yields:
         SBOM objects representing different dependency resolutions
+
     """
-    from .sbom import SBOM
-    
     if not root_package.dependencies:
-        yield SBOM((), (root_package,))
+        yield SBOM(root_packages=(root_package,))
         return
 
-    logger.info(f"Resolving the {['newest', 'oldest'][order_ascending]} possible SBOM for {root_package.name}")
+    logger.info("Resolving the %s possible SBOM for %s", ["newest", "oldest"][order_ascending], root_package.name)
 
-    stack: List["PartialResolution"] = [
-        PartialResolution(packages=(root_package,))
-    ]
+    stack: list[PartialResolution] = [PartialResolution(packages=(root_package,))]
 
-    history: Set["PartialResolution"] = {
-        pr for pr in stack
-        if pr.is_valid
-    }
+    history: set[PartialResolution] = {pr for pr in stack if pr.is_valid}
 
     while stack:
         pr = stack.pop()
@@ -93,28 +119,24 @@ def resolve_sbom(root_package: "Package", packages: "PackageRepository", order_a
         elif not pr.is_valid:
             continue
 
-        for dep, required_by in pr.packages.unsatisfied_dependencies():
+        for dep, required_by in pr.packages.unsatisfied_dependencies():  # type: ignore[attr-defined]
             if not PartialResolution(packages=required_by, parent=pr).is_valid:
                 continue
-            for match in sorted(
-                    packages.match(dep),
-                    key=lambda p: p.version,
-                    reverse=order_ascending
-            ):
+            for match in sorted(packages.match(dep), key=lambda p: p.version, reverse=order_ascending):
                 next_pr = pr.add(required_by, match)
                 if next_pr.is_valid and next_pr not in history:
                     history.add(next_pr)
                     stack.append(next_pr)
 
-def resolve(
-    repo_or_spec: Union["Package", "Dependency", SourceRepository],
-    cache: Optional[PackageCache] = None,
+
+def resolve(  # noqa: C901, PLR0912, PLR0915
+    repo_or_spec: Package | Dependency | SourceRepository,
+    cache: PackageCache | None = None,
     depth_limit: int = -1,
-    repo: Optional[PackageRepository] = None,
-    max_workers: Optional[int] = None,
+    repo: PackageRepository | None = None,
+    max_workers: int | None = None,
 ) -> PackageRepository:
-    """
-    Resolves the dependencies for a package, dependency, or source repository.
+    """Resolve the dependencies for a package, dependency, or source repository.
 
     If depth_limit is negative (the default), recursively resolve all dependencies.
     If depth_limit is greater than zero, only recursively resolve dependencies to that depth.
@@ -124,10 +146,7 @@ def resolve(
         return PackageRepository()
 
     if max_workers is None:
-        try:
-            max_workers = cpu_count()
-        except NotImplementedError:
-            max_workers = 5
+        max_workers = cpu_count()
 
     if repo is None:
         repo = PackageRepository()
@@ -136,19 +155,13 @@ def resolve(
         cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
 
     try:
-        with cache, tqdm(
-            desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies"
-        ) as t:
-            if hasattr(repo_or_spec, 'package'):  # Dependency
-                unresolved_dependencies: List[Tuple["Dependency", int]] = [(repo_or_spec, 0)]
-                unupdated_packages: List[Tuple["Package", int]] = []
-            elif hasattr(repo_or_spec, 'name'):  # Package
-                unresolved_dependencies = []
-                unupdated_packages = [(repo_or_spec, 0)]
-            elif hasattr(repo_or_spec, 'path'):  # SourceRepository
-                # repo_or_spec is a SourceRepository
-                unresolved_dependencies = []
-                unupdated_packages = []
+        with tqdm(desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t:
+            # Initialize variables
+            unresolved_dependencies: list[tuple[Dependency, int]] = []
+            unupdated_packages: list[tuple[Package, int]] = []
+
+            if isinstance(repo_or_spec, SourceRepository):
+                # Resolve from source repository
                 found_source_package = False
                 for resolver in resolvers():
                     if resolver.can_resolve_from_source(repo_or_spec):
@@ -158,32 +171,31 @@ def resolve(
                         found_source_package = True
                         unupdated_packages.append((source_package, 0))
                 if not found_source_package:
-                    raise ValueError(f"Can not resolve {repo_or_spec}")
+                    error_msg = f"Can not resolve {repo_or_spec}"
+                    raise ValueError(error_msg)
+            elif isinstance(repo_or_spec, Dependency):
+                unresolved_dependencies = [(repo_or_spec, 0)]
+            elif isinstance(repo_or_spec, Package):
+                unupdated_packages = [(repo_or_spec, 0)]
             else:
-                raise ValueError(
-                    f"repo_or_spec must be either a Package, Dependency, or SourceRepository"
-                )
+                error_msg = "repo_or_spec must be either a Package, Dependency, or SourceRepository"
+                raise TypeError(error_msg)
 
             t.total = len(unupdated_packages) + len(unresolved_dependencies)
 
-            futures: Set[Future[Union[_DependencyResult, _PackageResult]]] = set()
-            queued: Set["Dependency"] = {d for d, _ in unresolved_dependencies}
+            futures: set[Future[_DependencyResult | _PackageResult]] = set()
+            queued: set[Dependency] = {d for d, _ in unresolved_dependencies}
             if max_workers > 1:
-                pool = ThreadPoolExecutor(
-                    max_workers=max_workers, thread_name_prefix="it-depends-resolver"
-                )
+                pool = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="it-depends-resolver")
 
             def process_updated_package(
-                updated_package: "Package",
+                updated_package: Package,
                 at_depth: int,
-                updated_in_resolvers: Set[str],
-                was_updated: bool = True,
-            ):
+                updated_in_resolvers: set[str],
+                was_updated: bool = True,  # noqa: FBT001, FBT002
+            ) -> None:
                 repo.add(updated_package)
-                if (
-                    not hasattr(updated_package, 'source_repo')  # not SourcePackage
-                    and updated_package is not repo_or_spec
-                ):
+                if not isinstance(updated_package, SourcePackage) and updated_package is not repo_or_spec:
                     if was_updated:
                         cache.add(updated_package)
                     for r in updated_in_resolvers:
@@ -196,12 +208,12 @@ def resolve(
                     queued.update(new_deps)
 
             def process_resolution(
-                dep: "Dependency",
-                packages: Iterable["Package"],
+                dep: Dependency,
+                packages: Iterable[Package],
                 at_depth: int,
-                already_cached: bool = False,
-            ):
-                """This gets called whenever we resolve a new package"""
+                already_cached: bool = False,  # noqa: FBT001, FBT002
+            ) -> None:
+                """Process a dependency resolution."""
                 repo.set_resolved(dep)
                 packages = list(packages)
                 if not already_cached and cache is not None and dep is not repo_or_spec:
@@ -219,21 +231,20 @@ def resolve(
                     reached_fixed_point = True
 
                     # loop through the unupdated packages and see if any are cached:
-                    not_updated: List[Tuple["Package", int]] = []
+                    not_updated: list[tuple[Package, int]] = []
                     was_updatable = False
                     for package, depth in unupdated_packages:
                         for resolver in resolvers():
                             if resolver.can_update_dependencies(package):
                                 was_updatable = True
-                                if not cache.was_updated(package, resolver.name):
+                                if not cache or not cache.was_updated(package, resolver.name):
                                     not_updated.append((package, depth))
                                     break
                         else:
                             if was_updatable:
                                 # every resolver that could have updated this package did update it in the cache
-                                try:
-                                    # retrieve the package from the cache
-                                    package = next(iter(cache.match(package)))
+                                try:  # noqa: SIM105
+                                    package = next(iter(cache.match(package)))  # noqa: PLW2901
                                 except StopIteration:
                                     pass
                             process_updated_package(package, depth, updated_in_resolvers=set())
@@ -244,9 +255,9 @@ def resolve(
                         unupdated_packages = not_updated
 
                     # loop through the unresolved deps and see if any are cached:
-                    not_cached: List[Tuple["Dependency", int]] = []
+                    not_cached: list[tuple[Dependency, int]] = []
                     for dep, depth in unresolved_dependencies:
-                        if dep is not repo_or_spec and cache.was_resolved(dep):
+                        if dep is not repo_or_spec and cache and cache.was_resolved(dep):
                             matches = cache.match(dep)
                             process_resolution(dep, matches, depth, already_cached=True)
                             t.update(1)
@@ -278,15 +289,13 @@ def resolve(
                     new_jobs = max_workers - len(futures)
                     # create `new_jobs` package update jobs:
                     futures |= {
-                        pool.submit(_update_package, package, depth)
-                        for package, depth in unupdated_packages[:new_jobs]
+                        pool.submit(_update_package, package, depth) for package, depth in unupdated_packages[:new_jobs]
                     }
                     unupdated_packages = unupdated_packages[new_jobs:]
                     new_jobs = max_workers - len(futures)
                     # create `new_jobs` new resolution jobs:
                     futures |= {
-                        pool.submit(_process_dep, dep, depth)
-                        for dep, depth in unresolved_dependencies[:new_jobs]
+                        pool.submit(_process_dep, dep, depth) for dep, depth in unresolved_dependencies[:new_jobs]
                     }
                     unresolved_dependencies = unresolved_dependencies[new_jobs:]
                     if futures:
@@ -304,7 +313,8 @@ def resolve(
                             elif isinstance(result, _DependencyResult):
                                 process_resolution(result.dep, result.packages, result.depth)
                             else:
-                                raise NotImplementedError(f"Unexpected future result: {result!r}")
+                                error_msg = f"Unexpected future result: {result!r}"
+                                raise NotImplementedError(error_msg)
 
     except KeyboardInterrupt:
         if sys.stderr.isatty() and sys.stdin.isatty():
@@ -312,9 +322,9 @@ def resolve(
                 while True:
                     sys.stderr.write("Would you like to output the partial results? [Yn] ")
                     choice = input().lower()
-                    if choice == "" or choice == "y":
+                    if choice in {"", "y"}:
                         return repo
-                    elif choice == "n":
+                    if choice == "n":
                         sys.exit(1)
             except KeyboardInterrupt:
                 sys.exit(1)

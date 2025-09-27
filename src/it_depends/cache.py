@@ -1,117 +1,134 @@
+"""Package cache implementations for dependency resolution."""
+
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from typing import Dict, FrozenSet, Iterable, Iterator, Optional, Set, Tuple, Union, TYPE_CHECKING
+from sys import version_info
+from typing import TYPE_CHECKING
+
+if version_info < (3, 11):
+    from typing_extensions import Self
+else:
+    from typing import Self
 
 from graphviz import Digraph
 
-from .graphs import RootedDiGraph
+from .models import Dependency, SourcePackage
+from .resolver import DependencyResolver
 
 if TYPE_CHECKING:
-    from .models import Package, Dependency, SourcePackage
+    from collections.abc import Iterable, Iterator
+
+    from .graph import DependencyGraph
+    from .models import Package, Version
+else:
+    from .graph import DependencyGraph
+    from .models import Package
 
 
 class PackageCache(ABC):
-    """An abstract base class for a collection of packages"""
+    """An abstract base class for a collection of packages."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize package cache."""
         self._entries: int = 0
 
-    def open(self):
-        pass
+    @abstractmethod
+    def open(self) -> None:
+        """Open the cache."""
 
-    def close(self):
-        pass
+    @abstractmethod
+    def close(self) -> None:
+        """Close the cache."""
 
-    def __enter__(self):
+    def __enter__(self) -> Self:
+        """Enter context manager."""
         if self._entries == 0:
             self.open()
         self._entries += 1
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: object) -> None:
+        """Exit context manager."""
         self._entries -= 1
         if self._entries == 0:
             self.close()
 
     @abstractmethod
-    def __len__(self):
-        """Returns the number of packages in this cache."""
-        raise NotImplementedError()
+    def __len__(self) -> int:
+        """Return the number of packages in this cache."""
+        raise NotImplementedError
 
     @abstractmethod
-    def __iter__(self) -> Iterator["Package"]:
-        """Iterates over the packages in this cache."""
-        raise NotImplementedError()
+    def __iter__(self) -> Iterator[Package]:
+        """Iterate over the packages in this cache."""
+        raise NotImplementedError
 
-    def __contains__(self, pkg: "Package"):
-        """True if pkg exists in this in this collection of packages."""
-        for pkg_i in self:
-            if pkg_i == pkg:
-                return True
-        return False
+    def __contains__(self, pkg: Package) -> bool:
+        """Check if package exists in this collection of packages."""
+        return any(pkg_i == pkg for pkg_i in self)
 
     @abstractmethod
-    def was_resolved(self, dependency: "Dependency") -> bool:
-        """True if this particular dependency was set resolved"""
-        raise NotImplementedError()
+    def was_resolved(self, dependency: Dependency) -> bool:
+        """Check if this particular dependency was resolved."""
+        raise NotImplementedError
 
     @abstractmethod
-    def set_resolved(self, dependency: "Dependency"):
-        """True if this particular dependency as resolved"""
-        raise NotImplementedError()
+    def set_resolved(self, dependency: Dependency) -> None:
+        """Mark this particular dependency as resolved."""
+        raise NotImplementedError
 
     @abstractmethod
-    def set_updated(self, package: "Package", resolver: str):
-        """Update package for updates made by resolver"""
-        raise NotImplementedError()
+    def set_updated(self, package: Package, resolver: str) -> None:
+        """Mark package as updated by resolver."""
+        raise NotImplementedError
 
     @abstractmethod
-    def was_updated(self, package: "Package", resolver: str) -> bool:
-        """True if package was updated by resolver"""
-        raise NotImplementedError()
+    def was_updated(self, package: Package, resolver: str) -> bool:
+        """Check if package was updated by resolver."""
+        raise NotImplementedError
 
     @abstractmethod
-    def updated_by(self, package: "Package") -> FrozenSet[str]:
-        """A set of resolver names that updated package"""
-        raise NotImplementedError()
+    def updated_by(self, package: Package) -> frozenset[str]:
+        """Get the set of resolver names that updated package."""
+        raise NotImplementedError
 
     @abstractmethod
-    def package_versions(self, package_full_name: str) -> Iterator["Package"]:
-        """"""
-        raise NotImplementedError()
+    def package_versions(self, package_full_name: str) -> Iterator[Package]:
+        """Get all versions of a package by full name."""
+        raise NotImplementedError
 
     @abstractmethod
-    def package_full_names(self) -> FrozenSet[str]:
-        raise NotImplementedError()
+    def package_full_names(self) -> frozenset[str]:
+        """Get all package full names in the cache."""
+        raise NotImplementedError
 
-    def latest_match(self, to_match: Union[str, "Package", "Dependency"]) -> Optional["Package"]:
-        """
-        Returns the latest package version that matches the given dependency, or None if no packages match
-        """
-        latest: Optional["Package"] = None
+    def latest_match(self, to_match: str | Package | Dependency) -> Package | None:
+        """Return the latest package version that matches the given dependency, or None if no packages match."""
+        latest: Package | None = None
         for p in self.match(to_match):
             if latest is None or p.version >= latest.version:
                 latest = p
         return latest
 
     @abstractmethod
-    def match(self, to_match: Union[str, "Package", "Dependency"]) -> Iterator["Package"]:
-        """
-        Yields all packages in this collection of packages that match the Dependency.
+    def match(self, to_match: str | Package | Dependency) -> Iterator[Package]:
+        """Yield all packages in this collection of packages that match the Dependency.
 
         This function does not perform any dependency resolution;
         it only matches against existing packages in this cache.
 
         """
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def get(
         self,
-        source: Union[str, "DependencyResolver"],
+        source: str | DependencyResolver,
         name: str,
-        version: Union[str, "Version"],
-    ) -> Optional["Package"]:
-        from .models import Package
+        version: str | Version,
+    ) -> Package | None:
+        """Get a package from the cache."""
         pkg = Package(source=source, name=name, version=version)
         it = self.match(pkg.to_dependency())
         try:
@@ -119,45 +136,52 @@ class PackageCache(ABC):
         except StopIteration:
             return None
 
-    def to_graph(self) -> "DependencyGraph":
-        from .graph import DependencyGraph
+    def to_graph(self) -> DependencyGraph:
+        """Convert cache to dependency graph."""
         graph = DependencyGraph()
         for package in self:
-            graph.add_node(package)
+            graph.add_node(package)  # type: ignore[arg-type]
             for dep in package.dependencies:
                 for p in self.match(dep):
-                    assert p in self
-                    graph.add_edge(package, p, dependency=dep)
+                    if p not in self:
+                        msg = "Package not in cache"
+                        raise AssertionError(msg)
+                    graph.add_edge(package, p, dependency=dep)  # type: ignore[arg-type]
         return graph
 
-    def to_obj(self):
-        def package_to_dict(package: "Package"):
-            ret = {
+    def to_obj(self) -> dict[str, dict[str, dict[str, str | bool | list[str] | dict[str, str]]]]:
+        """Convert cache to object representation."""
+
+        def package_to_dict(package: Package) -> dict[str, str | bool | list[str] | dict[str, str]]:
+            ret: dict[str, str | bool | list[str] | dict[str, str]] = {
+                "name": package.name,
+                "version": str(package.version),
                 "dependencies": {
-                    f"{dep.source}:{dep.package}": str(dep.semantic_version)
-                    for dep in package.dependencies
+                    f"{dep.source}:{dep.package}": str(dep.semantic_version) for dep in package.dependencies
                 },
                 "vulnerabilities": [v.to_compact_str() for v in package.vulnerabilities],
                 "source": package.source,
             }
-            if hasattr(package, 'source_repo'):  # SourcePackage
+            if isinstance(package, SourcePackage):
                 ret["is_source_package"] = True
+            else:
+                ret["is_source_package"] = False
             return ret
 
         return {
             package_full_name: {
-                str(package.version): package_to_dict(package)
-                for package in self.package_versions(package_full_name)
+                str(package.version): package_to_dict(package) for package in self.package_versions(package_full_name)
             }
             for package_full_name in self.package_full_names()
         }
 
     @property
-    def source_packages(self) -> Set["SourcePackage"]:
-        return {package for package in self if hasattr(package, 'source_repo')}
+    def source_packages(self) -> set[SourcePackage]:
+        """Get all source packages in the cache."""
+        return {package for package in self if isinstance(package, SourcePackage)}
 
-    def to_dot(self, sources: Optional[Iterable["Package"]] = None) -> Digraph:
-        """Renders a Graphviz Dot graph of the dependency hierarchy.
+    def to_dot(self, sources: Iterable[Package] | None = None) -> Digraph:  # noqa: C901
+        """Render a Graphviz Dot graph of the dependency hierarchy.
 
         If sources is not None, only render the graph rooted at the sources.
 
@@ -173,27 +197,25 @@ class PackageCache(ABC):
             dot = Digraph()
         else:
             dot = Digraph(comment=f"Dependencies for {', '.join(map(str, sources))}")
-        package_ids: Dict["Package", str] = {}
-        dependency_ids: Dict["Dependency", str] = {}
+        package_ids: dict[Package, str] = {}
+        dependency_ids: dict[Dependency, str] = {}
 
-        def add_package(pkg: "Package") -> str:
+        def add_package(pkg: Package) -> str:
             if pkg not in package_ids:
                 pkg_id = f"package{len(package_ids)}"
                 package_ids[pkg] = pkg_id
                 shape = "triangle" if pkg.vulnerabilities else "rectangle"
                 dot.node(pkg_id, label=str(pkg), shape=shape)
                 return pkg_id
-            else:
-                return package_ids[pkg]
+            return package_ids[pkg]
 
-        def add_dependency(dep: "Dependency") -> str:
+        def add_dependency(dep: Dependency) -> str:
             if dep not in dependency_ids:
                 dep_id = f"dep{len(dependency_ids)}"
                 dependency_ids[dep] = dep_id
                 dot.node(dep_id, label=str(dep), shape="oval")
                 return dep_id
-            else:
-                return dependency_ids[dep]
+            return dependency_ids[dep]
 
         while sources:
             package = sources.pop()
@@ -212,16 +234,16 @@ class PackageCache(ABC):
         return dot
 
     @abstractmethod
-    def add(self, package: "Package"):
-        raise NotImplementedError()
+    def add(self, package: Package) -> None:
+        """Add a package to the cache."""
+        raise NotImplementedError
 
-    def extend(self, packages: Iterable["Package"]):
+    def extend(self, packages: Iterable[Package]) -> None:
+        """Add multiple packages to the cache."""
         for package in packages:
             self.add(package)
 
-    def unresolved_dependencies(
-        self, packages: Optional[Iterable["Package"]] = None
-    ) -> Iterable["Dependency"]:
+    def unresolved_dependencies(self, packages: Iterable[Package] | None = None) -> Iterable[Dependency]:
         """List all unresolved dependencies of packages."""
         unresolved = set()
         if packages is None:
@@ -234,79 +256,98 @@ class PackageCache(ABC):
 
 
 class InMemoryPackageCache(PackageCache):
-    def __init__(self, _cache: Optional[Dict[str, Dict[str, Dict["Version", "Package"]]]] = None):
+    """In-memory implementation of package cache."""
+
+    def __init__(self, _cache: dict[str, dict[str, dict[Version, Package]]] | None = None) -> None:
+        """Initialize in-memory package cache."""
         super().__init__()
         if _cache is None:
-            self._cache: Dict[str, Dict[str, Dict["Version", "Package"]]] = {}
+            self._cache: dict[str, dict[str, dict[Version, Package]]] = {}
         else:
             self._cache = _cache
-        self._resolved: Dict[str, Set["Dependency"]] = defaultdict(set)  # source:package -> dep
-        self._updated: Dict["Package", Set[str]] = defaultdict(set)  # source:package -> dep
+        self._resolved: dict[str, set[Dependency]] = defaultdict(set)  # source:package -> dep
+        self._updated: dict[Package, set[str]] = defaultdict(set)  # source:package -> dep
 
-    def __len__(self):
+    def open(self) -> None:
+        """Open the cache."""
+
+    def close(self) -> None:
+        """Close the cache."""
+
+    def __len__(self) -> int:
+        """Return the number of packages in the cache."""
         return sum(sum(map(len, source.values())) for source in self._cache.values())
 
-    def __iter__(self) -> Iterator["Package"]:
+    def __iter__(self) -> Iterator[Package]:
+        """Iterate over all packages in the cache."""
         return (p for d in self._cache.values() for v in d.values() for p in v.values())
 
-    def updated_by(self, package: "Package") -> FrozenSet[str]:
+    def updated_by(self, package: Package) -> frozenset[str]:
+        """Get the set of resolvers that updated this package."""
         return frozenset(self._updated[package])
 
-    def was_updated(self, package: "Package", resolver: str) -> bool:
+    def was_updated(self, package: Package, resolver: str) -> bool:
+        """Check if package was updated by resolver."""
         return resolver in self._updated[package]
 
-    def set_updated(self, package: "Package", resolver: str):
+    def set_updated(self, package: Package, resolver: str) -> None:
+        """Mark package as updated by resolver."""
         self._updated[package].add(resolver)
 
-    def was_resolved(self, dependency: "Dependency") -> bool:
+    def was_resolved(self, dependency: Dependency) -> bool:
+        """Check if dependency was resolved."""
         return dependency in self._resolved[f"{dependency.source}:{dependency.package}"]
 
-    def set_resolved(self, dependency: "Dependency"):
+    def set_resolved(self, dependency: Dependency) -> None:
+        """Mark dependency as resolved."""
         self._resolved[f"{dependency.source}:{dependency.package}"].add(dependency)
 
-    def from_source(self, source: Union[str, "DependencyResolver"]) -> "PackageCache":
-        if hasattr(source, 'name'):
+    def from_source(self, source: str | DependencyResolver) -> PackageCache:
+        """Get a cache filtered by source."""
+        if isinstance(source, DependencyResolver):
             source = source.name
         return InMemoryPackageCache({source: self._cache.setdefault(source, {})})
 
-    def package_full_names(self) -> FrozenSet[str]:
-        ret: Set[str] = set()
+    def package_full_names(self) -> frozenset[str]:
+        """Get all package full names in the cache."""
+        ret: set[str] = set()
         for source, versions in self._cache.items():
-            for name, version in versions.items():
+            for name in versions:
                 ret.add(f"{source}:{name}")
         return frozenset(ret)
 
-    def package_versions(self, package_full_name: str) -> Iterator["Package"]:
+    def package_versions(self, package_full_name: str) -> Iterator[Package]:
+        """Get all versions of a package by full name."""
         package_source, package_name = package_full_name.split(":", 1)
         packages = self._cache[package_source]
         if package_name in packages:
             yield from packages[package_name].values()
 
-    def match(self, to_match: Union[str, "Package", "Dependency"]) -> Iterator["Package"]:
+    def match(self, to_match: str | Package | Dependency) -> Iterator[Package]:
+        """Match packages against a pattern."""
         if isinstance(to_match, str):
-            from .models import Package
             to_match = Package.from_string(to_match)
-        if hasattr(to_match, 'to_dependency'):  # Package
+        if isinstance(to_match, Package):
             to_match = to_match.to_dependency()
-        assert hasattr(to_match, 'source')  # Dependency
+        if not isinstance(to_match, Dependency):
+            msg = "Expected Dependency object"
+            raise TypeError(msg)
         source_dict = self._cache.get(to_match.source, {})
         for version, package in source_dict.get(to_match.package, {}).items():
             if to_match.semantic_version is not None and version in to_match.semantic_version:
                 yield package
 
-    def add(self, package: "Package"):
-        original_package = (
-            self._cache.setdefault(package.source, {})
-            .setdefault(package.name, {})
-            .get(package.version)
-        )
+    def add(self, package: Package) -> None:
+        """Add a package to the cache."""
+        original_package = self._cache.setdefault(package.source, {}).setdefault(package.name, {}).get(package.version)
         if original_package is not None:
             package = original_package.update_dependencies(package.dependencies)
         self._cache[package.source][package.name][package.version] = package
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """Return string representation of the cache."""
         return "[" + ",".join(self.package_full_names()) + "]"
 
 
 class PackageRepository(InMemoryPackageCache):
-    pass
+    """Package repository implementation."""

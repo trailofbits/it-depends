@@ -1,24 +1,30 @@
+"""Command-line interface for it-depends."""
+
+from __future__ import annotations
+
 import argparse
-from contextlib import contextmanager
 import json
-from pathlib import Path
 import sys
-from typing import Iterator, Optional, Sequence, TextIO, Union
 import webbrowser
-
+from contextlib import contextmanager
+from pathlib import Path
 from sqlite3 import OperationalError
+from typing import TYPE_CHECKING, TextIO
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Sequence
+
+from . import __version__ as it_depends_version
 from .audit import vulnerabilities
 from .db import DEFAULT_DB_PATH, DBPackageCache
-from .dependencies import Dependency, resolvers, resolve, SourceRepository, resolve_sbom
-from .it_depends import version as it_depends_version
+from .dependencies import Dependency, SourceRepository, resolve, resolve_sbom, resolvers
 from .html import graph_to_html
 from .sbom import cyclonedx_to_json
 
 
 @contextmanager
 def no_stdout() -> Iterator[TextIO]:
-    """A context manager that redirects STDOUT to STDERR"""
+    """Redirect STDOUT to STDERR."""
     saved_stdout = sys.stdout
     sys.stdout = sys.stderr
     try:
@@ -29,21 +35,21 @@ def no_stdout() -> Iterator[TextIO]:
 
 def parse_path_or_package_name(
     path_or_name: str,
-) -> Union[SourceRepository, Dependency]:
+) -> SourceRepository | Dependency:
     repo_path = Path(path_or_name)
     try:
-        dependency: Optional[Dependency] = Dependency.from_string(path_or_name)
+        dependency: Dependency | None = Dependency.from_string(path_or_name)
     except ValueError as e:
         if str(e).endswith("is not a known resolver") and not repo_path.exists():
-            raise ValueError(f"Unknown resolver: {path_or_name}")
+            msg = f"Unknown resolver: {path_or_name}"
+            raise ValueError(msg) from e
         dependency = None
     if dependency is None or repo_path.exists():
         return SourceRepository(path_or_name)
-    else:
-        return dependency
+    return dependency
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:  # noqa: C901, PLR0911, PLR0912, PLR0915
     if argv is None:
         argv = sys.argv
 
@@ -64,7 +70,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "--audit",
         "-a",
         action="store_true",
-        help="audit packages for known vulnerabilities using " "Google OSV",
+        help="audit packages for known vulnerabilities using Google OSV",
     )
     parser.add_argument("--list", "-l", action="store_true", help="list available package resolver")
     parser.add_argument(
@@ -79,8 +85,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--clear-cache",
         action="store_true",
-        help="clears the database specified by `--database` "
-        "(equivalent to deleting the database file)",
+        help="clears the database specified by `--database` (equivalent to deleting the database file)",
     )
     parser.add_argument(
         "--compare",
@@ -107,13 +112,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         choices=("json", "dot", "html", "cyclonedx"),
         default="json",
         help="how the output should be formatted (default is JSON); note that `cyclonedx` will output a single "
-             "satisfying dependency resolution rather than the universe of all possible resolutions "
-             "(see `--newest-resolution`)",
+        "satisfying dependency resolution rather than the universe of all possible resolutions "
+        "(see `--newest-resolution`)",
     )
-    parser.add_argument("--latest-resolution", "-lr", action="store_true",
-                        help="by default, the `cyclonedx` output format emits a single satisfying dependency "
-                             "resolution containing the oldest versions of all of the packages possible; this option "
-                             "instead returns the latest latest possible resolution")
+    parser.add_argument(
+        "--latest-resolution",
+        "-lr",
+        action="store_true",
+        help="by default, the `cyclonedx` output format emits a single satisfying dependency "
+        "resolution containing the oldest versions of all of the packages possible; this option "
+        "instead returns the latest latest possible resolution",
+    )
     parser.add_argument(
         "--output-file",
         "-o",
@@ -129,23 +138,21 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument(
         "--all-versions",
         action="store_true",
-        help="for `--output-format html`, this option will emit all package versions that satisfy each "
-        "dependency",
+        help="for `--output-format html`, this option will emit all package versions that satisfy each dependency",
     )
     parser.add_argument(
         "--depth-limit",
         "-d",
         type=int,
         default=-1,
-        help="depth limit for recursively solving dependencies (default is -1 to resolve all "
-        "dependencies)",
+        help="depth limit for recursively solving dependencies (default is -1 to resolve all dependencies)",
     )
     parser.add_argument(
         "--max-workers",
         "-j",
         type=int,
         default=None,
-        help="maximum number of jobs to run concurrently" " (default is # of CPUs)",
+        help="maximum number of jobs to run concurrently (default is # of CPUs)",
     )
     parser.add_argument(
         "--version",
@@ -159,8 +166,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.version:
         sys.stderr.write("it-depends version ")
         sys.stderr.flush()
-        version = it_depends_version()
-        sys.stdout.write(str(version))
+        sys.stdout.write(str(it_depends_version))
         sys.stdout.flush()
         sys.stderr.write("\n")
         return 0
@@ -169,9 +175,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         repo = parse_path_or_package_name(args.PATH_OR_NAME)
 
         if args.compare is not None:
-            to_compare: Optional[Union[SourceRepository, Dependency]] = parse_path_or_package_name(
-                args.compare
-            )
+            to_compare: SourceRepository | Dependency | None = parse_path_or_package_name(args.compare)
         else:
             to_compare = None
     except ValueError as e:
@@ -198,18 +202,17 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         db_path.unlink()
                         sys.stderr.write("Cache cleared.\n")
                         break
-                    elif choice == "n" or choice == "":
+                    if choice in {"n", ""}:
                         break
             else:
                 db_path.unlink()
                 sys.stderr.write("Cache cleared.\n")
 
     if args.list:
+        # NOTE: This is so the user can pipe the output to another command.
+        #       For example, $ it-depends --list | xargs -n1 ...
         sys.stdout.flush()
-        if isinstance(repo, SourceRepository):
-            path = repo.path.absolute()
-        else:
-            path = args.PATH_OR_NAME
+        path = repo.path.absolute() if isinstance(repo, SourceRepository) else args.PATH_OR_NAME
         sys.stderr.write(f"Available resolvers for {path}:\n")
         sys.stderr.flush()
         for name, classifier in sorted((c.name, c) for c in resolvers()):
@@ -219,9 +222,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if not available:
                 sys.stderr.write(f"\tnot available: {available.reason}")
                 sys.stderr.flush()
-            elif isinstance(repo, SourceRepository) and not classifier.can_resolve_from_source(
-                repo
-            ):
+            elif isinstance(repo, SourceRepository) and not classifier.can_resolve_from_source(repo):
                 sys.stderr.write("\tincompatible with this path")
                 sys.stderr.flush()
             elif isinstance(repo, Dependency) and repo.source != classifier.name:
@@ -240,12 +241,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             if args.output_file is None or args.output_file == "-":
                 output_file = real_stdout
             elif not args.force and Path(args.output_file).exists():
-                sys.stderr.write(
-                    f"{args.output_file} already exists!\nRe-run with `--force` to overwrite the file.\n"
-                )
+                sys.stderr.write(f"{args.output_file} already exists!\nRe-run with `--force` to overwrite the file.\n")
                 return 1
             else:
-                output_file = open(args.output_file, "w")
+                output_file = Path(args.output_file).open("w")  # noqa: SIM115
             with DBPackageCache(args.database) as cache:
                 try:
                     package_list = resolve(
@@ -259,12 +258,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         sys.stderr.write(f"{e!s}\n")
                     return 1
                 if not package_list:
-                    sys.stderr.write(
-                        f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n"
-                    )
+                    sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n")
                     sys.stderr.flush()
 
-                # TODO: Should the cache be updated instead????
+                # TODO(@evandowning): Should the cache be updated instead???? # noqa: TD003, FIX002
                 if args.audit:
                     package_list = vulnerabilities(package_list)
 
@@ -276,19 +273,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                         max_workers=args.max_workers,
                     )
                     output_file.write(
-                        str(
-                            package_list.to_graph().distance_to(
-                                to_compare_list.to_graph(), normalize=args.normalize
-                            )
-                        )
+                        str(package_list.to_graph().distance_to(to_compare_list.to_graph(), normalize=args.normalize))
                     )
                     output_file.write("\n")
                 elif args.output_format == "dot":
                     output_file.write(cache.to_dot(package_list.source_packages).source)
                 elif args.output_format == "html":
-                    output_file.write(
-                        graph_to_html(package_list, collapse_versions=not args.all_versions)
-                    )
+                    output_file.write(graph_to_html(package_list, collapse_versions=not args.all_versions))
                     if output_file is not real_stdout:
                         output_file.flush()
                         webbrowser.open(output_file.name)
@@ -298,16 +289,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                     sbom = None
                     for p in package_list.source_packages:
                         for bom in resolve_sbom(p, package_list, order_ascending=not args.latest_resolution):
-                            if sbom is None:
-                                sbom = bom
-                            else:
-                                sbom = sbom | bom
+                            sbom = bom if sbom is None else sbom | bom
                             # only get the first resolution
-                            # TODO: Provide a means for enumerating all valid SBOMs
+                            # TODO(@evandowning): Provide a means for enumerating all valid SBOMs # noqa: TD003, FIX002
                             break
-                    output_file.write(cyclonedx_to_json(sbom.to_cyclonedx()))
+                    if sbom is not None:
+                        output_file.write(cyclonedx_to_json(sbom.to_cyclonedx()))
                 else:
-                    raise NotImplementedError(f"TODO: Implement output format {args.output_format}")
+                    msg = f"TODO: Implement output format {args.output_format}"
+                    raise NotImplementedError(msg)
     except OperationalError as e:
         sys.stderr.write(
             f"Database error: {e!r}\n\nThis can occur if your database was created with an older version "

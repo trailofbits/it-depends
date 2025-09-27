@@ -1,29 +1,29 @@
-from functools import lru_cache
-from pathlib import Path
-import shutil
-import subprocess
+"""Ubuntu Docker container management module."""
+
+from __future__ import annotations
+
 import logging
 import re
+import subprocess
+from functools import lru_cache
+from pathlib import Path
+from re import Pattern
 from threading import Lock
-from typing import Optional, Pattern
 
-from ..docker import DockerContainer, InMemoryDockerfile
+from it_depends.docker import DockerContainer, InMemoryDockerfile
 
-_container: Optional[DockerContainer] = None
+_container: DockerContainer | None = None
 _UBUNTU_LOCK: Lock = Lock()
 
 _UBUNTU_NAME_MATCH: Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
-_VERSION_ID_MATCH: Pattern[str] = re.compile(
-    r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE
-)
+_VERSION_ID_MATCH: Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
 
 logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=4)
-def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
-    """
-    Tests whether the current system is running Ubuntu
+def is_running_ubuntu(check_version: str | None = None) -> bool:
+    """Test whether the current system is running Ubuntu.
 
     If `check_version` is not None, the specific version of Ubuntu is also tested.
     """
@@ -31,16 +31,16 @@ def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
     if not os_release_path.exists():
         return False
     is_ubuntu = False
-    version: Optional[str] = None
-    with open(os_release_path, "r") as f:
-        for line in f.readlines():
-            line = line.strip()
-            is_ubuntu = is_ubuntu or bool(_UBUNTU_NAME_MATCH.match(line))
+    version: str | None = None
+    with os_release_path.open() as f:
+        for line_content in f:
+            stripped_line = line_content.strip()
+            is_ubuntu = is_ubuntu or bool(_UBUNTU_NAME_MATCH.match(stripped_line))
             if check_version is None:
                 if is_ubuntu:
                     return True
             elif version is None:
-                m = _VERSION_ID_MATCH.match(line)
+                m = _VERSION_ID_MATCH.match(stripped_line)
                 if m:
                     version = m.group(1)
             else:
@@ -49,14 +49,12 @@ def is_running_ubuntu(check_version: Optional[str] = None) -> bool:
 
 
 def run_command(*args: str) -> bytes:
-    """
-    Runs the given command in Ubuntu 20.04
+    """Run the given command in Ubuntu 20.04.
 
     If the host system is not running Ubuntu 20.04, the command is run in Docker.
-
     """
     with _UBUNTU_LOCK:
-        global _container
+        global _container  # noqa: PLW0603
         if _container is None:
             with InMemoryDockerfile(
                 """FROM ubuntu:20.04
@@ -66,7 +64,7 @@ RUN apt-get update && apt-get install -y apt-file && apt-file update
             ) as dockerfile:
                 _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
                 _container.rebuild()
-    logger.debug(f"running {' '.join(args)} in Docker")
+    logger.debug("running %s in Docker", " ".join(args))
     p = _container.run(
         *args,
         interactive=False,
@@ -75,5 +73,5 @@ RUN apt-get update && apt-get install -y apt-file && apt-file update
         rebuild=False,
     )
     if p.returncode != 0:
-        raise subprocess.CalledProcessError(p.returncode, cmd=f"{' '.join(args)}")
+        raise subprocess.CalledProcessError(p.returncode, cmd=" ".join(args))
     return p.stdout

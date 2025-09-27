@@ -4,6 +4,6 @@ from it_depends.vcs import resolve
 
 
 class TestVCS(TestCase):
-    def test_resolve(self):
+    def test_resolve(self) -> None:
         repo = resolve("github.com/trailofbits/graphtage")
-        self.assertEqual(repo.vcs.name, "Git")
+        assert repo.vcs.name == "Git"

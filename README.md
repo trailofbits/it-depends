@@ -1,7 +1,7 @@
 # It-Depends
 
+[![Unit tests](https://github.com/trailofbits/it-depends/actions/workflows/tests.yml/badge.svg)](https://github.com/trailofbits/it-depends/actions/workflows/tests.yml)
 [![PyPI version](https://badge.fury.io/py/it-depends.svg)](https://badge.fury.io/py/it-depends)
-[![Tests](https://github.com/trailofbits/it-depends/workflows/tests/badge.svg?branch=master)](https://github.com/trailofbits/it-depends/actions)
 [![Slack Status](https://slack.empirehacking.nyc/badge.svg)](https://slack.empirehacking.nyc)
 
 It-Depends is a tool to automatically build a dependency graph and Software Bill of Materials (SBOM) for packages and arbitrary source code repositories. You can use it to enumerate all third party dependencies for a software package, map those dependencies to known security vulnerabilities, as well as compare the similarity between two packages based on their dependencies.
@@ -69,9 +69,9 @@ it-depends /path/to/project
 or alternatively specify a package from a public package repository:
 
 ```shell
-it-depends pip:numpy
-it-depends apt:libc6@2.31
-it-depends npm:lodash@>=4.17.0
+it-depends "pip:numpy"
+it-depends "ubuntu:libc6@2.31"
+it-depends "npm:lodash@>=4.17.0"
 ```
 
 It-Depends will output the full dependency hierarchy in JSON format. Additional output formats such
@@ -123,13 +123,12 @@ git clone https://github.com/trailofbits/it-depends
 cd it-depends
 make dev
 source .venv/bin/activate
-git config core.hooksPath ./hooks  # Optionally enable git commit hooks for linting
 ```
 
 Format and test code before contributing
 
 ```shell
-make reformat lint test
+make format lint test
 ```
 
 ## Acknowledgements

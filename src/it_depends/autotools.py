@@ -1,19 +1,20 @@
-import os
+"""Autotools dependency resolution."""
+
+from __future__ import annotations
+
 import functools
-import re
 import itertools
+import logging
+import re
 import shutil
 import subprocess
-import logging
 import tempfile
-from typing import List, Optional, Tuple
-
-from .ubuntu.apt import cached_file_to_package as file_to_package
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .dependencies import (
     Dependency,
     DependencyResolver,
-    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourcePackage,
@@ -21,11 +22,19 @@ from .dependencies import (
     Version,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from .models import Package
+
+from .ubuntu.apt import cached_file_to_package as file_to_package
+
 logger = logging.getLogger(__name__)
 
 
 class AutotoolsResolver(DependencyResolver):
-    """This attempts to parse configure.ac in an autotool based repo.
+    """Parse configure.ac in an autotool based repo.
+
     It supports the following macros:
         AC_INIT, AC_CHECK_HEADER, AC_CHECK_LIB, PKG_CHECK_MODULES
 
@@ -38,39 +47,38 @@ class AutotoolsResolver(DependencyResolver):
     description = "classifies the dependencies of native/autotools packages parsing configure.ac"
 
     def is_available(self) -> ResolverAvailability:
+        """Check if autotools resolver is available."""
         if shutil.which("autoconf") is None:
             return ResolverAvailability(
-                False,
-                "`autoconf` does not appear to be installed! "
-                "Make sure it is installed and in the PATH.",
+                is_available=False,
+                reason="`autoconf` does not appear to be installed! Make sure it is installed and in the PATH.",
             )
-        return ResolverAvailability(True)
+        return ResolverAvailability(is_available=True)
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
+        """Check if resolver can resolve from source repository."""
         return bool(self.is_available()) and (repo.path / "configure.ac").exists()
 
     @staticmethod
-    def _ac_check_header(header_file, file_to_package_cache=None):
-        """
-        Macro: AC_CHECK_HEADER
+    def _ac_check_header(header_file: str, file_to_package_cache: list[tuple[str, str]] | None = None) -> Dependency:
+        """Macro: AC_CHECK_HEADER.
+
         Checks if the system header file header-file is compilable.
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Generic-Headers.html
         """
-        logger.info(f"AC_CHECK_HEADER {header_file}")
-        package_name = file_to_package(
-            f"{re.escape(header_file)}", file_to_package_cache=file_to_package_cache
-        )
+        logger.info("AC_CHECK_HEADER %s", header_file)
+        package_name = file_to_package(f"{re.escape(header_file)}", file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
     @staticmethod
-    def _ac_check_lib(function, file_to_package_cache=None):
-        """
-        Macro: AC_CHECK_LIB
+    def _ac_check_lib(function: str, file_to_package_cache: list[tuple[str, str]] | None = None) -> Dependency:
+        """Macro: AC_CHECK_LIB.
+
         Checks for the presence of certain C, C++, or Fortran library archive files.
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Libraries.html#Libraries
         """
         lib_file, function_name = function.split(".")
-        logger.info(f"AC_CHECK_LIB {lib_file}")
+        logger.info("AC_CHECK_LIB %s", lib_file)
         package_name = file_to_package(
             f"lib{re.escape(lib_file)}(.a|.so)",
             file_to_package_cache=file_to_package_cache,
@@ -78,9 +86,11 @@ class AutotoolsResolver(DependencyResolver):
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
     @staticmethod
-    def _pkg_check_modules(module_name, version=None, file_to_package_cache=None):
-        """
-        Macro: PKG_CHECK_MODULES
+    def _pkg_check_modules(
+        module_name: str, version: str | None = None, file_to_package_cache: list[tuple[str, str]] | None = None
+    ) -> Dependency:
+        """Macro: PKG_CHECK_MODULES.
+
         The main interface between autoconf and pkg-config.
         Provides a very basic and easy way to check for the presence of a
         given package in the system.
@@ -88,68 +98,63 @@ class AutotoolsResolver(DependencyResolver):
         if not version:
             version = "*"
         module_file = re.escape(module_name + ".pc")
-        logger.info(f"PKG_CHECK_MODULES {module_file}, {version}")
+        logger.info("PKG_CHECK_MODULES %s, %s", module_file, version)
         package_name = file_to_package(module_file, file_to_package_cache=file_to_package_cache)
-        return Dependency(
-            package=package_name, semantic_version=SimpleSpec(version), source="ubuntu"
-        )
+        return Dependency(package=package_name, semantic_version=SimpleSpec(version), source="ubuntu")
 
     @staticmethod
     @functools.lru_cache(maxsize=128)
-    def _replace_variables(token: str, configure: str):
-        """
-        Search all variable occurrences in token and then try to find
-        bindings for them in the configure script.
-        """
+    def _replace_variables(token: str, configure: str) -> str:
+        """Search all variable occurrences in token and then try to find bindings for them in the configure script."""
         if "$" not in token:
             return token
         variable_list = re.findall(r"\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
-        variables = set(
-            var for var in itertools.chain(*variable_list) if var
-        )  # remove dups and empty
+        variables = {var for var in itertools.chain(*variable_list) if var}  # remove dups and empty
         for var in variables:
-            logger.info(f"Trying to find bindings for {var} in configure")
+            logger.info("Trying to find bindings for %s in configure", var)
 
             # This tries to find a single assign to the variable in question
             # ... var= "SOMETHING"
             # We ignore the fact thst variables could also appear in other constructs
             # For example:
             #    for var in THIS THAT ;
-            # TODO/CHALLENGE Merge this two \/
+            # TODO(@evandowning): Merge this two \/ # noqa: TD003, FIX002
             solutions = re.findall(f'{var}=\\s*"([^"]*)"', configure)
             solutions += re.findall(f"{var}=\\s*'([^']*)'", configure)
             if len(solutions) > 1:
-                logger.warning(f"Found several solutions for {var}: {solutions}")
+                logger.warning("Found several solutions for %s: %s", var, solutions)
             if len(solutions) == 0:
-                logger.warning(f"No solution found for binding {var}")
+                logger.warning("No solution found for binding %s", var)
                 continue
-            logger.info(f"Found a solution {solutions}")
-            sol = (
-                solutions
-                + [
-                    None,
-                ]
-            )[0]
+            logger.info("Found a solution %s", solutions)
+            sol = [*solutions, None][0]
             if sol is not None:
                 token = token.replace(f"${var}", sol).replace(f"${{{var}}}", sol)
         if "$" in token:
-            raise ValueError(f"Could not find a binding for variable/s in {token}")
+            msg = f"Could not find a binding for variable/s in {token}"
+            raise ValueError(msg)
         return token
 
+    def resolve(self, dependency: Dependency) -> Iterator[Package]:  # noqa: ARG002
+        """Resolve a dependency to packages."""
+        return NotImplementedError  # type: ignore[return-value]
+
     def resolve_from_source(
-        self, repo: SourceRepository, cache: Optional[PackageCache] = None
-    ) -> Optional[SourcePackage]:
+        self,
+        repo: SourceRepository,
+        cache: object | None = None,  # noqa: ARG002
+    ) -> SourcePackage | None:
+        """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
-        logger.info(f"Getting dependencies for autotool repo {repo.path.absolute()}")
+        logger.info("Getting dependencies for autotool repo %s", repo.path.absolute())
         with tempfile.NamedTemporaryFile() as tmp:
             # builds a temporary copy of configure.ac containing aclocal env
-            subprocess.check_output(("aclocal", f"--output={tmp.name}"), cwd=repo.path)
-            with open(tmp.name, "ab") as tmp2:
-                with open(repo.path / "configure.ac", "rb") as conf:
-                    tmp2.write(conf.read())
+            subprocess.check_output(("aclocal", f"--output={tmp.name}"), cwd=repo.path)  # noqa: S603
+            with Path(tmp.name).open("ab") as tmp2, (repo.path / "configure.ac").open("rb") as conf:
+                tmp2.write(conf.read())
 
-            trace = subprocess.check_output(
+            trace = subprocess.check_output(  # noqa: S603
                 (
                     "autoconf",
                     "-t",
@@ -164,19 +169,17 @@ class AutotoolsResolver(DependencyResolver):
                 ),
                 cwd=repo.path,
             ).decode("utf8")
-            configure = subprocess.check_output(["autoconf", tmp.name], cwd=repo.path).decode(
-                "utf8"
-            )
+            configure = subprocess.check_output(["autoconf", tmp.name], cwd=repo.path).decode("utf8")  # noqa: S603, S607
 
-        file_to_package_cache: List[Tuple[str]] = []
+        file_to_package_cache: list[tuple[str, str]] = []
         deps = []
-        for macro in trace.split("\n"):
-            logger.debug(f"Handling: {macro}")
-            macro, *arguments = macro.split(":")
+        for macro_line in trace.split("\n"):
+            logger.debug("Handling: %s", macro_line)
+            macro, *arguments = macro_line.split(":")
             try:
-                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)  # type: ignore
-            except Exception as e:
-                logger.info(str(e))
+                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)  # type: ignore[assignment]
+            except Exception:
+                logger.exception("Error replacing variables")
                 continue
             try:
                 if macro == "AC_CHECK_HEADER":
@@ -204,8 +207,8 @@ class AutotoolsResolver(DependencyResolver):
                     )
                 else:
                     logger.error("Macro not supported %r", macro)
-            except Exception as e:
-                logger.error(str(e))
+            except Exception:
+                logger.exception("Error processing macro %s", macro)
                 continue
 
         """
@@ -218,14 +221,14 @@ class AutotoolsResolver(DependencyResolver):
         PACKAGE_URL='https://bitcoincore.org/"""
         try:
             package_name = self._replace_variables("$PACKAGE_NAME", configure)
-        except ValueError as e:
-            logger.error(str(e))
-            package_name = os.path.basename(repo.path)
+        except ValueError:
+            logger.exception("Error getting package name")
+            package_name = repo.path.name
 
         try:
             package_version = self._replace_variables("$PACKAGE_VERSION", configure)
-        except ValueError as e:
-            logger.error(str(e))
+        except ValueError:
+            logger.exception("Error getting package version")
             package_version = "0.0.0"
 
         return SourcePackage(

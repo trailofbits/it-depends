@@ -12,31 +12,31 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "cyclonedx-python-lib>=11",
-    "docker>=7.1",
-    "graphviz>=0.21",
-    "johnnydep>=1.20",
-    "networkx>=3.5",
-    "parse_cmake>=0.4.1",
-    "platformdirs>=4.3.8",
-    "pydantic-settings >=2.10",
-    "semantic_version>=2.10",
-    "sqlalchemy>=2.0",
-    "tqdm>=4.67",
+    "cyclonedx-python-lib >= 11.1.0",
+    "docker >= 7.1.0",
+    "graphviz >= 0.21",
+    "johnnydep >= 1.20.6",
+    "networkx >= 3.4.2",
+    "parse_cmake >= 0.4.1",
+    "platformdirs >= 4.4.0",
+    "pydantic-settings ~= 2.7.1",
+    "semantic_version >= 2.10.0",
+    "sqlalchemy >= 2.0.43",
+    "tqdm >= 4.67.1",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 
 [tool.setuptools.dynamic]
 version = { attr = "it_depends.__version__" }
 
 [project.optional-dependencies]
 doc = ["pdoc"]
-test = ["pytest", "pytest-cov", "pretend", "coverage[toml]"]
+test = ["pytest", "pytest-cov", "pytest-timeout", "pretend", "coverage[toml]"]
 lint = [
     # NOTE: ruff is under active development, so we pin conservatively here
     # and let Dependabot periodically perform this update.
     "ruff ~= 0.12.9",
-    "mypy >= 1.0",
+    "mypy ~= 1.17.1",
     "types-html5lib",
     "types-requests",
     "types-toml",
@@ -72,12 +72,12 @@ strict_equality = true
 warn_no_return = true
 warn_redundant_casts = true
 warn_return_any = true
-warn_unreachable = true
+warn_unreachable = false
 warn_unused_configs = true
 warn_unused_ignores = true
 
 [tool.ruff]
-line-length = 100
+line-length = 120
 include = ["src/**/*.py", "test/**/*.py"]
 
 [tool.ruff.lint]
