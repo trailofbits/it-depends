@@ -49,6 +49,7 @@ To the best of our knowledge, It-Depends is the only such tool with the followin
 
 ```shell
 pip3 install it-depends
+python -c "import it_depends as it; print(it.__version__)"
 ```
 
 ### Running it
@@ -57,7 +58,7 @@ Run `it-depends` in the root of the source repository you would like to analyze:
 
 ```shell
 cd /path/to/project
-it-depends
+it-depends .
 ```
 
 or alternatively point it to the path directly:

@@ -9,6 +9,7 @@ from pydantic import Field
 from pydantic_settings import (
     BaseSettings,
     CliImplicitFlag,
+    CliPositionalArg,
     SettingsConfigDict,
 )
 
@@ -27,8 +28,7 @@ class OutputFormat(str, Enum):
 class Settings(BaseSettings):
     """Settings for it-depends."""
 
-    target: str = Field(
-        default=".",
+    target: CliPositionalArg[str] = Field(
         description="""Directory or package name to analyze. If a package
             name is provided, it must be in the form of
             RESOLVER_NAME:PACKAGE_NAME[@OPTIONAL_VERSION], where RESOLVER_NAME
@@ -54,7 +54,7 @@ class Settings(BaseSettings):
         default=-1,
         description="""Depth limit for recursively solving dependencies.""",
     )
-    clear_cache: CliImplicitFlag[bool] = Field(
+    clear_cache: bool = Field(
         default=False,
         description="""Clears the database specified by `--database` (equivalent
         to deleting the database file).""",
@@ -107,10 +107,6 @@ class Settings(BaseSettings):
         By default, the `cyclonedx` output format emits a single satisfying dependency
         resolution containing the oldest versions of all of the packages possible.
         Instead, this option returns the latest possible resolution.""",
-    )
-    version: CliImplicitFlag[bool] = Field(
-        default=False,
-        description="""Show the version of it-depends and exit.""",
     )
 
     model_config = SettingsConfigDict(

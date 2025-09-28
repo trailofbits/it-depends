@@ -10,7 +10,6 @@ import webbrowser
 from pathlib import Path
 from sqlite3 import OperationalError
 
-from . import __version__ as it_depends_version
 from .audit import vulnerabilities
 from .config import Settings
 from .db import DBPackageCache
@@ -38,18 +37,14 @@ def parse_path_or_package_name(
     return dependency
 
 
-def main() -> None:  # noqa: C901, PLR0911, PLR0912, PLR0915
-    settings = Settings()
+def main() -> None:  # noqa: C901, PLR0912, PLR0915
+    settings = Settings()  # type: ignore[call-arg]
     setup_logger(settings.log_level)
 
     # If max_workers isn't provided, use the number of CPUs.
     # If that fails, use 1.
     if settings.max_workers == -1:
         settings.max_workers = os.cpu_count() or 1
-
-    if settings.version:
-        logger.info("it-depends %s", it_depends_version)
-        return
 
     logger.info("Starting it-depends with settings: %s", settings)
 
