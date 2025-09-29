@@ -126,10 +126,10 @@ make dev
 source .venv/bin/activate
 ```
 
-Format and test code before contributing
+Format and lint code before contributing
 
 ```shell
-make format lint test
+make format lint
 ```
 
 ## Acknowledgements

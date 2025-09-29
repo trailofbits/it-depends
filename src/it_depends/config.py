@@ -55,6 +55,7 @@ class Settings(BaseSettings):
         description="""Depth limit for recursively solving dependencies.""",
     )
     clear_cache: bool = Field(
+        alias="clear-cache",
         default=False,
         description="""Clears the database specified by `--database` (equivalent
         to deleting the database file).""",
@@ -78,8 +79,9 @@ class Settings(BaseSettings):
         default=False,
         description="""List available package resolvers.""",
     )
-    log_level: str = Field(default="info", description="Log level")
+    log_level: str = Field(alias="log-level", default="info", description="Log level")
     max_workers: int = Field(
+        alias="max-workers",
         default=-1,
         description="""Maximum number of jobs to run concurrently. If not
             provided, the maximum number of logical CPUs will be used.""",
@@ -91,17 +93,20 @@ class Settings(BaseSettings):
         are identical and 0 means the graphs are as different as possible.""",
     )
     output_file: Path | None = Field(
+        alias="output-file",
         default=None,
         description="""Output file path. If not provided, the output will be
         written to stdout.""",
     )
     output_format: OutputFormat = Field(
+        alias="output-format",
         default=OutputFormat.json,
         description="""Output format. Note that `cyclonedx` will output a
             single satisfying dependency resolution rather than the universe of
             all possible resolutions (see `--latest-resolution`).""",
     )
     latest_resolution: CliImplicitFlag[bool] = Field(
+        alias="latest-resolution",
         default=False,
         description="""Output the latest resolution of the dependency graph.
         By default, the `cyclonedx` output format emits a single satisfying dependency

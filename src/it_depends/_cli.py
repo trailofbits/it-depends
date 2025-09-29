@@ -69,28 +69,41 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
 
     # List the available resolvers
     if settings.list:
+        # NOTE: This is so the user can pipe the output to another command.
+        #       For example:
+        #         $ it-depends "pip:numpy" --list | xargs -n1 > resolvers.txt
+        #         $ cat resolvers.txt
+        sys.stdout.flush()
         path = repo.path.absolute() if isinstance(repo, SourceRepository) else settings.target
-        logger.info("Available resolvers for %s:", path)
+        sys.stderr.write(f"Available resolvers for {path}:\n")
+        sys.stderr.flush()
         for name, classifier in sorted((c.name, c) for c in resolvers()):
-            logger.info("%s...[!n]", name)
+            sys.stdout.write(name + " " * (12 - len(name)))
+            sys.stdout.flush()
             available = classifier.is_available()
             if not available:
-                logger.info("[!n]not available: %s\n", available.reason)
+                sys.stderr.write(f"\tnot available: {available.reason}")
+                sys.stderr.flush()
             elif isinstance(repo, SourceRepository) and not classifier.can_resolve_from_source(repo):
-                logger.info("[!n]incompatible with this path\n")
+                sys.stderr.write("\tincompatible with this path")
+                sys.stderr.flush()
             elif isinstance(repo, Dependency) and repo.source != classifier.name:
-                logger.info("[!n]incompatible with this package specifier\n")
+                sys.stderr.write("\tincompatible with this package specifier")
             else:
-                logger.info("[!n]enabled\n")
+                sys.stderr.write("\tenabled")
+                sys.stderr.flush()
+
+            sys.stdout.write("\n")
+            sys.stdout.flush()
         return
 
     try:
         if settings.output_file is None:
-            output_write = sys.stdout.write
+            output_write = logger.info
         else:
-            output_write = settings.output_file.write_text
+            output_write = settings.output_file.write_text  # type: ignore[assignment]
             if not settings.force and settings.output_file.exists():
-                logger.error("%s already exists!\nRe-run with `--force` to overwrite the file.\n", settings.output_file)
+                logger.error("%s already exists. Re-run with `--force` to overwrite the file.", settings.output_file)
                 return
 
         with DBPackageCache(settings.database) as cache:
@@ -103,11 +116,11 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                 )
             except ValueError as e:
                 if not settings.clear_cache or settings.target.strip():
-                    msg = f"{e!s}\n"
+                    msg = f"{e!s}"
                     logger.exception(msg)
                 return
             if not package_list:
-                logger.error("Try --list to check for available resolvers for %s\n", settings.target)
+                logger.error("Try --list to check for available resolvers for %s", settings.target)
 
             # TODO(@evandowning): Should the cache be updated instead???? # noqa: TD003, FIX002
             if settings.audit:
@@ -139,7 +152,9 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                         # only get the first resolution
                         # TODO(@evandowning): Provide a means for enumerating all valid SBOMs # noqa: TD003, FIX002
                         break
-                if sbom is not None:
+                if sbom is None:
+                    logger.error("No SBOM found for %s", settings.target)
+                else:
                     output_write(cyclonedx_to_json(sbom.to_cyclonedx()))
             else:
                 msg = f"TODO: Implement output format {settings.output_format}"
@@ -155,7 +170,9 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
         logger.exception(msg)
         return
     finally:
-        if settings.output_file is not None:
-            logger.info("Output saved to %s\n", settings.output_file.absolute())
+        if settings.output_file is not None and settings.output_file.exists():
+            logger.info("Output saved to %s", settings.output_file.absolute())
+        if settings.output_file is not None and not settings.output_file.exists():
+            logger.error("Output wasn't saved. Output file %s does not exist.", settings.output_file.absolute())
 
     return
