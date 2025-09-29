@@ -1,6 +1,8 @@
 import logging
 from unittest import TestCase
 
+import pytest
+
 from it_depends.dependencies import resolve_sbom
 from it_depends.sbom import cyclonedx_to_json
 
@@ -10,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class TestResolver(TestCase):
+    @pytest.mark.integration
     def test_resolve(self) -> None:
         test = SmokeTest("trailofbits", "it-depends", "3db3d191ce04fb8a19bcc5c000ce84dbb3243f31")
         packages = test.run()

@@ -1,0 +1,44 @@
+name: Integration tests
+
+on:
+  # Daily schedule - 3 AM UTC
+  schedule:
+    - cron: "0 3 * * *"
+  # Only run on master branch
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    # Run on schedule or pull request with 'integration' label
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'integration')
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y apt-file cmake automake golang cargo npm clang
+          sudo apt-file update
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@4959332f0f014c5280e7eac8b70c90cb574c9f9b # v6.6.0
+
+      - name: Install Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      - name: integration
+        run: make integration INSTALL_EXTRA=integration
