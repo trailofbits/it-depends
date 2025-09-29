@@ -204,7 +204,7 @@ class PackageCache(ABC):
             if pkg not in package_ids:
                 pkg_id = f"package{len(package_ids)}"
                 package_ids[pkg] = pkg_id
-                shape = "triangle" if pkg.vulnerabilities else "rectangle"
+                shape = "triangle" if hasattr(pkg, "vulnerabilities") and pkg.vulnerabilities else "rectangle"
                 dot.node(pkg_id, label=str(pkg), shape=shape)
                 return pkg_id
             return package_ids[pkg]

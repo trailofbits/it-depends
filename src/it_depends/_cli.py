@@ -2,35 +2,23 @@
 
 from __future__ import annotations
 
-import argparse
 import json
+import logging
+import os
 import sys
 import webbrowser
-from contextlib import contextmanager
 from pathlib import Path
 from sqlite3 import OperationalError
-from typing import TYPE_CHECKING, TextIO
 
-if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
-
-from . import __version__ as it_depends_version
 from .audit import vulnerabilities
-from .db import DEFAULT_DB_PATH, DBPackageCache
+from .config import Settings
+from .db import DBPackageCache
 from .dependencies import Dependency, SourceRepository, resolve, resolve_sbom, resolvers
 from .html import graph_to_html
+from .logger import setup_logger
 from .sbom import cyclonedx_to_json
 
-
-@contextmanager
-def no_stdout() -> Iterator[TextIO]:
-    """Redirect STDOUT to STDERR."""
-    saved_stdout = sys.stdout
-    sys.stdout = sys.stderr
-    try:
-        yield saved_stdout
-    finally:
-        sys.stdout = saved_stdout
+logger = logging.getLogger(__name__)
 
 
 def parse_path_or_package_name(
@@ -49,170 +37,44 @@ def parse_path_or_package_name(
     return dependency
 
 
-def main(argv: Sequence[str] | None = None) -> int:  # noqa: C901, PLR0911, PLR0912, PLR0915
-    if argv is None:
-        argv = sys.argv
+def main() -> None:  # noqa: C901, PLR0912, PLR0915
+    settings = Settings()  # type: ignore[call-arg]
+    setup_logger(settings.log_level)
 
-    parser = argparse.ArgumentParser(description="a source code dependency analyzer")
+    # If max_workers isn't provided, use the number of CPUs.
+    # If that fails, use 1.
+    if settings.max_workers == -1:
+        settings.max_workers = os.cpu_count() or 1
 
-    parser.add_argument(
-        "PATH_OR_NAME",
-        nargs="?",
-        type=str,
-        default=".",
-        help="path to the directory to analyze, or a package name in the form of "
-        "RESOLVER_NAME:PACKAGE_NAME[@OPTIONAL_VERSION], where RESOLVER_NAME is a resolver listed "
-        "in `it-depends --list`. For example: "
-        '"pip:numpy", "apt:libc6@2.31", or "npm:lodash@>=4.17.0".',
-    )
+    logger.info("Starting it-depends with settings: %s", settings)
 
-    parser.add_argument(
-        "--audit",
-        "-a",
-        action="store_true",
-        help="audit packages for known vulnerabilities using Google OSV",
-    )
-    parser.add_argument("--list", "-l", action="store_true", help="list available package resolver")
-    parser.add_argument(
-        "--database",
-        "-db",
-        type=str,
-        nargs="?",
-        default=DEFAULT_DB_PATH,
-        help='alternative path to load/store the database, or ":memory:" to cache all results in '
-        f"memory rather than reading/writing to disk (default is {DEFAULT_DB_PATH!s})",
-    )
-    parser.add_argument(
-        "--clear-cache",
-        action="store_true",
-        help="clears the database specified by `--database` (equivalent to deleting the database file)",
-    )
-    parser.add_argument(
-        "--compare",
-        "-c",
-        nargs="?",
-        type=str,
-        help="compare PATH_OR_NAME to another package specified according to the same rules as "
-        "PATH_OR_NAME; this option will override the --output-format option and will instead "
-        "output a floating point similarity metric. By default, the metric will be in the range"
-        "[0, ∞), with zero meaning that the dependency graphs are identical. For a metric in the "
-        "range [0, 1], see the `--normalize` option.",
-    )
-    parser.add_argument(
-        "--normalize",
-        "-n",
-        action="store_true",
-        help="Used in conjunction with `--compare`, this will change the output metric to be in the "
-        "range [0, 1] where 1 means the graphs are identical and 0 means the graphs are as "
-        "different as possible.",
-    )
-    parser.add_argument(
-        "--output-format",
-        "-f",
-        choices=("json", "dot", "html", "cyclonedx"),
-        default="json",
-        help="how the output should be formatted (default is JSON); note that `cyclonedx` will output a single "
-        "satisfying dependency resolution rather than the universe of all possible resolutions "
-        "(see `--newest-resolution`)",
-    )
-    parser.add_argument(
-        "--latest-resolution",
-        "-lr",
-        action="store_true",
-        help="by default, the `cyclonedx` output format emits a single satisfying dependency "
-        "resolution containing the oldest versions of all of the packages possible; this option "
-        "instead returns the latest latest possible resolution",
-    )
-    parser.add_argument(
-        "--output-file",
-        "-o",
-        type=str,
-        default=None,
-        help="path to the output file; default is to write output to STDOUT",
-    )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="force overwriting the output file even if it already exists",
-    )
-    parser.add_argument(
-        "--all-versions",
-        action="store_true",
-        help="for `--output-format html`, this option will emit all package versions that satisfy each dependency",
-    )
-    parser.add_argument(
-        "--depth-limit",
-        "-d",
-        type=int,
-        default=-1,
-        help="depth limit for recursively solving dependencies (default is -1 to resolve all dependencies)",
-    )
-    parser.add_argument(
-        "--max-workers",
-        "-j",
-        type=int,
-        default=None,
-        help="maximum number of jobs to run concurrently (default is # of CPUs)",
-    )
-    parser.add_argument(
-        "--version",
-        "-v",
-        action="store_true",
-        help="print it-depends' version and exit",
-    )
-
-    args = parser.parse_args(argv[1:])
-
-    if args.version:
-        sys.stderr.write("it-depends version ")
-        sys.stderr.flush()
-        sys.stdout.write(str(it_depends_version))
-        sys.stdout.flush()
-        sys.stderr.write("\n")
-        return 0
-
+    # Parse the target(s) -- either a path or a package name
     try:
-        repo = parse_path_or_package_name(args.PATH_OR_NAME)
+        repo = parse_path_or_package_name(settings.target)
 
-        if args.compare is not None:
-            to_compare: SourceRepository | Dependency | None = parse_path_or_package_name(args.compare)
+        if settings.compare != "":
+            to_compare: SourceRepository | Dependency | None = parse_path_or_package_name(settings.compare)
         else:
             to_compare = None
     except ValueError as e:
-        sys.stderr.write(str(e))
-        sys.stderr.write("\n\n")
-        return 1
+        msg = str(e)
+        logger.exception(msg)
+        return
 
-    if args.clear_cache:
-        db_path = Path(args.database)
+    # Clear the database cache
+    if settings.clear_cache:
+        db_path = Path(settings.database)
         if db_path.exists():
-            if sys.stderr.isatty() and sys.stdin.isatty():
-                while True:
-                    if args.database != DEFAULT_DB_PATH:
-                        sys.stderr.write(f"Cache file: {db_path.absolute()}\n")
-                    sys.stderr.write(
-                        "Deleting the cache will require all past resoltuions to be recalculated, which "
-                        "can be slow.\nAre you sure? [yN] "
-                    )
-                    try:
-                        choice = input("").lower().strip()
-                    except KeyboardInterrupt:
-                        return 1
-                    if choice == "y":
-                        db_path.unlink()
-                        sys.stderr.write("Cache cleared.\n")
-                        break
-                    if choice in {"n", ""}:
-                        break
-            else:
-                db_path.unlink()
-                sys.stderr.write("Cache cleared.\n")
+            db_path.unlink()
 
-    if args.list:
+    # List the available resolvers
+    if settings.list:
         # NOTE: This is so the user can pipe the output to another command.
-        #       For example, $ it-depends --list | xargs -n1 ...
+        #       For example:
+        #         $ it-depends "pip:numpy" --list | xargs -n1 > resolvers.txt
+        #         $ cat resolvers.txt
         sys.stdout.flush()
-        path = repo.path.absolute() if isinstance(repo, SourceRepository) else args.PATH_OR_NAME
+        path = repo.path.absolute() if isinstance(repo, SourceRepository) else settings.target
         sys.stderr.write(f"Available resolvers for {path}:\n")
         sys.stderr.flush()
         for name, classifier in sorted((c.name, c) for c in resolvers()):
@@ -233,82 +95,84 @@ def main(argv: Sequence[str] | None = None) -> int:  # noqa: C901, PLR0911, PLR0
 
             sys.stdout.write("\n")
             sys.stdout.flush()
-        return 0
+        return
 
     try:
-        output_file = None
-        with no_stdout() as real_stdout:
-            if args.output_file is None or args.output_file == "-":
-                output_file = real_stdout
-            elif not args.force and Path(args.output_file).exists():
-                sys.stderr.write(f"{args.output_file} already exists!\nRe-run with `--force` to overwrite the file.\n")
-                return 1
-            else:
-                output_file = Path(args.output_file).open("w")  # noqa: SIM115
-            with DBPackageCache(args.database) as cache:
-                try:
-                    package_list = resolve(
-                        repo,
-                        cache=cache,
-                        depth_limit=args.depth_limit,
-                        max_workers=args.max_workers,
-                    )
-                except ValueError as e:
-                    if not args.clear_cache or args.PATH_OR_NAME.strip():
-                        sys.stderr.write(f"{e!s}\n")
-                    return 1
-                if not package_list:
-                    sys.stderr.write(f"Try --list to check for available resolvers for {args.PATH_OR_NAME}\n")
-                    sys.stderr.flush()
+        if settings.output_file is None:
+            output_write = logger.info
+        else:
+            output_write = settings.output_file.write_text  # type: ignore[assignment]
+            if not settings.force and settings.output_file.exists():
+                logger.error("%s already exists. Re-run with `--force` to overwrite the file.", settings.output_file)
+                return
 
-                # TODO(@evandowning): Should the cache be updated instead???? # noqa: TD003, FIX002
-                if args.audit:
-                    package_list = vulnerabilities(package_list)
+        with DBPackageCache(settings.database) as cache:
+            try:
+                package_list = resolve(
+                    repo,
+                    cache=cache,
+                    depth_limit=settings.depth_limit,
+                    max_workers=settings.max_workers,
+                )
+            except ValueError as e:
+                if not settings.clear_cache or settings.target.strip():
+                    msg = f"{e!s}"
+                    logger.exception(msg)
+                return
+            if not package_list:
+                logger.error("Try --list to check for available resolvers for %s", settings.target)
 
-                if to_compare is not None:
-                    to_compare_list = resolve(
-                        to_compare,
-                        cache=cache,
-                        depth_limit=args.depth_limit,
-                        max_workers=args.max_workers,
-                    )
-                    output_file.write(
-                        str(package_list.to_graph().distance_to(to_compare_list.to_graph(), normalize=args.normalize))
-                    )
-                    output_file.write("\n")
-                elif args.output_format == "dot":
-                    output_file.write(cache.to_dot(package_list.source_packages).source)
-                elif args.output_format == "html":
-                    output_file.write(graph_to_html(package_list, collapse_versions=not args.all_versions))
-                    if output_file is not real_stdout:
-                        output_file.flush()
-                        webbrowser.open(output_file.name)
-                elif args.output_format == "json":
-                    output_file.write(json.dumps(package_list.to_obj(), indent=4))
-                elif args.output_format == "cyclonedx":
-                    sbom = None
-                    for p in package_list.source_packages:
-                        for bom in resolve_sbom(p, package_list, order_ascending=not args.latest_resolution):
-                            sbom = bom if sbom is None else sbom | bom
-                            # only get the first resolution
-                            # TODO(@evandowning): Provide a means for enumerating all valid SBOMs # noqa: TD003, FIX002
-                            break
-                    if sbom is not None:
-                        output_file.write(cyclonedx_to_json(sbom.to_cyclonedx()))
+            # TODO(@evandowning): Should the cache be updated instead???? # noqa: TD003, FIX002
+            if settings.audit:
+                package_list = vulnerabilities(package_list)
+
+            if to_compare is not None:
+                to_compare_list = resolve(
+                    to_compare,
+                    cache=cache,
+                    depth_limit=settings.depth_limit,
+                    max_workers=settings.max_workers,
+                )
+                output_write(
+                    str(package_list.to_graph().distance_to(to_compare_list.to_graph(), normalize=settings.normalize))
+                )
+            elif settings.output_format == "dot":
+                output_write(cache.to_dot(package_list.source_packages).source)
+            elif settings.output_format == "html":
+                output_write(graph_to_html(package_list, collapse_versions=not settings.all_versions))
+                if isinstance(settings.output_file, Path) and settings.output_file.exists():
+                    webbrowser.open(str(settings.output_file.absolute()))
+            elif settings.output_format == "json":
+                output_write(json.dumps(package_list.to_obj(), indent=4))
+            elif settings.output_format == "cyclonedx":
+                sbom = None
+                for p in package_list.source_packages:
+                    for bom in resolve_sbom(p, package_list, order_ascending=not settings.latest_resolution):
+                        sbom = bom if sbom is None else sbom | bom
+                        # only get the first resolution
+                        # TODO(@evandowning): Provide a means for enumerating all valid SBOMs # noqa: TD003, FIX002
+                        break
+                if sbom is None:
+                    logger.error("No SBOM found for %s", settings.target)
                 else:
-                    msg = f"TODO: Implement output format {args.output_format}"
-                    raise NotImplementedError(msg)
+                    output_write(cyclonedx_to_json(sbom.to_cyclonedx()))
+            else:
+                msg = f"TODO: Implement output format {settings.output_format}"
+                raise NotImplementedError(msg)
+
     except OperationalError as e:
-        sys.stderr.write(
+        msg = (
             f"Database error: {e!r}\n\nThis can occur if your database was created with an older version "
-            f"of it-depends and was unable to be updated. If you remove {args.database} or run "
+            f"of it-depends and was unable to be updated. If you remove {settings.database} or run "
             "`it-depends --clear-cache` and try again, the database will automatically be rebuilt from "
             "scratch."
         )
-        return 1
+        logger.exception(msg)
+        return
     finally:
-        if output_file is not None and output_file != sys.stdout:
-            sys.stderr.write(f"Output saved to {output_file.name}\n")
-            output_file.close()
+        if settings.output_file is not None and settings.output_file.exists():
+            logger.info("Output saved to %s", settings.output_file.absolute())
+        if settings.output_file is not None and not settings.output_file.exists():
+            logger.error("Output wasn't saved. Output file %s does not exist.", settings.output_file.absolute())
 
-    return 0
+    return
