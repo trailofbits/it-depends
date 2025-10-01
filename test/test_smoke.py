@@ -6,6 +6,7 @@ from functools import wraps
 from pathlib import Path
 from unittest import TestCase
 
+import pytest
 import requests
 
 from it_depends.dependencies import (
@@ -30,6 +31,7 @@ logger = logging.getLogger(__name__)
 class TestResolvers(TestCase):
     maxDiff = None
 
+    @pytest.mark.integration
     def test_resolvers(self) -> None:
         """We see all known resolvers
         caveat: Iff an unknown resolver was defined by another test it will appear here
@@ -38,6 +40,7 @@ class TestResolvers(TestCase):
         assert resolver_names == {"cargo", "ubuntu", "autotools", "go", "cmake", "npm", "pip"}
         assert resolvers() == {resolver_by_name(name) for name in resolver_names}
 
+    @pytest.mark.integration
     def test_objects(self) -> None:
         # To/From string for nicer output and ergonomics
         assert str(Dependency.from_string("pip:cvedb@*")) == "pip:cvedb@*"
@@ -71,6 +74,7 @@ class TestResolvers(TestCase):
             assert dep.match(package) is True
         return solutions
 
+    @pytest.mark.integration
     def test_determinism(self) -> None:
         """Test if a resolver gives the same solution multiple times in a row.
 
@@ -108,15 +112,19 @@ class TestResolvers(TestCase):
                     else:
                         assert first_result == result, f"Results differed on attempt {i + 1} at resolving {dep}"
 
+    @pytest.mark.integration
     def test_pip(self) -> None:
         self._test_resolver("pip", "pip:cvedb@*")
 
+    @pytest.mark.integration
     def test_ubuntu(self) -> None:
         self._test_resolver("ubuntu", "ubuntu:libc6@*")
 
+    @pytest.mark.integration
     def test_cargo(self) -> None:
         self._test_resolver("cargo", "cargo:rand_core@0.6.2")
 
+    @pytest.mark.integration
     def test_npm(self) -> None:
         self._test_resolver("npm", "npm:crypto-js@4.0.0")
 

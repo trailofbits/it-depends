@@ -35,7 +35,7 @@ ifneq ($(TESTS),)
 	COV_ARGS :=
 else
 	TEST_ARGS :=
-	COV_ARGS := --fail-under 50
+	COV_ARGS := --fail-under 40
 endif
 
 .PHONY: all
@@ -66,7 +66,12 @@ format:
 
 .PHONY: test tests
 test tests: $(VENV)/pyvenv.cfg
-	uv run pytest --timeout=7200 --cov=$(PY_IMPORT) $(T) $(TEST_ARGS)
+	uv run pytest --timeout=600 --cov=$(PY_IMPORT) $(T) $(TEST_ARGS)
+	uv run coverage report -m $(COV_ARGS)
+
+.PHONY: integration
+integration: $(VENV)/pyvenv.cfg
+	uv run pytest --timeout=7200 --runintegration --cov=$(PY_IMPORT) $(TEST_ARGS)
 	uv run coverage report -m $(COV_ARGS)
 
 .PHONY: doc
