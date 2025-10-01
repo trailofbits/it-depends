@@ -40,7 +40,11 @@ class PipResolver(DependencyResolver):
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         """Check if this resolver can resolve from the given source repository."""
-        return (self.is_available() and (repo.path / "setup.py").exists()) or (repo.path / "requirements.txt").exists()
+        return (
+            (self.is_available() and (repo.path / "setup.py").exists())
+            or (repo.path / "requirements.txt").exists()
+            or (repo.path / "pyproject.toml").exists()
+        )
 
     def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:  # noqa: ARG002
         """Resolve package from source repository."""
@@ -269,7 +273,7 @@ class PipSourcePackage(SourcePackage):
             PipSourcePackage instance
 
         """
-        if (repo.path / "setup.py").exists():
+        if (repo.path / "setup.py").exists() or (repo.path / "pyproject.toml").exists():
             with TemporaryDirectory() as tmp_dir:
                 try:
                     _ = sys.stderr.fileno()
@@ -320,5 +324,5 @@ class PipSourcePackage(SourcePackage):
                 source="pip",
             )
         else:
-            msg = f"{repo.path} neither has a setup.py nor a requirements.txt"
+            msg = f"{repo.path} neither has a setup.py, requirements.txt, nor pyproject.toml"
             raise ValueError(msg)
