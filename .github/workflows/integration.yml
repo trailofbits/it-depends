@@ -4,10 +4,13 @@ on:
   # Daily schedule - 3 AM UTC
   schedule:
     - cron: "0 3 * * *"
-  # Only run on master branch
+  # Run on push to master branch
   push:
     branches:
       - master
+  # Run on labeled pull requests
+  pull_request:
+    types: [labeled, synchronize]
 
 permissions:
   contents: read
@@ -16,9 +19,8 @@ jobs:
   integration:
     # Run on schedule or pull request with 'integration' label
     if: |
-      github.event_name == 'schedule' ||
-      github.event_name != 'pull_request' ||
-      contains(github.event.pull_request.labels.*.name, 'integration')
+      (github.event_name == 'schedule' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'integration'))
     strategy:
       matrix:
         python: ["3.10", "3.11", "3.12", "3.13"]
