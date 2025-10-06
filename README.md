@@ -1,6 +1,7 @@
 # It-Depends
 
 [![Unit tests](https://github.com/trailofbits/it-depends/actions/workflows/tests.yml/badge.svg)](https://github.com/trailofbits/it-depends/actions/workflows/tests.yml)
+[![Integration tests](https://github.com/trailofbits/it-depends/actions/workflows/integration.yml/badge.svg)](https://github.com/trailofbits/it-depends/actions/workflows/integration.yml)
 [![PyPI version](https://badge.fury.io/py/it-depends.svg)](https://badge.fury.io/py/it-depends)
 [![Slack Status](https://slack.empirehacking.nyc/badge.svg)](https://slack.empirehacking.nyc)
 
