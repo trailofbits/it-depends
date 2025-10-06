@@ -43,4 +43,4 @@ jobs:
         run: uv python install ${{ matrix.python }}
 
       - name: integration
-        run: make integration INSTALL_EXTRA=integration
+        run: make integration
