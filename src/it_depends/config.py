@@ -36,6 +36,7 @@ class Settings(BaseSettings):
             For example: `pip:numpy`, `apt:libc6@2.31`, or `npm:lodash@>=4.17.0`.""",
     )
     all_versions: CliImplicitFlag[bool] = Field(
+        alias="all-versions",
         default=False,
         description="""For `--output-format html`, this option will emit all
         package versions that satisfy each dependency.""",
@@ -51,6 +52,7 @@ class Settings(BaseSettings):
         to disk.""",
     )
     depth_limit: int = Field(
+        alias="depth-limit",
         default=-1,
         description="""Depth limit for recursively solving dependencies.""",
     )
