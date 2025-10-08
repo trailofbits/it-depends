@@ -198,7 +198,7 @@ GITHUB = _register(
 GENERAL_REPO = _register(
     VCSPath(
         regexp=re.compile(
-            r"(?P<root>(?P<repo>([a-z0-9.\-]+\.)+[a-z0-9.\-]+(:[0-9]+)?(/~?[A-Za-z0-9_.\-]+)+?)\."
+            r"(?P<root>(?P<repo>([a-z0-9\-]+\.)+[a-z0-9.\-]+(:[0-9]+)?(/~?[A-Za-z0-9_.\-]+)+?)\."
             r"(?P<vcs>bzr|fossil|git|hg|svn))(/~?[A-Za-z0-9_.\-]+)*$"
         ),
         schemeless_repo=True,
