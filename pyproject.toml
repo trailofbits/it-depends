@@ -12,7 +12,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
 ]
 dependencies = [
-    "cyclonedx-python-lib >= 11.1.0",
+    "cyclonedx-python-lib >= 5,< 12",
     "docker >= 7.1.0",
     "graphviz >= 0.21",
     "johnnydep >= 1.20.6",
