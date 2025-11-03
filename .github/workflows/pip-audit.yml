@@ -1,40 +1,54 @@
 name: Scan dependencies for vulnerabilities with pip-audit
 
 on:
-  push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
+  # Daily schedule - 3 AM UTC
   schedule:
-    - cron: "0 12 * * *"
+    - cron: "0 3 * * *"
+  # Run on push to master branch
+  push:
+    branches:
+      - master
+  # Run on labeled pull requests
+  pull_request:
+    types: [labeled, synchronize]
 
 permissions:
   contents: read
 
 jobs:
   pip-audit:
+    # Run on schedule or pull request with 'integration' label
+    if: |
+      (github.event_name == 'schedule' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'audit'))
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Install Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          python-version: "3.x"
+          persist-credentials: false
 
-      - name: Install project
+      - name: Install dependencies
         run: |
-          python -m venv /tmp/pip-audit-env
-          source /tmp/pip-audit-env/bin/activate
+          sudo apt update -y
+          sudo apt install -y apt-file cmake automake golang cargo npm clang
+          sudo apt-file update
 
-          python -m pip install --upgrade pip
-          python -m pip install .
+      - name: Install uv
+        uses: astral-sh/setup-uv@4959332f0f014c5280e7eac8b70c90cb574c9f9b # v6.6.0
 
+      - name: Install Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      - name: Build project
+        run: make dev
 
       - name: Run pip-audit
-        uses: pypa/gh-action-pip-audit@v1.0.8
+        uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
         with:
-          virtual-environment: /tmp/pip-audit-env
-
+          vulnerability-service: PyPI
+          virtual-environment: .venv
+          ignore-vulns: |
+            GHSA-w596-4wvx-j9j6

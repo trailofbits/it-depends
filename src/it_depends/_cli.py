@@ -143,7 +143,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                 if isinstance(settings.output_file, Path) and settings.output_file.exists():
                     webbrowser.open(str(settings.output_file.absolute()))
             elif settings.output_format == "json":
-                output_write(json.dumps(package_list.to_obj(), indent=4))
+                output_write(json.dumps(package_list.to_obj(), sort_keys=True, indent=4))
             elif settings.output_format == "cyclonedx":
                 sbom = None
                 for p in package_list.source_packages:
