@@ -83,6 +83,7 @@ class SBOM:
                 version=str(root_package.version),
                 bom_ref=root_package.full_name,
             )
+            _add_maintenance_properties(root_component, root_package)
             bom.components.add(root_component)
             expanded[root_package] = root_component
 
