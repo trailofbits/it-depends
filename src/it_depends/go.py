@@ -494,3 +494,26 @@ class GoResolver(DependencyResolver):
                 for package, version in module.dependencies
             ],
         )
+
+    @staticmethod
+    def get_repository_url(package: Package) -> str | None:
+        """Get GitHub repository URL for Go package.
+
+        For Go packages, the package name often IS the repository path.
+        For example: github.com/user/repo
+
+        Args:
+            package: Package to get repository URL for
+
+        Returns:
+            Repository URL or None if not a GitHub package
+
+        """
+        if package.name.startswith("github.com/"):
+            # Extract owner/repo from path like github.com/owner/repo/subpath
+            parts = package.name.split("/")
+            if len(parts) >= 3:
+                owner = parts[1]
+                repo = parts[2]
+                return f"https://github.com/{owner}/{repo}"
+        return None
