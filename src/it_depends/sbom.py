@@ -108,7 +108,9 @@ class SBOM:
                     version=str(pkg.version),
                     bom_ref=f"{pkg.full_name}@{pkg.version!s}",
                 )
+                _add_maintenance_properties(component, pkg)
                 bom.components.add(component)
+                expanded[pkg] = component
             else:
                 component = expanded[pkg]
             if depends_on not in expanded:
@@ -118,7 +120,9 @@ class SBOM:
                     version=str(depends_on.version),
                     bom_ref=f"{depends_on.full_name}@{depends_on.version!s}",
                 )
+                _add_maintenance_properties(d_component, depends_on)
                 bom.components.add(d_component)
+                expanded[depends_on] = d_component
             else:
                 d_component = expanded[depends_on]
             bom.register_dependency(component, [d_component])
