@@ -407,13 +407,16 @@ class Package:
 
     def to_obj(self) -> dict[str, Any]:
         """Convert package to dictionary representation."""
-        return {
+        obj = {
             "source": self.source,
             "name": self.name,
             "version": str(self.version),
             "dependencies": {f"{dep.source}:{dep.package}": str(dep.semantic_version) for dep in self.dependencies},
             "vulnerabilities": [vuln.to_obj() for vuln in self.vulnerabilities],
         }
+        if self.maintenance_info:
+            obj["maintenance"] = self.maintenance_info.to_obj()
+        return obj
 
     def dumps(self) -> str:
         """Serialize package to JSON string."""
