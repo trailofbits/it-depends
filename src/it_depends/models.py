@@ -331,6 +331,19 @@ class Package:
         self.vulnerabilities = self.vulnerabilities.union(vulnerabilities)
         return self
 
+    def update_maintenance_info(self, info: MaintenanceInfo) -> Package:
+        """Update package maintenance information.
+
+        Args:
+            info: Maintenance information to add
+
+        Returns:
+            Self for method chaining
+
+        """
+        self.maintenance_info = info
+        return self
+
     @property
     def resolver(self) -> DependencyResolver:
         """Get the initial main resolver for this package.
