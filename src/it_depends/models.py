@@ -273,6 +273,7 @@ class Package:
         source: str | DependencyResolver,
         dependencies: Iterable[Dependency] = (),
         vulnerabilities: Iterable[Vulnerability] = (),
+        maintenance_info: MaintenanceInfo | None = None,
     ) -> None:
         """Initialize a package.
 
@@ -282,6 +283,7 @@ class Package:
             source: Source resolver name or resolver instance
             dependencies: Package dependencies
             vulnerabilities: Known vulnerabilities
+            maintenance_info: Package maintenance information
 
         """
         if isinstance(version, str):
@@ -296,6 +298,7 @@ class Package:
         else:
             self.source = source
         self.vulnerabilities: frozenset[Vulnerability] = frozenset(vulnerabilities)
+        self.maintenance_info: MaintenanceInfo | None = maintenance_info
 
     @property
     def full_name(self) -> str:
