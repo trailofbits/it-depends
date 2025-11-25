@@ -217,6 +217,80 @@ node -e "require(\\"$1\\")"
         )
 
 
+def parse_package_lock(lock_file_path: Path) -> dict | None:
+    """Parse package-lock.json and return its contents.
+
+    Args:
+        lock_file_path: Path to package-lock.json file
+
+    Returns:
+        Parsed lock file contents as dict, or None if parsing fails
+    """
+    try:
+        with lock_file_path.open() as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
+        log.warning("Failed to parse package-lock.json at %s: %s", lock_file_path, e)
+        return None
+
+
+def detect_lockfile_version(lock_data: dict) -> int:
+    """Detect lockfileVersion (1, 2, or 3) from lock file data.
+
+    Args:
+        lock_data: Parsed package-lock.json contents
+
+    Returns:
+        Lock file version (1, 2, or 3). Defaults to 1 if not specified.
+    """
+    return lock_data.get("lockfileVersion", 1)
+
+
+def extract_dependencies_from_lock_v2_v3(lock_data: dict) -> dict[str, dict]:
+    """Extract flat dependency map from lockfileVersion 2 or 3."""
+    packages = lock_data.get("packages", {})
+    result = {}
+
+    for path, info in packages.items():
+        if path == "":  # Skip root package
+            continue
+
+        name = path.replace("node_modules/", "")
+        if "node_modules/" in name:  # Skip nested dependencies
+            continue
+
+        result[name] = {
+            "version": info.get("version", ""),
+            "resolved": info.get("resolved"),
+            "integrity": info.get("integrity"),
+            "dependencies": info.get("dependencies", {}),
+        }
+
+    return result
+
+
+def extract_dependencies_from_lock_v1(lock_data: dict) -> dict[str, dict]:
+    """Extract and flatten dependency map from lockfileVersion 1."""
+    dependencies = lock_data.get("dependencies", {})
+    result = {}
+
+    def flatten(deps: dict, _depth: int = 0) -> None:
+        for name, info in deps.items():
+            if name not in result:  # Use first encountered version
+                result[name] = {
+                    "version": info.get("version", ""),
+                    "resolved": info.get("resolved"),
+                    "integrity": info.get("integrity"),
+                    "dependencies": info.get("requires", {}),
+                }
+            # Recursively process nested dependencies
+            if "dependencies" in info:
+                flatten(info["dependencies"], _depth + 1)
+
+    flatten(dependencies)
+    return result
+
+
 def generate_dependency_from_information(
     package_name: str,
     package_version: str,
