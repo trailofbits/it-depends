@@ -135,6 +135,6 @@ make format lint
 
 ## Acknowledgements
 
-This research was developed by [Trail of Bits](https://www.trailofbits.com/) based upon work supported by DARPA under Contract No. HR001120C0084 (Distribution Statement **A**, Approved for Public Release: Distribution Unlimited). Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the United States Government or DARPA.
+This research was developed by [Trail of Bits](https://www.trailofbits.com/) based upon work supported by DARPA under Contract No. HR001120C0084 (Distribution Statement A, Approved for Public Release: Distribution Unlimited). Any opinions, findings and conclusions or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the United States Government or DARPA.
 
-[Felipe Manzano](https://github.com/feliam) and [Evan Sultanik](https://github.com/ESultanik) are the active maintainers, but [Alessandro Gario](https://github.com/alessandrogario), [Eric Kilmer](https://github.com/ekilmer), [Alexander Remie](https://github.com/rmi7), and [Henrik Brodin](https://github.com/hbrodin) all made significant contributions to the tool's inception and development.
+[Evan Sultanik](https://github.com/ESultanik) and [Evan Downing](https://github.com/evandowning) are the active maintainers. [Felipe Manzano](https://github.com/feliam), [Alessandro Gario](https://github.com/alessandrogario), [Eric Kilmer](https://github.com/ekilmer), [Alexander Remie](https://github.com/rmi7), and [Henrik Brodin](https://github.com/hbrodin) all made significant contributions to the tool's inception and development.
