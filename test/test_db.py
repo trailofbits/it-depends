@@ -65,5 +65,5 @@ class TestDB(TestCase):
             assert len(cache) == 1
             # try adding the package again, but with fewer dependencies:
             smaller_pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnusedResolver())
-            with pytest.raises(ValueError, match="Package .* has already been resolved with more dependencies"):
+            with pytest.raises(ValueError, match=r"Package .* has already been resolved with more dependencies"):
                 cache.add(smaller_pkg)
