@@ -34,7 +34,7 @@ doc = ["pdoc"]
 test = ["pytest", "pytest-cov", "pytest-timeout", "pretend", "coverage[toml]"]
 lint = [
     "ruff>=0.14.9,<1.0",
-    "mypy ~= 1.17.1",
+    "mypy>=1.19.1,<2.0",
     "types-html5lib",
     "types-requests",
     "types-toml",

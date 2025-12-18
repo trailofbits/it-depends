@@ -140,13 +140,13 @@ class PackageCache(ABC):
         """Convert cache to dependency graph."""
         graph = DependencyGraph()
         for package in self:
-            graph.add_node(package)  # type: ignore[arg-type]
+            graph.add_node(package)
             for dep in package.dependencies:
                 for p in self.match(dep):
                     if p not in self:
                         msg = "Package not in cache"
                         raise AssertionError(msg)
-                    graph.add_edge(package, p, dependency=dep)  # type: ignore[arg-type]
+                    graph.add_edge(package, p, dependency=dep)
         return graph
 
     def to_obj(self) -> dict[str, dict[str, dict[str, str | bool | list[str] | dict[str, str]]]]:
