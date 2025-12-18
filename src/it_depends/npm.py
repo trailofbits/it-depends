@@ -225,10 +225,11 @@ def parse_package_lock(lock_file_path: Path) -> dict | None:
 
     Returns:
         Parsed lock file contents as dict, or None if parsing fails
+
     """
     try:
         with lock_file_path.open() as f:
-            return json.load(f)
+            return dict(json.load(f))
     except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
         log.warning("Failed to parse package-lock.json at %s: %s", lock_file_path, e)
         return None
@@ -242,8 +243,9 @@ def detect_lockfile_version(lock_data: dict) -> int:
 
     Returns:
         Lock file version (1, 2, or 3). Defaults to 1 if not specified.
+
     """
-    return lock_data.get("lockfileVersion", 1)
+    return int(lock_data.get("lockfileVersion", 1))
 
 
 def extract_dependencies_from_lock_v2_v3(lock_data: dict) -> dict[str, dict]:
