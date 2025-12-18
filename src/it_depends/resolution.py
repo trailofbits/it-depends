@@ -164,6 +164,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 # Resolve from source repository
                 found_source_package = False
                 for resolver in resolvers():
+                    logger.debug("Trying to resolve %s using resolver %s", repo_or_spec, resolver.name)
                     if resolver.can_resolve_from_source(repo_or_spec):
                         source_package = resolver.resolve_from_source(repo_or_spec, cache=cache)
                         if source_package is None:

@@ -37,7 +37,7 @@ def parse_path_or_package_name(
     return dependency
 
 
-def main() -> None:  # noqa: C901, PLR0912, PLR0915
+def main() -> None:  # noqa: C901, PLR0912, PLR0915, PLR0911
     settings = Settings()  # type: ignore[call-arg]
     setup_logger(settings.log_level)
 
@@ -59,6 +59,11 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
     except ValueError as e:
         msg = str(e)
         logger.exception(msg)
+        return
+
+    # If this is a source repository, make sure the folder exists
+    if isinstance(repo, SourceRepository) and not repo.path.exists():
+        logger.error("The specified path does not exist: %s", repo.path)
         return
 
     # Clear the database cache
