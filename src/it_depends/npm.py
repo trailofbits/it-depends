@@ -60,20 +60,47 @@ class NPMResolver(DependencyResolver):
         else:
             path = Path(package_json_path)
             source_repository = SourceRepository(path.parent)
-        if path.is_dir():
-            path = path / "package.json"
-        if not path.exists():
-            msg = f"Expected a package.json file at {path!s}"
-            raise ValueError(msg)
-        with path.open() as json_file:
-            package = json.load(json_file)
-        name = package.get("name", path.parent.name)
-        if "dependencies" in package:
-            dependencies: dict[str, str] = package["dependencies"]
+
+        package_lock_path = path / "package-lock.json"
+        package_path = path / "package.json"
+
+        # First, parse package-lock.json if it exists
+        if package_lock_path.exists():
+            lock_data = parse_package_lock(package_lock_path)
+            if lock_data is None:
+                msg = f"Failed to parse package-lock.json at {package_lock_path!s}"
+                raise ValueError(msg)
+
+            name = lock_data.get("name", path.parent.name)
+
+            version = lock_data.get("version", "0")
+            version = Version.coerce(version)
+
+            lockfile_version = detect_lockfile_version(lock_data)
+            if lockfile_version == 1:
+                # v1 doesn't have version ranges, fall back to package.json
+                dependencies = _get_dependencies_from_package_json(package_path)
+            elif lockfile_version in (2, 3):
+                dependencies = extract_dependencies_from_lock_v2_v3(lock_data)
+            else:
+                msg = f"Unsupported lockfileVersion {lockfile_version} in {package_lock_path!s}"
+                raise ValueError(msg)
+
+        # If not, parse package.json
+        elif package_path.exists():
+            with package_path.open() as json_file:
+                package = json.load(json_file)
+
+            name = package.get("name", path.parent.name)
+
+            version = package.get("version", "0")
+            version = Version.coerce(version)
+
+            dependencies = package.get("dependencies", {})
+
         else:
-            dependencies = {}
-        version = package.get("version", "0")
-        version = Version.coerce(version)
+            msg = f"Expected a package-lock.json or package.json file at {path!s}"
+            raise ValueError(msg)
 
         return SourcePackage(
             name,
@@ -217,6 +244,24 @@ node -e "require(\\"$1\\")"
         )
 
 
+def _get_dependencies_from_package_json(package_path: Path) -> dict[str, str]:
+    """Extract dependencies dict from package.json file.
+
+    Args:
+        package_path: Path to package.json file
+
+    Returns:
+        Dict mapping package names to version specifications
+
+    """
+    if not package_path.exists():
+        return {}
+    with package_path.open() as json_file:
+        pkg_json = json.load(json_file)
+    deps: dict[str, str] = pkg_json.get("dependencies", {})
+    return deps
+
+
 def parse_package_lock(lock_file_path: Path) -> dict | None:
     """Parse package-lock.json and return its contents.
 
@@ -248,49 +293,35 @@ def detect_lockfile_version(lock_data: dict) -> int:
     return int(lock_data.get("lockfileVersion", 1))
 
 
-def extract_dependencies_from_lock_v2_v3(lock_data: dict) -> dict[str, dict]:
-    """Extract flat dependency map from lockfileVersion 2 or 3."""
+def extract_dependencies_from_lock_v2_v3(lock_data: dict) -> dict[str, str]:
+    """Extract direct dependencies with version ranges from lockfileVersion 2 or 3.
+
+    Args:
+        lock_data: Parsed package-lock.json contents
+
+    Returns:
+        Dict mapping package names to version range specifications
+
+    """
     packages = lock_data.get("packages", {})
-    result = {}
-
-    for path, info in packages.items():
-        if path == "":  # Skip root package
-            continue
-
-        name = path.replace("node_modules/", "")
-        if "node_modules/" in name:  # Skip nested dependencies
-            continue
-
-        result[name] = {
-            "version": info.get("version", ""),
-            "resolved": info.get("resolved"),
-            "integrity": info.get("integrity"),
-            "dependencies": info.get("dependencies", {}),
-        }
-
-    return result
+    root_package = packages.get("", {})
+    return dict(root_package.get("dependencies", {}))
 
 
-def extract_dependencies_from_lock_v1(lock_data: dict) -> dict[str, dict]:
-    """Extract and flatten dependency map from lockfileVersion 1."""
-    dependencies = lock_data.get("dependencies", {})
-    result = {}
+def extract_dependencies_from_lock_v1(lock_data: dict) -> dict[str, str]:  # noqa: ARG001
+    """Extract direct dependencies from lockfileVersion 1.
 
-    def flatten(deps: dict, _depth: int = 0) -> None:
-        for name, info in deps.items():
-            if name not in result:  # Use first encountered version
-                result[name] = {
-                    "version": info.get("version", ""),
-                    "resolved": info.get("resolved"),
-                    "integrity": info.get("integrity"),
-                    "dependencies": info.get("requires", {}),
-                }
-            # Recursively process nested dependencies
-            if "dependencies" in info:
-                flatten(info["dependencies"], _depth + 1)
+    Note: v1 lock files don't store version ranges for root package dependencies.
+    Returns empty dict to signal fallback to package.json is needed.
 
-    flatten(dependencies)
-    return result
+    Args:
+        lock_data: Parsed package-lock.json contents
+
+    Returns:
+        Empty dict (v1 lock files require fallback to package.json for version ranges)
+
+    """
+    return {}
 
 
 def generate_dependency_from_information(
