@@ -77,7 +77,7 @@ class AutotoolsResolver(DependencyResolver):
         Checks for the presence of certain C, C++, or Fortran library archive files.
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Libraries.html#Libraries
         """
-        lib_file, function_name = function.split(".")
+        lib_file, _ = function.split(".")
         logger.info("AC_CHECK_LIB %s", lib_file)
         package_name = file_to_package(
             f"lib{re.escape(lib_file)}(.a|.so)",
