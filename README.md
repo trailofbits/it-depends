@@ -76,6 +76,12 @@ it-depends "ubuntu:libc6@2.31"
 it-depends "npm:lodash@>=4.17.0"
 ```
 
+To list resolvers compatible for the specified target, use the `--list` option:
+
+```shell
+it-depends . --list
+```
+
 It-Depends will output the full dependency hierarchy in JSON format. Additional output formats such
 as Graphviz/Dot are available via the `--output-format` option.
 
@@ -124,7 +130,7 @@ This is the resulting dependency graph:
 git clone https://github.com/trailofbits/it-depends
 cd it-depends
 make dev
-source .venv/bin/activate
+uv run it-depends --help
 ```
 
 Format and lint code before contributing

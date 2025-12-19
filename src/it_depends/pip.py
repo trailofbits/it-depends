@@ -285,6 +285,9 @@ class PipResolver(DependencyResolver):
                     recurse=False,
                 )
             )
+        except subprocess.CalledProcessError:
+            log.exception("Error using JohnnyDep to resolve %s", dependency.package)
+            return iter(())
         except ValueError as e:
             log.warning(str(e))
             return iter(())
