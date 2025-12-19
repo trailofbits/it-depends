@@ -99,4 +99,4 @@ ignore = ["D203", "D213", "COM812", "ISC001"]
 # environment, or the CLI (which is documented separately).
 exclude = ["env", "test", "src/it_depends/_cli.py", "test/repos"]
 ignore-semiprivate = true
-fail-under = 90
+fail-under = 95
