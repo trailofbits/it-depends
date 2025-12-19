@@ -126,6 +126,17 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
             if settings.audit:
                 package_list = vulnerabilities(package_list)
 
+            if settings.check_maintenance:
+                from .maintenance import check_maintenance_status
+
+                package_list = check_maintenance_status(
+                    package_list,
+                    stale_threshold_days=settings.stale_threshold,
+                    github_token=settings.github_token or os.getenv("GITHUB_TOKEN"),
+                    cache=cache,
+                    cache_ttl=settings.maintenance_cache_ttl,
+                )
+
             if to_compare is not None:
                 to_compare_list = resolve(
                     to_compare,
