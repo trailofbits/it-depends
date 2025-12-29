@@ -71,6 +71,9 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915, PLR0911
         db_path = Path(settings.database)
         if db_path.exists():
             db_path.unlink()
+            logger.info("Cache cleared.")
+        else:
+            logger.info("No cache exists.")
 
     # List the available resolvers
     if settings.list:
