@@ -21,6 +21,11 @@ from .ubuntu.apt import (
     cached_file_to_package as file_to_package,
 )
 from .ubuntu.apt import (
+    make_cmake_config_query,
+    make_include_query,
+    make_library_query,
+    make_path_query,
+    make_pkg_config_query,
     search_package,
 )
 
@@ -155,10 +160,9 @@ class CMakeResolver(DependencyResolver):
         version = None
         if len(args) > 0 and args[0] not in keywords:
             version = args[0]
-        name = re.escape(package)
         try:
-            name = rf"({name}\.pc|{name}Config\.cmake|{name}Config\.cmake|{name.lower()}\-config\.cmake)"
-            yield file_to_package(name, file_to_package_cache=file_to_package_cache), version
+            query = make_cmake_config_query(package)
+            yield file_to_package(query, file_to_package_cache=file_to_package_cache), version
         except ValueError:
             found_package = search_package(package)
 
@@ -169,6 +173,7 @@ class CMakeResolver(DependencyResolver):
                         continue
                     package_i, filename_i = line.split(": ")
                     file_to_package_cache.append((package_i, filename_i))
+                    logger.debug("Found package: %s %s", package_i, filename_i)
 
             yield found_package, version
 
@@ -207,9 +212,10 @@ class CMakeResolver(DependencyResolver):
             module_specs.append((module_name, version_range))  # type: ignore[arg-type]
 
         for module_name, version_range in module_specs:
+            query = make_pkg_config_query([module_name])
             yield (
                 file_to_package(
-                    rf"{re.escape(module_name)}\.pc",
+                    query,
                     file_to_package_cache=list(file_to_package_cache.items()) if file_to_package_cache else None,
                 ),
                 version_range,
@@ -272,13 +278,11 @@ class CMakeResolver(DependencyResolver):
         )
         args = self._get_names(list(args[1:]), list(keywords))
 
-        names = set()
-        for name in args:
-            lib_name = name if name.startswith("lib") else f"lib{name}"
-            names.add(lib_name)
+        names = list({name if name.startswith("lib") else f"lib{name}" for name in args})
+        query = make_library_query(names)
         yield (
             file_to_package(
-                rf"({'|'.join(map(re.escape, names))})(\.so[0-9\.]*|\.a)",
+                query,
                 file_to_package_cache=list(file_to_package_cache.items()) if file_to_package_cache else None,
             ),
             None,
@@ -296,8 +300,8 @@ class CMakeResolver(DependencyResolver):
         CHECK_INCLUDE_FILES("<includes>" <variable> [LANGUAGE <language>])
         https://cmake.org/cmake/help/latest/module/CheckIncludeFiles.html
         """
-        pattern = r"include/(.*/)*(" + "|".join(map(re.escape, args[0].split(";"))) + r")"
-        yield file_to_package(pattern, file_to_package_cache=file_to_package_cache), None
+        query = make_include_query(args[0].split(";"))
+        yield file_to_package(query, file_to_package_cache=file_to_package_cache), None
 
     def _check_include_file(
         self,
@@ -310,8 +314,8 @@ class CMakeResolver(DependencyResolver):
         CHECK_INCLUDE_FILE(<include> <variable> [<flags>])
         https://cmake.org/cmake/help/latest/module/CheckIncludeFile.html#module:CheckIncludeFile
         """
-        pattern = rf"include/(.*/)*{re.escape(include_file)}"
-        yield file_to_package(pattern, file_to_package_cache=file_to_package_cache), None
+        query = make_include_query([include_file])
+        yield file_to_package(query, file_to_package_cache=file_to_package_cache), None
 
     def _check_include_file_cxx(
         self, include_file: str, *args: str, file_to_package_cache: list[tuple[str, str]] | None = None
@@ -374,8 +378,9 @@ class CMakeResolver(DependencyResolver):
             if name in keywords:
                 break
             try:
+                query = make_path_query(name)
                 yield (
-                    file_to_package(f"{re.escape(name)}", file_to_package_cache=file_to_package_cache),
+                    file_to_package(query, file_to_package_cache=file_to_package_cache),
                     None,
                 )
                 break

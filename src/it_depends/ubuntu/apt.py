@@ -6,6 +6,7 @@ import functools
 import gzip
 import logging
 import re
+from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
 from urllib import request
@@ -15,6 +16,111 @@ from it_depends.it_depends import APP_DIRS
 from .docker import run_command
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class AptFileQuery:
+    """Query for optimized apt-file search.
+
+    Attributes:
+        search_terms: Simple terms for case-insensitive apt-file search.
+        filter_regex: Python regex pattern for post-filtering results.
+
+    """
+
+    search_terms: tuple[str, ...]
+    filter_regex: str
+
+
+def make_library_query(lib_names: list[str]) -> AptFileQuery:
+    """Create query for library files (.so/.a).
+
+    Args:
+        lib_names: Library names (with or without 'lib' prefix).
+
+    Returns:
+        AptFileQuery with search terms and filter regex.
+
+    """
+    normalized = [n if n.startswith("lib") else f"lib{n}" for n in lib_names]
+    escaped = [re.escape(n) for n in normalized]
+    return AptFileQuery(
+        search_terms=tuple(normalized),
+        filter_regex=rf"({'|'.join(escaped)})(\.so[0-9\.]*|\.a)$",
+    )
+
+
+def make_include_query(headers: list[str]) -> AptFileQuery:
+    """Create query for header files.
+
+    Args:
+        headers: Header file names (e.g., ["pthread.h", "stdlib.h"]).
+
+    Returns:
+        AptFileQuery with search terms and filter regex.
+
+    """
+    escaped = [re.escape(h) for h in headers]
+    return AptFileQuery(
+        search_terms=tuple(headers),
+        filter_regex=r"include/(.*/)*(" + "|".join(escaped) + r")$",
+    )
+
+
+def make_pkg_config_query(modules: list[str]) -> AptFileQuery:
+    """Create query for pkg-config .pc files.
+
+    Args:
+        modules: Module names without .pc extension.
+
+    Returns:
+        AptFileQuery with search terms and filter regex.
+
+    """
+    pc_files = [f"{m}.pc" for m in modules]
+    escaped = [re.escape(f) for f in pc_files]
+    return AptFileQuery(
+        search_terms=tuple(pc_files),
+        filter_regex=rf"({'|'.join(escaped)})$",
+    )
+
+
+def make_cmake_config_query(package: str) -> AptFileQuery:
+    """Create query for CMake config files.
+
+    Looks for: <name>.pc, <name>Config.cmake, <name>-config.cmake
+
+    Args:
+        package: The CMake package name.
+
+    Returns:
+        AptFileQuery with search terms and filter regex.
+
+    """
+    escaped = re.escape(package)
+    lower_escaped = re.escape(package.lower())
+    return AptFileQuery(
+        search_terms=(package, f"{package}Config.cmake", f"{package.lower()}-config.cmake"),
+        filter_regex=rf"({escaped}\.pc|{escaped}Config\.cmake|{lower_escaped}-config\.cmake)$",
+    )
+
+
+def make_path_query(name: str) -> AptFileQuery:
+    """Create query for generic path search.
+
+    Args:
+        name: The filename to search for.
+
+    Returns:
+        AptFileQuery with search terms and filter regex.
+
+    """
+    return AptFileQuery(
+        search_terms=(name,),
+        filter_regex=rf"{re.escape(name)}$",
+    )
+
+
 all_packages: tuple[str, ...] | None = None
 _APT_LOCK: Lock = Lock()
 
@@ -99,12 +205,62 @@ def _file_to_package_contents(filename: str, arch: str = "amd64") -> str:  # noq
     return selected[1]
 
 
+def _file_to_packages_optimized(
+    query: AptFileQuery,
+    arch: str = "amd64",  # noqa: ARG001
+) -> list[str]:
+    """Optimized apt-file search using case-insensitive mode with post-filtering.
+
+    Args:
+        query: AptFileQuery containing search terms and filter regex.
+        arch: Architecture to search (amd64 or i386). Reserved for future use.
+
+    Returns:
+        Sorted list of matching package names.
+
+    """
+    all_packages: set[str] = set()
+    regex = re.compile(query.filter_regex)
+
+    for term in query.search_terms:
+        logger.debug("Running [apt-file -i search %s]", term)
+        try:
+            contents = run_command("apt-file", "-i", "search", term).decode("utf-8")
+        except Exception:  # noqa: BLE001
+            logger.debug("apt-file search failed for term: %s", term)
+            continue
+
+        for line in contents.split("\n"):
+            if not line or ": " not in line:
+                continue
+            package_name, file_path = line.split(": ", 1)
+            if regex.search(file_path):
+                all_packages.add(package_name)
+
+    logger.debug("Finished apt-file, found %d packages", len(all_packages))
+    return sorted(all_packages)
+
+
 @functools.lru_cache(maxsize=5242880)
-def file_to_packages(filename: str, arch: str = "amd64") -> list[str]:
-    """Get packages that provide a specific file."""
+def file_to_packages(filename: str | AptFileQuery, arch: str = "amd64") -> list[str]:
+    """Get packages that provide a specific file.
+
+    Args:
+        filename: Either a regex pattern string or an AptFileQuery for optimized search.
+        arch: Architecture to search (amd64 or i386).
+
+    Returns:
+        Sorted list of package names that provide matching files.
+
+    """
     if arch not in ("amd64", "i386"):
         error_msg = "Only amd64 and i386 supported"
         raise ValueError(error_msg)
+
+    if isinstance(filename, AptFileQuery):
+        return _file_to_packages_optimized(filename, arch)
+
+    # Legacy regex mode for backward compatibility
     logger.debug("Running [apt-file -x search %s]", filename)
     contents = run_command("apt-file", "-x", "search", filename).decode("utf-8")
     selected: list[str] = []
@@ -113,11 +269,24 @@ def file_to_packages(filename: str, arch: str = "amd64") -> list[str]:
             continue
         package_i, _ = line.split(": ")
         selected.append(package_i)
+    logger.debug("Finished running apt-file")
     return sorted(selected)
 
 
-def file_to_package(filename: str, arch: str = "amd64") -> str:
-    """Get the package that provides a specific file."""
+def file_to_package(filename: str | AptFileQuery, arch: str = "amd64") -> str:
+    """Get the package that provides a specific file.
+
+    Args:
+        filename: Either a regex pattern string or an AptFileQuery for optimized search.
+        arch: Architecture to search (amd64 or i386).
+
+    Returns:
+        The shortest package name that provides a matching file.
+
+    Raises:
+        ValueError: If no matching package is found.
+
+    """
     packages = file_to_packages(filename, arch)
     if packages:
         _, result = min((len(pkg), pkg) for pkg in packages)
@@ -127,15 +296,33 @@ def file_to_package(filename: str, arch: str = "amd64") -> str:
     raise ValueError(error_msg)
 
 
-def cached_file_to_package(pattern: str, file_to_package_cache: list[tuple[str, str]] | None = None) -> str:
-    """Get package for a file pattern with caching support."""
-    # file_to_package_cache contains all the files that are provided be previous
-    # dependencies. If a file pattern is already sastified by current files
+def cached_file_to_package(
+    pattern: str | AptFileQuery,
+    file_to_package_cache: list[tuple[str, str]] | None = None,
+) -> str:
+    """Get package for a file pattern with caching support.
+
+    Args:
+        pattern: Either a regex pattern string or an AptFileQuery.
+        file_to_package_cache: Cache of (package, filename) tuples from previous deps.
+
+    Returns:
+        The package name providing the file.
+
+    Raises:
+        ValueError: If no matching package is found.
+
+    """
+    # file_to_package_cache contains all the files that are provided by previous
+    # dependencies. If a file pattern is already satisfied by current files
     # use the package already included as a dependency
     if file_to_package_cache is not None:
-        regex = re.compile("(.*/)+" + pattern + "$")
+        if isinstance(pattern, AptFileQuery):
+            regex = re.compile(pattern.filter_regex)
+        else:
+            regex = re.compile("(.*/)+" + pattern + "$")
         for package_i, filename_i in file_to_package_cache:
-            if regex.match(filename_i):
+            if regex.search(filename_i):
                 return package_i
 
     package = file_to_package(pattern)

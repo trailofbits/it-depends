@@ -64,7 +64,7 @@ RUN apt-get update && apt-get install -y apt-file && apt-file update
             ) as dockerfile:
                 _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
                 _container.rebuild()
-    logger.debug("running %s in Docker", " ".join(args))
+    logger.debug("Running `%s` in Docker", " ".join(args))
     p = _container.run(
         *args,
         interactive=False,
