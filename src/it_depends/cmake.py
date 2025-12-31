@@ -6,7 +6,6 @@ import logging
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -433,7 +432,6 @@ class CMakeResolver(DependencyResolver):
                     )
                     if p.returncode != 0:
                         logger.error("Error running cmake:\n%s\n%s", p.stdout.decode("utf-8"), p.stderr.decode("utf-8"))
-                        sys.exit(1)
                     with output.open() as outfd:
                         trace = outfd.read()
                 finally:
