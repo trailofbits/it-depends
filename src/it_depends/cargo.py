@@ -10,6 +10,8 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import requests
+
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
@@ -184,3 +186,26 @@ class CargoResolver(DependencyResolver):
         cache.set_resolved(dependency)
         # TODO(@evandowning): propagate up any other info we have in this cache  # noqa: TD003, FIX002
         return cache.match(dependency)
+
+    @staticmethod
+    def get_repository_url(package: Package) -> str | None:
+        """Get GitHub repository URL for Cargo package.
+
+        Args:
+            package: Package to get repository URL for
+
+        Returns:
+            Repository URL or None if not found
+
+        """
+        try:
+            response = requests.get(
+                f"https://crates.io/api/v1/crates/{package.name}",
+                timeout=5,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("crate", {}).get("repository")
+            return None
+        except requests.RequestException:
+            return None
