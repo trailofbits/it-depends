@@ -50,8 +50,8 @@ def make_library_query(lib_names: list[str]) -> AptFileQuery:
     )
 
 
-def make_include_query(headers: list[str]) -> AptFileQuery:
-    """Create query for header files.
+def make_cmake_include_query(headers: list[str]) -> AptFileQuery:
+    """Create query for cmake header files.
 
     Args:
         headers: Header file names (e.g., ["pthread.h", "stdlib.h"]).
@@ -102,6 +102,23 @@ def make_cmake_config_query(package: str) -> AptFileQuery:
     return AptFileQuery(
         search_terms=(package, f"{package}Config.cmake", f"{package.lower()}-config.cmake"),
         filter_regex=rf"({escaped}\.pc|{escaped}Config\.cmake|{lower_escaped}-config\.cmake)$",
+    )
+
+
+def make_autotools_include_query(headers: list[str]) -> AptFileQuery:
+    """Create query for autotools header files.
+
+    Args:
+        headers: Header file names (e.g., ["pthread.h", "stdlib.h"]).
+
+    Returns:
+        AptFileQuery with search terms and filter regex.
+
+    """
+    escaped = [re.escape(h) for h in headers]
+    return AptFileQuery(
+        search_terms=tuple(headers),
+        filter_regex=rf"({'|'.join(escaped)})$",
     )
 
 
@@ -322,7 +339,7 @@ def cached_file_to_package(
         else:
             regex = re.compile("(.*/)+" + pattern + "$")
         for package_i, filename_i in file_to_package_cache:
-            if regex.search(filename_i):
+            if regex.match(filename_i):
                 return package_i
 
     package = file_to_package(pattern)

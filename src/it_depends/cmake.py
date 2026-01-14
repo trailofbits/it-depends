@@ -22,7 +22,7 @@ from .ubuntu.apt import (
 )
 from .ubuntu.apt import (
     make_cmake_config_query,
-    make_include_query,
+    make_cmake_include_query,
     make_library_query,
     make_path_query,
     make_pkg_config_query,
@@ -300,7 +300,7 @@ class CMakeResolver(DependencyResolver):
         CHECK_INCLUDE_FILES("<includes>" <variable> [LANGUAGE <language>])
         https://cmake.org/cmake/help/latest/module/CheckIncludeFiles.html
         """
-        query = make_include_query(args[0].split(";"))
+        query = make_cmake_include_query(args[0].split(";"))
         yield file_to_package(query, file_to_package_cache=file_to_package_cache), None
 
     def _check_include_file(
@@ -314,7 +314,7 @@ class CMakeResolver(DependencyResolver):
         CHECK_INCLUDE_FILE(<include> <variable> [<flags>])
         https://cmake.org/cmake/help/latest/module/CheckIncludeFile.html#module:CheckIncludeFile
         """
-        query = make_include_query([include_file])
+        query = make_cmake_include_query([include_file])
         yield file_to_package(query, file_to_package_cache=file_to_package_cache), None
 
     def _check_include_file_cxx(

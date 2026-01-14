@@ -31,7 +31,7 @@ from .ubuntu.apt import (
     cached_file_to_package as file_to_package,
 )
 from .ubuntu.apt import (
-    make_include_query,
+    make_autotools_include_query,
     make_library_query,
     make_pkg_config_query,
 )
@@ -74,7 +74,7 @@ class AutotoolsResolver(DependencyResolver):
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Generic-Headers.html
         """
         logger.info("AC_CHECK_HEADER %s", header_file)
-        query = make_include_query([header_file])
+        query = make_autotools_include_query([header_file])
         package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
