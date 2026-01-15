@@ -27,7 +27,14 @@ if TYPE_CHECKING:
 
     from .models import Package
 
-from .ubuntu.apt import cached_file_to_package as file_to_package
+from .ubuntu.apt import (
+    cached_file_to_package as file_to_package,
+)
+from .ubuntu.apt import (
+    make_autotools_include_query,
+    make_library_query,
+    make_pkg_config_query,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +74,8 @@ class AutotoolsResolver(DependencyResolver):
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Generic-Headers.html
         """
         logger.info("AC_CHECK_HEADER %s", header_file)
-        package_name = file_to_package(f"{re.escape(header_file)}", file_to_package_cache=file_to_package_cache)
+        query = make_autotools_include_query([header_file])
+        package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
     @staticmethod
@@ -79,10 +87,8 @@ class AutotoolsResolver(DependencyResolver):
         """
         lib_file, _ = function.split(".")
         logger.info("AC_CHECK_LIB %s", lib_file)
-        package_name = file_to_package(
-            f"lib{re.escape(lib_file)}(.a|.so)",
-            file_to_package_cache=file_to_package_cache,
-        )
+        query = make_library_query([lib_file])
+        package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
     @staticmethod
@@ -97,9 +103,9 @@ class AutotoolsResolver(DependencyResolver):
         """
         if not version:
             version = "*"
-        module_file = re.escape(module_name + ".pc")
-        logger.info("PKG_CHECK_MODULES %s, %s", module_file, version)
-        package_name = file_to_package(module_file, file_to_package_cache=file_to_package_cache)
+        logger.info("PKG_CHECK_MODULES %s.pc, %s", module_name, version)
+        query = make_pkg_config_query([module_name])
+        package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec(version), source="ubuntu")
 
     @staticmethod
