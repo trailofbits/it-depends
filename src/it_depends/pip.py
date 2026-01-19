@@ -10,6 +10,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
+import requests
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
@@ -291,6 +293,34 @@ class PipResolver(DependencyResolver):
         except ValueError as e:
             log.warning(str(e))
             return iter(())
+
+    @staticmethod
+    def get_repository_url(package: Package) -> str | None:
+        """Get GitHub repository URL for PyPI package.
+
+        Args:
+            package: Package to get repository URL for
+
+        Returns:
+            Repository URL or None if not found
+
+        """
+        try:
+            response = requests.get(
+                f"https://pypi.org/pypi/{package.name}/json",
+                timeout=5,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                project_urls = data.get("info", {}).get("project_urls", {})
+                # Try common keys for repository URLs
+                for key in ["Source", "Repository", "Homepage", "Code", "source"]:
+                    url = project_urls.get(key)
+                    if url and "github.com" in url:
+                        return url
+            return None
+        except requests.RequestException:
+            return None
 
 
 class PipSourcePackage(SourcePackage):
