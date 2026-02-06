@@ -35,7 +35,7 @@ def make_dockerfile(docker_setup: DockerSetup) -> InMemoryDockerfile:
     pkgs = " ".join(docker_setup.apt_get_packages)
     return InMemoryDockerfile(
         f"""
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 RUN mkdir -p /workdir
 

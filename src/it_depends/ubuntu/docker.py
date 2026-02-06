@@ -49,15 +49,15 @@ def is_running_ubuntu(check_version: str | None = None) -> bool:
 
 
 def run_command(*args: str) -> bytes:
-    """Run the given command in Ubuntu 20.04.
+    """Run the given command in Ubuntu 22.04.
 
-    If the host system is not running Ubuntu 20.04, the command is run in Docker.
+    If the host system is not running Ubuntu 22.04, the command is run in Docker.
     """
     with _UBUNTU_LOCK:
         global _container  # noqa: PLW0603
         if _container is None:
             with InMemoryDockerfile(
-                """FROM ubuntu:20.04
+                """FROM ubuntu:22.04
 
 RUN apt-get update && apt-get install -y apt-file && apt-file update
 """
