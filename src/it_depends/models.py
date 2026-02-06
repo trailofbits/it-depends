@@ -55,6 +55,58 @@ class Vulnerability:
         return self.id < other.id
 
 
+class MaintenanceInfo:
+    """Represents maintenance status information for a package."""
+
+    def __init__(
+        self,
+        repository_url: str | None = None,
+        last_commit_date: str | None = None,
+        is_stale: bool = False,
+        days_since_update: int | None = None,
+        error: str | None = None,
+    ) -> None:
+        """Initialize maintenance information.
+
+        Args:
+            repository_url: GitHub repository URL
+            last_commit_date: ISO 8601 timestamp of last commit (from pushed_at)
+            is_stale: Whether package exceeds staleness threshold
+            days_since_update: Days since last update
+            error: Error message if check failed
+
+        """
+        self.repository_url = repository_url
+        self.last_commit_date = last_commit_date
+        self.is_stale = is_stale
+        self.days_since_update = days_since_update
+        self.error = error
+
+    def to_obj(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "repository_url": self.repository_url,
+            "last_commit_date": self.last_commit_date,
+            "is_stale": self.is_stale,
+            "days_since_update": self.days_since_update,
+            "error": self.error,
+        }
+
+    def __eq__(self, other: object) -> bool:
+        """Check equality with another MaintenanceInfo."""
+        if isinstance(other, MaintenanceInfo):
+            return (
+                self.repository_url == other.repository_url
+                and self.last_commit_date == other.last_commit_date
+                and self.is_stale == other.is_stale
+            )
+        return False
+
+    def __hash__(self) -> int:
+        """Compute hash for MaintenanceInfo."""
+        return hash((self.repository_url, self.last_commit_date, self.is_stale))
+
+
 class Dependency:
     """Represents a dependency with package name, source, and version constraints."""
 
@@ -221,6 +273,7 @@ class Package:
         source: str | DependencyResolver,
         dependencies: Iterable[Dependency] = (),
         vulnerabilities: Iterable[Vulnerability] = (),
+        maintenance_info: MaintenanceInfo | None = None,
     ) -> None:
         """Initialize a package.
 
@@ -230,6 +283,7 @@ class Package:
             source: Source resolver name or resolver instance
             dependencies: Package dependencies
             vulnerabilities: Known vulnerabilities
+            maintenance_info: Package maintenance information
 
         """
         if isinstance(version, str):
@@ -244,6 +298,7 @@ class Package:
         else:
             self.source = source
         self.vulnerabilities: frozenset[Vulnerability] = frozenset(vulnerabilities)
+        self.maintenance_info: MaintenanceInfo | None = maintenance_info
 
     @property
     def full_name(self) -> str:
@@ -274,6 +329,19 @@ class Package:
 
         """
         self.vulnerabilities = self.vulnerabilities.union(vulnerabilities)
+        return self
+
+    def update_maintenance_info(self, info: MaintenanceInfo) -> Package:
+        """Update package maintenance information.
+
+        Args:
+            info: Maintenance information to add
+
+        Returns:
+            Self for method chaining
+
+        """
+        self.maintenance_info = info
         return self
 
     @property
@@ -339,13 +407,16 @@ class Package:
 
     def to_obj(self) -> dict[str, Any]:
         """Convert package to dictionary representation."""
-        return {
+        obj = {
             "source": self.source,
             "name": self.name,
             "version": str(self.version),
             "dependencies": {f"{dep.source}:{dep.package}": str(dep.semantic_version) for dep in self.dependencies},
             "vulnerabilities": [vuln.to_obj() for vuln in self.vulnerabilities],
         }
+        if self.maintenance_info:
+            obj["maintenance"] = self.maintenance_info.to_obj()
+        return obj
 
     def dumps(self) -> str:
         """Serialize package to JSON string."""

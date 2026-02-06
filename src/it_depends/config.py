@@ -45,6 +45,30 @@ class Settings(BaseSettings):
         default=False,
         description="""Audit packages for known vulnerabilities using Google OSV.""",
     )
+    check_maintenance: CliImplicitFlag[bool] = Field(
+        alias="check-maintenance",
+        default=False,
+        description="""Check maintenance status of GitHub-hosted packages.
+        Queries GitHub API for last commit date and flags stale packages.""",
+    )
+    stale_threshold: int = Field(
+        alias="stale-threshold",
+        default=365,
+        description="""Days since last commit to consider a package stale.
+        Default: 365 (1 year). Requires --check-maintenance.""",
+    )
+    github_token: str | None = Field(
+        alias="github-token",
+        default=None,
+        description="""GitHub personal access token for API requests.
+        If not provided, uses GITHUB_TOKEN environment variable.
+        Authenticated: 5000 requests/hour. Unauthenticated: 60 requests/hour.""",
+    )
+    maintenance_cache_ttl: int = Field(
+        alias="maintenance-cache-ttl",
+        default=86400,
+        description="""Cache TTL for maintenance data in seconds. Default: 86400 (24 hours).""",
+    )
     database: Path = Field(
         default=DEFAULT_DB_PATH,
         description="""Alternative path to load/store the database, or

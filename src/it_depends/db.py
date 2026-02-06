@@ -68,6 +68,19 @@ class Updated(Base):
     __table_args__ = (UniqueConstraint("package", "version", "source", "resolver", name="updated_unique_constraint"),)
 
 
+class GitHubMetadataCache(Base):
+    """Cache for GitHub repository metadata."""
+
+    __tablename__ = "github_metadata_cache"
+
+    owner = Column(String, nullable=False, primary_key=True)
+    repo = Column(String, nullable=False, primary_key=True)
+    pushed_at = Column(String, nullable=True)  # ISO 8601
+    fetched_at = Column(String, nullable=False)  # ISO 8601
+
+    __table_args__ = (UniqueConstraint("owner", "repo", name="github_cache_unique"),)
+
+
 class DBDependency(Base, Dependency):
     """Database model for dependencies."""
 

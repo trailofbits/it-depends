@@ -6,7 +6,7 @@ from typing import TypeVar
 from cyclonedx.builder.this import this_component as cdx_lib_component
 from cyclonedx.model import XsUri
 from cyclonedx.model.bom import Bom
-from cyclonedx.model.component import Component, ComponentType
+from cyclonedx.model.component import Component, ComponentType, Property
 from cyclonedx.model.contact import OrganizationalEntity
 from cyclonedx.output.json import JsonV1Dot5
 
@@ -17,6 +17,34 @@ __all__ = "SBOM", "cyclonedx_to_json"
 
 
 S = TypeVar("S", bound="SBOM")
+
+
+def _add_maintenance_properties(component: Component, package: Package) -> None:
+    """Add maintenance information as properties to a CycloneDX component.
+
+    Args:
+        component: CycloneDX component to add properties to
+        package: Package with maintenance information
+
+    """
+    if package.maintenance_info:
+        info = package.maintenance_info
+        if info.repository_url:
+            component.properties.add(
+                Property(name="maintenance:repository_url", value=info.repository_url)
+            )
+        if info.last_commit_date:
+            component.properties.add(
+                Property(name="maintenance:last_commit_date", value=info.last_commit_date)
+            )
+        if info.days_since_update is not None:
+            component.properties.add(
+                Property(name="maintenance:days_since_update", value=str(info.days_since_update))
+            )
+        if info.is_stale:
+            component.properties.add(Property(name="maintenance:is_stale", value="true"))
+        if info.error:
+            component.properties.add(Property(name="maintenance:error", value=info.error))
 
 
 class SBOM:
@@ -55,6 +83,7 @@ class SBOM:
                 version=str(root_package.version),
                 bom_ref=root_package.full_name,
             )
+            _add_maintenance_properties(root_component, root_package)
             bom.components.add(root_component)
             expanded[root_package] = root_component
 
@@ -79,7 +108,9 @@ class SBOM:
                     version=str(pkg.version),
                     bom_ref=f"{pkg.full_name}@{pkg.version!s}",
                 )
+                _add_maintenance_properties(component, pkg)
                 bom.components.add(component)
+                expanded[pkg] = component
             else:
                 component = expanded[pkg]
             if depends_on not in expanded:
@@ -89,7 +120,9 @@ class SBOM:
                     version=str(depends_on.version),
                     bom_ref=f"{depends_on.full_name}@{depends_on.version!s}",
                 )
+                _add_maintenance_properties(d_component, depends_on)
                 bom.components.add(d_component)
+                expanded[depends_on] = d_component
             else:
                 d_component = expanded[depends_on]
             bom.register_dependency(component, [d_component])

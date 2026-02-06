@@ -243,6 +243,30 @@ node -e "require(\\"$1\\")"
             baseline_script='#!/usr/bin/env node -e ""\n',
         )
 
+    @staticmethod
+    def get_repository_url(package: Package) -> str | None:
+        """Get GitHub repository URL for NPM package.
+
+        Args:
+            package: Package to get repository URL for
+
+        Returns:
+            Repository URL or None if not found
+
+        """
+        try:
+            result = subprocess.check_output(
+                ["npm", "view", "--json", package.name, "repository"],
+                timeout=5,
+                stderr=subprocess.DEVNULL,
+            )
+            repo_info = json.loads(result)
+            if isinstance(repo_info, dict):
+                return repo_info.get("url")
+            return None
+        except (subprocess.CalledProcessError, json.JSONDecodeError, subprocess.TimeoutExpired):
+            return None
+
 
 def _get_dependencies_from_package_json(package_path: Path) -> dict[str, str]:
     """Extract dependencies dict from package.json file.

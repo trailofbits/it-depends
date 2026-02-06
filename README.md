@@ -89,6 +89,62 @@ It-Depends can automatically try to match packages against the [OSV vulnerabilit
 `--audit` option. This is a best-effort matching as it is based on package names, which might not always consistent.
 Any discovered vulnerabilities are added to the JSON output.
 
+### Checking Package Maintenance Status
+
+It-Depends can check the maintenance status of GitHub-hosted packages using the `--check-maintenance` option. This feature
+queries the GitHub API to determine when each package was last updated, helping identify stale or unmaintained dependencies
+in your software supply chain.
+
+```shell
+# Check maintenance status with default threshold (365 days)
+it-depends pip:requests --check-maintenance
+
+# Use custom staleness threshold (180 days)
+it-depends npm:lodash --check-maintenance --stale-threshold 180
+
+# Provide GitHub token for higher rate limits
+export GITHUB_TOKEN=your_token_here
+it-depends pip:requests --check-maintenance
+
+# Or pass token directly
+it-depends pip:requests --check-maintenance --github-token your_token_here
+```
+
+The maintenance check adds a `maintenance` field to each package in the JSON output:
+
+```json
+{
+  "pip:requests": {
+    "2.31.0": {
+      "name": "requests",
+      "version": "2.31.0",
+      "source": "pip",
+      "maintenance": {
+        "repository_url": "https://github.com/psf/requests",
+        "last_commit_date": "2023-05-22T14:30:00Z",
+        "is_stale": false,
+        "days_since_update": 120,
+        "error": null
+      }
+    }
+  }
+}
+```
+
+**GitHub API Rate Limits:**
+- Unauthenticated requests: 60 requests/hour
+- Authenticated requests (with token): 5,000 requests/hour
+- Maintenance data is cached for 24 hours by default (configurable via `--maintenance-cache-ttl`)
+
+**Supported Package Managers:**
+The maintenance check currently works with packages that have GitHub repositories:
+- **npm**: Queries repository field from package.json
+- **pip**: Checks project URLs from PyPI metadata
+- **cargo**: Uses repository field from Crates.io
+- **go**: Extracts from import paths (e.g., github.com/user/repo)
+
+Packages not hosted on GitHub will have an error message in the maintenance field but will not prevent the analysis from completing.
+
 It-Depends attempts to parallelize as much of its effort as possible. To limit the maximum number of parallel tasks, use
 the `--max-workers` option.
 
