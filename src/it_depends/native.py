@@ -82,7 +82,7 @@ def get_dependencies(container: DockerContainer, command: str, pre_command: str 
                     m = STRACE_LIBRARY_REGEX.match(line)
                     if m:
                         path = m.group(2)
-                        if path not in ("/etc/ld.so.cache",) and path.startswith("/"):
+                        if path != "/etc/ld.so.cache" and path.startswith("/"):
                             yield Dependency(
                                 package=path,
                                 source="ubuntu",  # make the package be from the UbuntuResolver
