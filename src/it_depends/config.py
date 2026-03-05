@@ -56,7 +56,7 @@ class Settings(BaseSettings):
         default=-1,
         description="""Depth limit for recursively solving dependencies.""",
     )
-    clear_cache: bool = Field(
+    clear_cache: CliImplicitFlag[bool] = Field(
         alias="clear-cache",
         default=False,
         description="""Clears the database specified by `--database` (equivalent
