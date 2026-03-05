@@ -19,6 +19,7 @@ from .dependencies import (
     DependencyResolver,
     DockerSetup,
     Package,
+    PackageCache,
     SemanticVersion,
     SourcePackage,
     SourceRepository,
@@ -37,7 +38,7 @@ class NPMResolver(DependencyResolver):
         """Check if this resolver can resolve from the given source repository."""
         return bool(self.is_available()) and (repo.path / "package.json").exists()
 
-    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:  # noqa: ARG002
+    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:  # noqa: ARG002
         """Resolve package from source repository."""
         if not self.can_resolve_from_source(repo):
             return None

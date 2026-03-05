@@ -77,6 +77,7 @@ def _parse_workspace_member(member: str) -> str:
         if "@" in fragment:
             return fragment[: fragment.find("@")]
         return fragment
+    logger.warning("Unrecognized workspace member format: %r", member)
     return member
 
 
@@ -155,7 +156,7 @@ class CargoResolver(DependencyResolver):
         """Check if this resolver can resolve dependencies from the given repository."""
         return bool(self.is_available()) and (repo.path / "Cargo.toml").exists()
 
-    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:
+    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
@@ -163,16 +164,16 @@ class CargoResolver(DependencyResolver):
         for package in get_dependencies(repo, check_for_cargo=False):
             if isinstance(package, SourcePackage):
                 result = package
-            elif cache is not None and hasattr(cache, "add"):
+            elif cache is not None:
                 cache.add(package)
                 for dep in package.dependencies:
-                    if not cache.was_resolved(dep):  # type: ignore[attr-defined]
-                        cache.set_resolved(dep)  # type: ignore[attr-defined]
-        # Mark the SourcePackage's direct dependencies as resolved,
-        # since cargo metadata already resolved them above.
-        if result is not None and cache is not None and hasattr(cache, "set_resolved"):
+                    if not cache.was_resolved(dep):
+                        cache.set_resolved(dep)
+        # Mark the SourcePackage's direct dependencies as resolved
+        # since cargo metadata already resolved them.
+        if result is not None and cache is not None:
             for dep in result.dependencies:
-                if not cache.was_resolved(dep):  # type: ignore[attr-defined]
+                if not cache.was_resolved(dep):
                     cache.set_resolved(dep)
         return result
 

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from .dependencies import (
     Dependency,
     DependencyResolver,
+    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourcePackage,
@@ -148,7 +149,7 @@ class AutotoolsResolver(DependencyResolver):
     def resolve_from_source(
         self,
         repo: SourceRepository,
-        cache: object | None = None,  # noqa: ARG002
+        cache: PackageCache | None = None,  # noqa: ARG002
     ) -> SourcePackage | None:
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):

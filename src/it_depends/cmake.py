@@ -38,6 +38,7 @@ except ImportError:
 from .dependencies import (
     Dependency,
     DependencyResolver,
+    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourcePackage,
@@ -390,7 +391,7 @@ class CMakeResolver(DependencyResolver):
         """Resolve a dependency to packages."""
         return NotImplementedError  # type: ignore[return-value]
 
-    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:  # noqa: ARG002, C901, PLR0912, PLR0915
+    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:  # noqa: ARG002, C901, PLR0912, PLR0915
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
