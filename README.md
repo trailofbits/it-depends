@@ -21,7 +21,7 @@ What makes it different from [similar tools](SIMILAR.md):
 pip3 install it-depends
 ```
 
-Ecosystem-specific tools must be installed separately: `npm` for JavaScript, `cargo` for Rust, `pip` for Python, `autotools`/`cmake` for C/C++. Native dependency resolution requires `docker`.
+Ecosystem-specific tools must be installed separately: `npm` for JavaScript, `cargo` for Rust, `pip` for Python, `autotools`/`cmake` for C/C++. Native dependency resolution and Ubuntu package analysis require a Docker-compatible container runtime with an accessible socket (_e.g._, Docker Desktop, Podman, or Colima).
 
 ## Usage
 
