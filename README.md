@@ -15,13 +15,15 @@ What makes it different from [similar tools](SIMILAR.md):
 * Vulnerability scanning against the [OSV database](https://osv.dev/)
 * Dependency similarity comparison between packages
 
-## Installation & Usage
+## Installation
 
 ```shell
 pip3 install it-depends
 ```
 
 Ecosystem-specific tools must be installed separately: `npm` for JavaScript, `cargo` for Rust, `pip` for Python, `autotools`/`cmake` for C/C++. Native dependency resolution requires `docker`.
+
+## Usage
 
 ```shell
 it-depends .                            # Analyze current directory
