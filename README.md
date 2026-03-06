@@ -29,6 +29,7 @@ Ecosystem-specific tools must be installed separately: `npm` for JavaScript, `ca
 it-depends .                            # Analyze current directory
 it-depends /path/to/project             # Analyze a source repository
 it-depends "pip:numpy"                  # Analyze a pip package
+it-depends "ubuntu:libc6@2.31"          # Analyze an Ubuntu package
 it-depends "npm:lodash@>=4.17.0"        # Specify a version constraint
 it-depends --audit pip:numpy            # Include vulnerability audit
 it-depends . --list                     # List compatible resolvers
