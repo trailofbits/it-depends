@@ -26,12 +26,6 @@ make lint                              # Check formatting, linting, types, docst
 make test                              # Run unit tests with coverage
 make test TESTS=test_resolver          # Run specific test pattern
 make integration                       # Run integration tests (slow, requires docker)
-
-# Individual lint tools
-uv run ruff format --check             # Check formatting
-uv run ruff check                      # Lint
-uv run mypy                            # Type check
-uv run interrogate -c pyproject.toml . # Check docstring coverage (90% minimum)
 ```
 
 ## Architecture
@@ -40,46 +34,51 @@ uv run interrogate -c pyproject.toml . # Check docstring coverage (90% minimum)
 
 The core abstraction is `DependencyResolver` (src/it_depends/resolver.py), an abstract base class that ecosystem-specific resolvers inherit from. Each resolver is a singleton that auto-registers when its module is imported.
 
-Resolvers must implement:
-- `resolve(dependency)` - Yield packages satisfying a dependency
-- `can_resolve_from_source(repo)` - Check if resolver handles a source repo
-- `resolve_from_source(repo)` - Extract dependencies from source code
+**Auto-registration flow:**
+1. `__init__.py` uses `pkgutil.iter_modules` to import every module in the package at load time
+2. Each resolver module defines a `DependencyResolver` subclass with `name` and `description` class attrs
+3. `__init_subclass__` fires at class definition, validates the attrs exist, and clears the `resolvers()` lru_cache
+4. `resolvers()` returns all registered instances via `DependencyResolver.__subclasses__()`
 
-Built-in resolvers (each in their own module):
-- `PipResolver` - Python packages via johnnydep
-- `NPMResolver` - JavaScript packages via npm CLI
-- `CargoResolver` - Rust packages via cargo metadata
-- `GoResolver` - Go modules via go.mod parsing
-- `CMakeResolver`, `AutotoolsResolver` - C/C++ build systems
-- `UbuntuResolver` - Ubuntu packages via apt-file (runs in Docker)
+**Adding a new resolver:** Subclass `DependencyResolver`, set `name` and `description` class attrs, implement three abstract methods (`resolve`, `can_resolve_from_source`, `resolve_from_source`), and place the file in `src/it_depends/`. The auto-import handles registration.
 
-### Module Structure
+Built-in resolvers:
+- `PipResolver` (pip.py) - Python packages via johnnydep
+- `NPMResolver` (npm.py) - JavaScript packages via npm CLI
+- `CargoResolver` (cargo.py) - Rust packages via cargo metadata
+- `GoResolver` (go.py) - Go modules via go.mod parsing
+- `CMakeResolver` (cmake.py), `AutotoolsResolver` (autotools.py) - C/C++ build systems
+- `UbuntuResolver` (ubuntu/resolver.py) - Ubuntu packages via apt-file (runs in Docker); this is a subpackage with its own `apt.py` and `docker.py`
 
-- `dependencies.py` - Facade module re-exporting core APIs for backward compatibility
+### CLI
+
+The CLI entry point is `_cli.py:main()`. It uses **pydantic-settings** (`Settings` class in `config.py`) with `cli_parse_args=True` to parse `sys.argv` directly — there is no argparse. To add/modify CLI arguments, edit the `Settings` class in `config.py`.
+
+Package spec format: `RESOLVER:PACKAGE[@VERSION]` (e.g., `pip:numpy`, `npm:lodash@>=4.17.0`)
+
+### Key Modules
+
 - `models.py` - Core data classes: `Package`, `SourcePackage`, `Dependency`, `Vulnerability`
 - `resolver.py` - Base `DependencyResolver` class, `PackageSet`, `PartialResolution`
 - `resolution.py` - Main resolution logic (`resolve()`, `resolve_sbom()`)
-- `cache.py` - `PackageCache`, `InMemoryPackageCache` for caching resolved packages
+- `db.py` - `DBPackageCache` (SQLite-backed), used by the CLI
+- `cache.py` - `PackageCache`, `InMemoryPackageCache` (in-memory variant)
 - `graph.py` - `DependencyGraph` built on networkx
 - `repository.py` - `SourceRepository` for local source code
 - `native.py` - Native library dependency resolution via Docker
 - `audit.py` - Vulnerability checking against OSV database
 - `sbom.py` - CycloneDX SBOM generation
+- `dependencies.py` - Facade re-exporting core APIs for backward compatibility
 
 ### Key Patterns
 
-- Resolvers auto-register via `__init_subclass__` and are accessed via `resolvers()` or `resolver_by_name()`
-- All modules in `src/it_depends/` are auto-imported in `__init__.py` to trigger resolver registration
 - Version handling uses `semantic_version` library; some resolvers define custom spec types (e.g., `CargoSpec`, `GoSpec`)
-- Integration tests are marked with `@pytest.mark.integration` and skipped by default
-
-### Testing
-
-Tests live in `test/` with expected outputs in `test/expected_output/`. Use `--runintegration` flag for integration tests which require external tools (npm, cargo, go, etc.) and Docker.
+- Integration tests are marked with `@pytest.mark.integration` and skipped by default; use `pytest --runintegration` (defined in `test/conftest.py`)
+- Tests live in `test/` with expected outputs in `test/expected_output/`
 
 ## Code Style
 
 - Line length: 120 characters
 - Ruff handles all linting with `select = ["ALL"]`
-- Google-style docstrings required (enforced by interrogate at 90% coverage)
+- Google-style docstrings required (enforced by interrogate at 95% coverage)
 - Type hints required (enforced by mypy)

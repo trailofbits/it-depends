@@ -17,6 +17,7 @@ from .models import Dependency
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
+    from .cache import PackageCache
     from .models import Package, SourcePackage
     from .repository import SourceRepository
 
@@ -110,7 +111,7 @@ class DependencyResolver(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:
+    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:
         """Resolve any new `SourcePackage`s in this repo."""
         raise NotImplementedError
 

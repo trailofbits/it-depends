@@ -9,6 +9,7 @@ from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     Package,
+    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourceRepository,
@@ -30,7 +31,7 @@ class TestDB(TestCase):
             def can_resolve_from_source(self, repo: SourceRepository) -> bool:  # noqa: ARG002
                 return False
 
-            def resolve_from_source(self, repo: SourceRepository, cache=None) -> None:  # noqa: ANN001
+            def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> None:
                 raise NotImplementedError
 
             def resolve(self, dependency: Dependency) -> Iterator[Package]:

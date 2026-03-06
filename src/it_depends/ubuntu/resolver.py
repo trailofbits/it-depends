@@ -13,6 +13,7 @@ from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     Package,
+    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourcePackage,
@@ -183,7 +184,7 @@ class UbuntuResolver(DependencyResolver):
         """Check if the resolver can resolve from source."""
         return False
 
-    def resolve_from_source(self, _repo: SourceRepository, _cache: object | None = None) -> SourcePackage | None:
+    def resolve_from_source(self, _repo: SourceRepository, _cache: PackageCache | None = None) -> SourcePackage | None:
         """Resolve from source repository."""
         return None
 

@@ -51,6 +51,9 @@ Documentation = "https://trailofbits.github.io/it-depends/"
 Issues = "https://github.com/trailofbits/it-depends/issues"
 Source = "https://github.com/trailofbits/it-depends"
 
+[tool.pytest.ini_options]
+norecursedirs = ["test/repos"]
+
 [tool.coverage.run]
 # don't attempt code coverage for the CLI entrypoints or logging configuration
 omit = ["src/it_depends/_cli.py", "src/it_depends/logger.py", "src/it_depends/config.py"]
