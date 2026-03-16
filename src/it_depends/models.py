@@ -147,7 +147,7 @@ class Dependency:
 
     def includes(self, other: Dependency) -> bool:
         """Check if this dependency includes another dependency."""
-        if not isinstance(other, Dependency) or (self.package != other.package and self.source != other.source):
+        if not isinstance(other, Dependency) or self.package != other.package or self.source != other.source:
             return False
         return bool(self.semantic_version.clause.includes(other.semantic_version.clause))
 
@@ -379,7 +379,7 @@ class Package:
 
     def __hash__(self) -> int:
         """Compute hash for package."""
-        return hash((self.version, self.name, self.version))
+        return hash((self.name, self.source, self.version))
 
 
 class SourcePackage(Package):

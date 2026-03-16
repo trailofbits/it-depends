@@ -119,7 +119,7 @@ def resolve_sbom(root_package: Package, packages: PackageCache, order_ascending:
         elif not pr.is_valid:
             continue
 
-        for dep, required_by in pr.packages.unsatisfied_dependencies():  # type: ignore[attr-defined]
+        for dep, required_by in pr.unsatisfied_dependencies():
             if not PartialResolution(packages=required_by, parent=pr).is_valid:
                 continue
             for match in sorted(packages.match(dep), key=lambda p: p.version, reverse=order_ascending):
