@@ -60,14 +60,15 @@ STRACE_LIBRARY_REGEX = re.compile(
     r"""
     ^                        # start of line
     (\[pid\s+\d+\]\s+)?     # optional "[pid  NNN] " prefix from strace -f child processes
-    open(at)?                # "open" or "openat" syscall name
-    \(\s*[^,]*\s*,\s*       # first arg (e.g. AT_FDCWD) through the comma separator
+    open(at)?                # "openat" syscall; "open" is accepted syntactically but never
+                             # matches because open() puts the path as arg 1, not arg 2
+    \(\s*[^,]*\s*,\s*       # openat first arg (dirfd, e.g. AT_FDCWD) and the comma before the path
     \"                       # opening quote of the path argument
     (                        # --- group 3: full library path ---
         (.+?)               # group 4: directory prefix (non-greedy)
         ([^\./]+)           # group 5: library basename (no dots or slashes)
         \.so                # literal ".so" extension
-        (\.(.+?))?          # groups 6-7: optional version suffix (e.g. ".6", ".5.0.0")
+        (\.(.+?))?          # group 6: version suffix with dot (e.g. ".6"), group 7: digits only (e.g. "6")
     )
     \"                       # closing quote of the path argument
     .*                       # remainder of the line (flags, return value, etc.)
