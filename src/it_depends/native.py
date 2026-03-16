@@ -56,7 +56,7 @@ RUN chmod +x *.sh
     )
 
 
-STRACE_LIBRARY_REGEX = re.compile(r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
+STRACE_LIBRARY_REGEX = re.compile(r"^(\[pid\s+\d+\]\s+)?open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
 CONTAINERS_BY_SOURCE: dict[DependencyResolver, DockerContainer] = {}
 BASELINES_BY_SOURCE: dict[DependencyResolver, frozenset[Dependency]] = {}
 _CONTAINER_LOCK: Lock = Lock()
@@ -81,7 +81,7 @@ def get_dependencies(container: DockerContainer, command: str, pre_command: str 
                 for line in f:
                     m = STRACE_LIBRARY_REGEX.match(line)
                     if m:
-                        path = m.group(2)
+                        path = m.group(3)
                         if path != "/etc/ld.so.cache" and path.startswith("/"):
                             yield Dependency(
                                 package=path,

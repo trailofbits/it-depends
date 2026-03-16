@@ -26,12 +26,11 @@ Download-Size: 51.5 kB
 APT-Sources: http://ports.ubuntu.com/ubuntu-ports noble/main arm64 Packages
 Description: Dynamic Kernel Module System (DKMS)
 """
-        with patch("it_depends.ubuntu.docker.run_command") as mock:
+        with patch("it_depends.ubuntu.resolver.run_command") as mock:
             mock.return_value = contents.encode()
             deps = tuple(UbuntuResolver().resolve(dependency=Dependency(package="dkms", source="ubuntu")))
             assert len(deps) == 1
             assert str(deps[0]) == (
-                "ubuntu:dkms@2.8.7[ubuntu:build-essential@*,ubuntu:c-compiler@*,"
-                "ubuntu:coreutils@>=7.4,ubuntu:dctrl-tools@*,ubuntu:dpkg-dev@*,"
-                "ubuntu:gcc-12@*,ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]"
+                "ubuntu:dkms@3.0.11[ubuntu:build-essential@*,ubuntu:dpkg-dev@*,"
+                "ubuntu:gcc-13@*,ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]"
             )
