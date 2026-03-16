@@ -1,9 +1,9 @@
 name: Integration tests
 
 on:
-  # Daily schedule - 3 AM UTC
+  # Once per week
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 0 * * 1"
   # Run on push to master branch
   push:
     branches:
