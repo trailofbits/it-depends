@@ -56,7 +56,24 @@ RUN chmod +x *.sh
     )
 
 
-STRACE_LIBRARY_REGEX = re.compile(r"^(\[pid\s+\d+\]\s+)?open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
+STRACE_LIBRARY_REGEX = re.compile(
+    r"""
+    ^                        # start of line
+    (\[pid\s+\d+\]\s+)?     # optional "[pid  NNN] " prefix from strace -f child processes
+    open(at)?                # "open" or "openat" syscall name
+    \(\s*[^,]*\s*,\s*       # first arg (e.g. AT_FDCWD) through the comma separator
+    \"                       # opening quote of the path argument
+    (                        # --- group 3: full library path ---
+        (.+?)               # group 4: directory prefix (non-greedy)
+        ([^\./]+)           # group 5: library basename (no dots or slashes)
+        \.so                # literal ".so" extension
+        (\.(.+?))?          # groups 6-7: optional version suffix (e.g. ".6", ".5.0.0")
+    )
+    \"                       # closing quote of the path argument
+    .*                       # remainder of the line (flags, return value, etc.)
+    """,
+    re.VERBOSE,
+)
 CONTAINERS_BY_SOURCE: dict[DependencyResolver, DockerContainer] = {}
 BASELINES_BY_SOURCE: dict[DependencyResolver, frozenset[Dependency]] = {}
 _CONTAINER_LOCK: Lock = Lock()
