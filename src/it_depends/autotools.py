@@ -143,8 +143,11 @@ class AutotoolsResolver(DependencyResolver):
         return token
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:  # noqa: ARG002
-        """Resolve a dependency to packages."""
-        return NotImplementedError  # type: ignore[return-value]
+        """Resolve a dependency to packages.
+
+        Autotools can only resolve from source, not by package name.
+        """
+        return iter(())
 
     def resolve_from_source(
         self,

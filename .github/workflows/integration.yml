@@ -1,16 +1,16 @@
 name: Integration tests
 
 on:
-  # Daily schedule - 3 AM UTC
+  # Weekly schedule
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 0 * * 1"
   # Run on push to master branch
   push:
     branches:
       - master
   # Run on labeled pull requests
   pull_request:
-    types: [labeled, synchronize]
+    types: [labeled]
 
 permissions:
   contents: read

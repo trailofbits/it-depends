@@ -1,9 +1,9 @@
 name: Scan dependencies for vulnerabilities with pip-audit
 
 on:
-  # Daily schedule - 3 AM UTC
+  # Once per day
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 0 * * *"
   # Run on push to master branch
   push:
     branches:

@@ -253,40 +253,44 @@ class PartialResolution:
         self._dependencies: frozenset[Package] = frozenset(dependencies)
         self.parent: PartialResolution | None = parent
         if self.parent is not None:
-            self.packages: PackageSet = self.parent.packages.copy()  # type: ignore[method-assign,attr-defined]
+            self._package_set: PackageSet = self.parent._package_set.copy()  # noqa: SLF001
         else:
-            self.packages = PackageSet()  # type: ignore[method-assign,assignment]
+            self._package_set = PackageSet()
         for package in self._packages:
-            self.packages.add(package)  # type: ignore[attr-defined]
+            self._package_set.add(package)
             if not self.is_valid:
                 break
         if self.is_valid:
             for dep in self._dependencies:
-                self.packages.add(dep)  # type: ignore[attr-defined]
+                self._package_set.add(dep)
                 if not self.is_valid:
                     break
 
     @property
     def is_valid(self) -> bool:
         """Check if the resolution is valid."""
-        return self.packages.is_valid  # type: ignore[attr-defined,no-any-return]
+        return self._package_set.is_valid
 
     @property
     def is_complete(self) -> bool:
         """Check if the resolution is complete."""
-        return self.packages.is_complete  # type: ignore[attr-defined,no-any-return]
+        return self._package_set.is_complete
 
     def __contains__(self, package: Package) -> bool:
         """Check if package is in the resolution."""
-        return package in self.packages  # type: ignore[operator]
+        return package in self._package_set
 
     def add(self, packages: Iterable[Package], depends_on: Package) -> PartialResolution:
         """Add packages and dependencies to the resolution."""
         return PartialResolution(packages, (depends_on,), parent=self)
 
+    def unsatisfied_dependencies(self) -> Iterator[tuple[Dependency, frozenset[Package]]]:
+        """Iterate over unsatisfied dependencies in this resolution."""
+        yield from self._package_set.unsatisfied_dependencies()
+
     def packages(self) -> Iterator[Package]:
         """Iterate over packages in the resolution."""
-        yield from self.packages  # type: ignore[misc]
+        yield from self._package_set
 
     __iter__ = packages
 
@@ -301,15 +305,15 @@ class PartialResolution:
 
     def __len__(self) -> int:
         """Return number of packages in the resolution."""
-        return len(self.packages)  # type: ignore[arg-type]
+        return len(self._package_set)
 
     def __eq__(self, other: object) -> bool:
         """Check if two resolutions are equal."""
-        return isinstance(other, PartialResolution) and self.packages == other.packages
+        return isinstance(other, PartialResolution) and self._package_set == other._package_set
 
     def __hash__(self) -> int:
         """Return hash of the resolution."""
-        return hash(self.packages)
+        return hash(self._package_set)
 
 
 @functools.lru_cache

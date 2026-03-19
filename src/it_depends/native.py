@@ -35,7 +35,7 @@ def make_dockerfile(docker_setup: DockerSetup) -> InMemoryDockerfile:
     pkgs = " ".join(docker_setup.apt_get_packages)
     return InMemoryDockerfile(
         f"""
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 
 RUN mkdir -p /workdir
 
@@ -56,7 +56,25 @@ RUN chmod +x *.sh
     )
 
 
-STRACE_LIBRARY_REGEX = re.compile(r"^open(at)?\(\s*[^,]*\s*,\s*\"((.+?)([^\./]+)\.so(\.(.+?))?)\".*")
+STRACE_LIBRARY_REGEX = re.compile(
+    r"""
+    ^                        # start of line
+    (\[pid\s+\d+\]\s+)?     # optional "[pid  NNN] " prefix from strace -f child processes
+    open(at)?                # "openat" syscall; "open" is accepted syntactically but never
+                             # matches because open() puts the path as arg 1, not arg 2
+    \(\s*[^,]*\s*,\s*       # openat first arg (dirfd, e.g. AT_FDCWD) and the comma before the path
+    \"                       # opening quote of the path argument
+    (                        # --- group 3: full library path ---
+        (.+?)               # group 4: directory prefix (non-greedy)
+        ([^\./]+)           # group 5: library basename (no dots or slashes)
+        \.so                # literal ".so" extension
+        (\.(.+?))?          # group 6: version suffix with dot (e.g. ".6"), group 7: digits only (e.g. "6")
+    )
+    \"                       # closing quote of the path argument
+    .*                       # remainder of the line (flags, return value, etc.)
+    """,
+    re.VERBOSE,
+)
 CONTAINERS_BY_SOURCE: dict[DependencyResolver, DockerContainer] = {}
 BASELINES_BY_SOURCE: dict[DependencyResolver, frozenset[Dependency]] = {}
 _CONTAINER_LOCK: Lock = Lock()
@@ -81,7 +99,7 @@ def get_dependencies(container: DockerContainer, command: str, pre_command: str 
                 for line in f:
                     m = STRACE_LIBRARY_REGEX.match(line)
                     if m:
-                        path = m.group(2)
+                        path = m.group(3)
                         if path != "/etc/ld.so.cache" and path.startswith("/"):
                             yield Dependency(
                                 package=path,

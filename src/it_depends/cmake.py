@@ -388,8 +388,11 @@ class CMakeResolver(DependencyResolver):
                 logger.debug(e)
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:  # noqa: ARG002
-        """Resolve a dependency to packages."""
-        return NotImplementedError  # type: ignore[return-value]
+        """Resolve a dependency to packages.
+
+        CMake can only resolve from source, not by package name.
+        """
+        return iter(())
 
     def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:  # noqa: ARG002, C901, PLR0912, PLR0915
         """Resolve dependencies from source repository."""
