@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class TestResolver(TestCase):
     @pytest.mark.integration
     def test_resolve(self) -> None:
-        test = SmokeTest("trailofbits", "it-depends", "3db3d191ce04fb8a19bcc5c000ce84dbb3243f31")
+        test = SmokeTest("trailofbits", "it-depends", "56be3121643cb7e5ba6ecceb77b0b0cce286c2f7")
         packages = test.run()
         for package in packages.source_packages:
             # NOTE(@evandowning): Test the newest resolution. The oldest takes too long to find.

@@ -34,6 +34,22 @@ logger = logging.getLogger(__name__)
 APT_RETURN_CODE_PACKAGE_NOT_FOUND = 100
 
 
+def _sanitize_version(version: str) -> str:
+    """Clean Debian version suffixes that produce invalid semver identifiers.
+
+    Version.coerce treats '+' as a build metadata separator and '.' as an
+    identifier delimiter. Debian suffixes like '+ds.', '+dfsg.', or multiple
+    '+' segments (e.g. '+ds.+really1.0') can produce empty identifiers after
+    splitting. Strip trailing dots and collapse runs of dots to prevent this.
+    """
+    version = re.sub(r"\.+", ".", version).rstrip(".")
+    if "+" in version:
+        base, build = version.split("+", maxsplit=1)
+        build = ".".join(part for part in build.replace("+", ".").split(".") if part)
+        return f"{base}+{build}" if build else base
+    return version
+
+
 class UbuntuResolver(DependencyResolver):
     """Expands dependencies based upon Ubuntu package dependencies."""
 
@@ -98,7 +114,7 @@ class UbuntuResolver(DependencyResolver):
         if matched:
             # TODO: Ubuntu versions can include "~", which the semantic_version # noqa: FIX002, TD002, TD003
             #       library does not like. So hack a fix by simply dropping everything after the tilde:
-            raw_version = matched.group("version").split("~", maxsplit=1)[0]
+            raw_version = _sanitize_version(matched.group("version").split("~", maxsplit=1)[0])
             return Version.coerce(raw_version)
         logger.warning("Failed to parse package %s %s", package_name, line)
         return None

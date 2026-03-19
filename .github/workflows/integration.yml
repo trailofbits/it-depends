@@ -1,7 +1,7 @@
 name: Integration tests
 
 on:
-  # Once per week
+  # Weekly schedule
   schedule:
     - cron: "0 0 * * 1"
   # Run on push to master branch
@@ -10,7 +10,7 @@ on:
       - master
   # Run on labeled pull requests
   pull_request:
-    types: [labeled, synchronize]
+    types: [labeled]
 
 permissions:
   contents: read
