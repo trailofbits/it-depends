@@ -142,6 +142,7 @@ class DependencyMapping:
 
     def __delitem__(self, dep_name: str) -> None:
         """Delete a dependency by name."""
+        del self._deps[dep_name]
 
     def __getitem__(self, package_name: str) -> Dependency:
         """Get a dependency by name."""
@@ -154,6 +155,18 @@ class DependencyMapping:
     def __iter__(self) -> Iterator[str]:
         """Return iterator over dependency names."""
         return iter(self._deps)
+
+    def __eq__(self, other: object) -> bool:
+        """Compare with another dependency collection."""
+        if isinstance(other, DependencyMapping):
+            return self._deps == other._deps
+        if isinstance(other, frozenset):
+            return frozenset(self._deps.values()) == other
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        """Compute hash for dependency mapping."""
+        return hash(frozenset(self._deps.values()))
 
 
 class DBPackage(Base, Package):
@@ -250,13 +263,13 @@ class SourceFilteredPackageCache(PackageCache):
 
     def __len__(self) -> int:
         """Return the number of packages in the cache."""
-        return self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).count()  # type: ignore[attr-defined,no-any-return]
+        return self.parent.session.query(DBPackage).filter(DBPackage.source.like(self.source)).count()  # type: ignore[no-any-return]
 
     def __iter__(self) -> Iterator[Package]:
         """Return iterator over packages in the cache."""
         yield from [
             p.to_package()
-            for p in self.parent.session.query(DBPackage).filter(DBPackage.source_name.like(self.source)).all()  # type: ignore[attr-defined]
+            for p in self.parent.session.query(DBPackage).filter(DBPackage.source.like(self.source)).all()
         ]
 
     def was_resolved(self, dependency: Dependency) -> bool:
@@ -278,7 +291,7 @@ class SourceFilteredPackageCache(PackageCache):
             for p in self.parent.session.query(DBPackage)
             .filter(
                 DBPackage.name.like(package_name),
-                DBPackage.source_name.like(self.source),  # type: ignore[attr-defined]
+                DBPackage.source.like(self.source),
             )
             .all()
         ]
@@ -286,7 +299,7 @@ class SourceFilteredPackageCache(PackageCache):
     def package_full_names(self) -> frozenset[str]:
         """Get all full names of packages in the cache."""
         return frozenset(
-            self.parent.session.query(distinct(DBPackage.name)).filter(DBPackage.source_name.like(self.source)).all()  # type: ignore[attr-defined]
+            self.parent.session.query(distinct(DBPackage.name)).filter(DBPackage.source.like(self.source)).all()
         )
 
     def match(self, to_match: str | Package | Dependency) -> Iterator[Package]:
@@ -337,6 +350,8 @@ class DBPackageCache(PackageCache):
 
     def close(self) -> None:
         """Close the database connection."""
+        if self._session is not None:
+            self._session.close()
         self._session = None
 
     @property
@@ -351,18 +366,18 @@ class DBPackageCache(PackageCache):
     def extend(self, packages: Iterable[Package]) -> None:
         """Add multiple packages to the cache."""
         for package in packages:
-            for existing in self.match(package):
+            db_packages = list(self._make_query(package, source=package.source).all())
+            if db_packages:
+                db_existing = db_packages[0]
+                existing = db_existing.to_package()
                 if len(existing.dependencies) > len(package.dependencies):
                     msg = f"Package {package!s} has already been resolved with more dependencies: {existing!s}"
                     raise ValueError(msg)
                 if existing.dependencies != package.dependencies:
-                    existing.dependencies = package.dependencies
+                    db_existing.raw_dependencies.clear()
+                    self.session.flush()
+                    db_existing.raw_dependencies = [DBDependency(db_existing, dep) for dep in package.dependencies]
                     self.session.commit()
-                found_existing = True
-                break
-            else:
-                found_existing = False
-            if found_existing:
                 continue
             if isinstance(package, DBPackage):
                 self.session.add(package)
@@ -376,7 +391,7 @@ class DBPackageCache(PackageCache):
 
     def __iter__(self) -> Iterator[Package]:
         """Return iterator over packages in the cache."""
-        yield from self.session.query(DBPackage).all()
+        yield from [p.to_package() for p in self.session.query(DBPackage).all()]
 
     def from_source(self, source: str | None) -> SourceFilteredPackageCache:
         """Get a package cache filtered by source."""
@@ -384,9 +399,15 @@ class DBPackageCache(PackageCache):
 
     def package_versions(self, package_full_name: str) -> Iterator[Package]:
         """Get all versions of a package by full name."""
-        yield from [
-            p.to_package() for p in self.session.query(DBPackage).filter(DBPackage.name.like(package_full_name)).all()
-        ]
+        if ":" in package_full_name:
+            source, name = package_full_name.split(":", 1)
+            query = self.session.query(DBPackage).filter(
+                DBPackage.name.like(name),
+                DBPackage.source.like(source),
+            )
+        else:
+            query = self.session.query(DBPackage).filter(DBPackage.name.like(package_full_name))
+        yield from [p.to_package() for p in query.all()]
 
     def package_full_names(self) -> frozenset[str]:
         """Get all full names of packages in the cache."""

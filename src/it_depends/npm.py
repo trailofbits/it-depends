@@ -229,6 +229,7 @@ class NPMResolver(DependencyResolver):
         if no_whitespace != spec:
             return NPMResolver.parse_spec(no_whitespace)
         # If all parsing attempts fail, return a wildcard spec
+        log.warning("Could not parse version spec %r, falling back to wildcard *", spec)
         return SimpleSpec("*")
 
     def docker_setup(self) -> DockerSetup:

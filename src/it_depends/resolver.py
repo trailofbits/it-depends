@@ -79,6 +79,7 @@ class DependencyResolver(ABC):
             error_msg = f"{cls.__name__} must define a `description` class member"
             raise TypeError(error_msg)
         resolvers.cache_clear()
+        resolver_by_name.cache_clear()
 
     @abstractmethod
     def resolve(self, dependency: Dependency) -> Iterator[Package]:

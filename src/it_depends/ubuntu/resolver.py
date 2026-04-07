@@ -177,7 +177,7 @@ class UbuntuResolver(DependencyResolver):
                         dependencies=deps,
                     )
             except (ValueError, subprocess.CalledProcessError):
-                pass
+                logger.warning("Failed to resolve native dependencies for %s", dependency.package)
         else:
             for package in UbuntuResolver.ubuntu_packages(dependency.package):
                 if package.version in dependency.semantic_version:

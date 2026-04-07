@@ -56,7 +56,7 @@ $(VENV)/pyvenv.cfg: pyproject.toml
 lint: $(VENV)/pyvenv.cfg
 	uv run ruff format --check && \
 		uv run ruff check && \
-		uv run mypy
+		uv run mypy && \
 		uv run interrogate -c pyproject.toml .
 
 .PHONY: format

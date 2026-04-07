@@ -316,7 +316,7 @@ class DockerContainer:
                 if name in image.tags:
                     return image
         except subprocess.CalledProcessError:
-            pass
+            logger.warning("Failed to pull Docker image %s", name)
         raise ImageNotFound(name)
 
     def rebuild(self, *, nocache: bool = False) -> None:  # noqa: C901

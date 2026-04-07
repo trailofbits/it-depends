@@ -82,6 +82,7 @@ class PipResolver(DependencyResolver):
         try:
             return SimpleSpec(dist_or_str)
         except ValueError:
+            log.warning("Could not parse version spec %r, falling back to wildcard *", dist_or_str)
             return SimpleSpec("*")
 
     @staticmethod

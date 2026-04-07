@@ -183,8 +183,6 @@ class CargoResolver(DependencyResolver):
         This method searches for packages matching the dependency specification
         and returns an iterator of available packages.
         """
-        pkgid = dependency.package
-
         # Need to translate a semantic version into a cargo semantic version
         #  https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements
         #  caret requirement
@@ -196,13 +194,13 @@ class CargoResolver(DependencyResolver):
                 processed_version = version_str
                 if processed_version[0].isnumeric():
                     processed_version = "=" + processed_version
-                pkgid = f'{pkgid.split("=")[0].strip()} = "{processed_version}"'
+                cargo_dep = f'{dependency.package} = "{processed_version}"'
 
-                logger.debug("Found %s for %s in crates.io", pkgid, dependency)
+                logger.debug("Found %s for %s in crates.io", cargo_dep, dependency)
                 with tempfile.TemporaryDirectory() as tmpdir:
                     subprocess.check_output(["cargo", "init"], cwd=tmpdir)  # noqa: S607
                     with Path(tmpdir).joinpath("Cargo.toml").open("a") as f:
-                        f.write(f"{pkgid}\n")
+                        f.write(f"{cargo_dep}\n")
                     self.resolve_from_source(SourceRepository(path=tmpdir), cache)
         cache.set_resolved(dependency)
         # TODO(@evandowning): propagate up any other info we have in this cache  # noqa: TD003, FIX002

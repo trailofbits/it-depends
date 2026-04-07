@@ -37,7 +37,7 @@ def parse_path_or_package_name(
     return dependency
 
 
-def main() -> None:  # noqa: C901, PLR0912, PLR0915, PLR0911
+def main() -> None:  # noqa: C901, PLR0912, PLR0915
     settings = Settings()  # type: ignore[call-arg]
     setup_logger(settings.log_level)
 
@@ -59,12 +59,12 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915, PLR0911
     except ValueError as e:
         msg = str(e)
         logger.exception(msg)
-        return
+        sys.exit(1)
 
     # If this is a source repository, make sure the folder exists
     if isinstance(repo, SourceRepository) and not repo.path.exists():
         logger.error("The specified path does not exist: %s", repo.path)
-        return
+        sys.exit(1)
 
     # Clear the database cache
     if settings.clear_cache:
@@ -109,10 +109,10 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915, PLR0911
         if settings.output_file is None:
             output_write = logger.info
         else:
-            output_write = settings.output_file.write_text  # type: ignore[assignment]
             if not settings.force and settings.output_file.exists():
                 logger.error("%s already exists. Re-run with `--force` to overwrite the file.", settings.output_file)
-                return
+                sys.exit(1)
+            output_write = settings.output_file.write_text  # type: ignore[assignment]
 
         with DBPackageCache(settings.database) as cache:
             try:
@@ -126,7 +126,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915, PLR0911
                 if not settings.clear_cache or settings.target.strip():
                     msg = f"{e!s}"
                     logger.exception(msg)
-                return
+                sys.exit(1)
             if not package_list:
                 logger.error("Try --list to check for available resolvers for %s", settings.target)
 
@@ -176,7 +176,7 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915, PLR0911
             "scratch."
         )
         logger.exception(msg)
-        return
+        sys.exit(1)
     finally:
         if settings.output_file is not None and settings.output_file.exists():
             logger.info("Output saved to %s", settings.output_file.absolute())

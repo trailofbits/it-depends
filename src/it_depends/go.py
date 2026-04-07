@@ -61,10 +61,15 @@ class MetadataParser(HTMLParser):
     """Parser for Go module metadata from HTML."""
 
     in_meta: bool = False
-    metadata: list[MetaImport] = []  # noqa: RUF012
+
+    def __init__(self) -> None:
+        """Initialize the metadata parser."""
+        super().__init__()
+        self.metadata: list[MetaImport] = []
 
     def error(self, message: str) -> None:
         """Handle parsing errors."""
+        log.warning("HTML parse error in Go metadata: %s", message)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Handle HTML start tags."""

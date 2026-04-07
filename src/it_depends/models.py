@@ -45,7 +45,7 @@ class Vulnerability:
 
     def __hash__(self) -> int:
         """Compute hash for vulnerability."""
-        return hash((self.id, "".join(self.aliases), self.summary))
+        return hash(self.id)
 
     def __lt__(self, other: object) -> bool:
         """Compare vulnerabilities for sorting."""
