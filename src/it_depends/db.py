@@ -302,6 +302,14 @@ class SourceFilteredPackageCache(PackageCache):
             self.parent.session.query(distinct(DBPackage.name)).filter(DBPackage.source.like(self.source)).all()
         )
 
+    def __contains__(self, pkg: object) -> bool:
+        """Check if package exists in this source-filtered cache."""
+        if not isinstance(pkg, Package):
+            return False
+        if self.source is not None and pkg.source != self.source:
+            return False
+        return pkg in self.parent
+
     def match(self, to_match: str | Package | Dependency) -> Iterator[Package]:
         """Match packages against a pattern."""
         return self.parent.match(to_match)
@@ -392,6 +400,13 @@ class DBPackageCache(PackageCache):
     def __iter__(self) -> Iterator[Package]:
         """Return iterator over packages in the cache."""
         yield from [p.to_package() for p in self.session.query(DBPackage).all()]
+
+    def __contains__(self, pkg: object) -> bool:
+        """Check if package exists in this cache."""
+        if not isinstance(pkg, Package):
+            return False
+        count: int = self._make_query(pkg, source=pkg.source).limit(1).count()
+        return count > 0
 
     def from_source(self, source: str | None) -> SourceFilteredPackageCache:
         """Get a package cache filtered by source."""

@@ -143,9 +143,6 @@ class PackageCache(ABC):
             graph.add_node(package)
             for dep in package.dependencies:
                 for p in self.match(dep):
-                    if p not in self:
-                        msg = "Package not in cache"
-                        raise AssertionError(msg)
                     graph.add_edge(package, p, dependency=dep)
         return graph
 
@@ -281,6 +278,18 @@ class InMemoryPackageCache(PackageCache):
     def __iter__(self) -> Iterator[Package]:
         """Iterate over all packages in the cache."""
         return (p for d in self._cache.values() for v in d.values() for p in v.values())
+
+    def __contains__(self, pkg: object) -> bool:
+        """Check if package exists in this cache."""
+        if not isinstance(pkg, Package):
+            return False
+        source_dict = self._cache.get(pkg.source)
+        if source_dict is None:
+            return False
+        name_dict = source_dict.get(pkg.name)
+        if name_dict is None:
+            return False
+        return pkg.version in name_dict
 
     def updated_by(self, package: Package) -> frozenset[str]:
         """Get the set of resolvers that updated this package."""
