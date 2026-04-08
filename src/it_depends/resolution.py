@@ -66,9 +66,9 @@ def _update_package(package: Package, depth: int) -> _PackageResult:
                     uir.append(resolver.name)
                     package = updated_package
             except ValueError as e:
-                logger.warning("Error updating dependencies: %s", str(e))
+                logger.warning("Resolver %s error updating dependencies for %s: %s", resolver.name, package.name, e)
             except Exception:
-                logger.exception("Error updating dependencies")
+                logger.exception("Resolver %s failed updating dependencies for %s", resolver.name, package.name)
     return _PackageResult(
         package=package,
         was_updated=len(uir) > 0,
@@ -85,7 +85,7 @@ def _resolve_dependency(dep: Dependency, depth: int) -> _DependencyResult:
                 packages = list(resolver.resolve(dep))
                 return _DependencyResult(dep=dep, packages=packages, depth=depth)
             except Exception:
-                logger.exception("Error resolving dependency %s", dep)
+                logger.exception("Resolver %s failed resolving dependency %s", resolver.name, dep)
     return _DependencyResult(dep=dep, packages=[], depth=depth)
 
 
@@ -338,5 +338,5 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
         raise
     finally:
         if pool is not None:
-            pool.shutdown(wait=False)
+            pool.shutdown(wait=True, cancel_futures=True)
     return repo
