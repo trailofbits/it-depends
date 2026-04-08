@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 import re
-import shutil
 import subprocess
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
+from it_depends._exec import resolve_executable
 from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
@@ -55,9 +55,17 @@ class UbuntuResolver(DependencyResolver):
 
     name = "ubuntu"
     description = "expands dependencies based upon Ubuntu package dependencies"
+    _tool_path: str | None = None
 
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
+
+    @property
+    def tool_path(self) -> str:
+        """Resolve and cache the path to the docker executable."""
+        if self._tool_path is None:
+            self._tool_path = resolve_executable("docker")
+        return self._tool_path
 
     @staticmethod
     @lru_cache(maxsize=2048)
@@ -189,7 +197,9 @@ class UbuntuResolver(DependencyResolver):
 
     def is_available(self) -> ResolverAvailability:
         """Check if the resolver is available."""
-        if shutil.which("docker") is None:
+        try:
+            _ = self.tool_path
+        except FileNotFoundError:
             return ResolverAvailability(
                 is_available=False,
                 reason="`Ubuntu` classifier needs to have Docker installed. Try apt install docker.io.",

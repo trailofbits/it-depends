@@ -26,6 +26,7 @@ else:
     from semantic_version.base import BaseSpec, Range, SimpleSpec
 
 from . import vcs
+from ._exec import resolve_executable
 from .dependencies import (
     Dependency,
     DependencyResolver,
@@ -88,8 +89,9 @@ class MetadataParser(HTMLParser):
 def git_commit(path: str | None = None) -> str | None:
     """Get the current git commit hash."""
     try:
-        return check_output(["git", "rev-parse", "HEAD"], cwd=path, stderr=DEVNULL).decode("utf-8")  # noqa: S607
-    except CalledProcessError:
+        git_path = resolve_executable("git")
+        return check_output([git_path, "rev-parse", "HEAD"], cwd=path, stderr=DEVNULL).decode("utf-8")
+    except (CalledProcessError, FileNotFoundError):
         return None
 
 
@@ -219,6 +221,7 @@ class GoModule:
             if m:
                 return GoModule.from_github(m.group(2), m.group(3), tag)
         log.info("Attempting to clone %s", git_url)
+        git_path = resolve_executable("git")
         with TemporaryDirectory() as tempdir:
             env = {"GIT_TERMINAL_PROMPT": "0"}
             if os.environ.get("GIT_SSH", "") == "" and os.environ.get("GIT_SSH_COMMAND", "") == "":
@@ -228,25 +231,25 @@ class GoModule:
                 # this will happen if we are resolving a wildcard, typically if the user called something like
                 # `it-depends go:github.com/ethereum/go-ethereum`
                 td = Path(tempdir)
-                check_call(  # noqa: S603
-                    ["git", "clone", "--depth", "1", git_url, td.name],  # noqa: S607
+                check_call(
+                    [git_path, "clone", "--depth", "1", git_url, td.name],
                     cwd=td.parent,
                     stderr=DEVNULL,
                     stdout=DEVNULL,
                     env=env,
                 )
             else:
-                check_call(["git", "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)  # noqa: S607
-                check_call(  # noqa: S603
-                    ["git", "remote", "add", "origin", git_url],  # noqa: S607
+                check_call([git_path, "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
+                check_call(
+                    [git_path, "remote", "add", "origin", git_url],
                     cwd=tempdir,
                     stderr=DEVNULL,
                     stdout=DEVNULL,
                 )
                 git_hash = GoModule.tag_to_git_hash(tag)
                 try:
-                    check_call(  # noqa: S603
-                        ["git", "fetch", "--depth", "1", "origin", git_hash],  # noqa: S607
+                    check_call(
+                        [git_path, "fetch", "--depth", "1", "origin", git_hash],
                         cwd=tempdir,
                         stderr=DEVNULL,
                         stdout=DEVNULL,
@@ -256,7 +259,7 @@ class GoModule:
                     # not all git servers support `git fetch --depth 1` on a hash
                     try:
                         check_call(
-                            ["git", "fetch", "origin"],  # noqa: S607
+                            [git_path, "fetch", "origin"],
                             cwd=tempdir,
                             stderr=DEVNULL,
                             stdout=DEVNULL,
@@ -266,8 +269,8 @@ class GoModule:
                         log.exception("Could not clone %s for %r", git_url, import_path)
                         return GoModule(import_path)
                     try:
-                        check_call(  # noqa: S603
-                            ["git", "checkout", git_hash],  # noqa: S607
+                        check_call(
+                            [git_path, "checkout", git_hash],
                             cwd=tempdir,
                             stderr=DEVNULL,
                             stdout=DEVNULL,

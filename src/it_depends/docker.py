@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 from tqdm import tqdm
 
 from . import __version__ as it_depends_version
+from ._exec import resolve_executable
 
 logger = logging.getLogger(__name__)
 
@@ -210,8 +211,16 @@ class DockerContainer:
             self.tag: str = it_depends_version
         else:
             self.tag = tag
+        self._docker_path: str | None = None
         self._client: docker.DockerClient | None = None
         self.dockerfile: Dockerfile | None = dockerfile
+
+    @property
+    def docker_path(self) -> str:
+        """Resolve and cache the path to the docker executable."""
+        if self._docker_path is None:
+            self._docker_path = resolve_executable("docker")
+        return self._docker_path
 
     def run(  # noqa: C901, PLR0912, PLR0913
         self,
@@ -254,7 +263,7 @@ class DockerContainer:
             msg = "if `interactive == True`, all of `stdin`, `stdout`, and `stderr` must be `None`"
             raise ValueError(msg)
 
-        cmd_args = [str(Path("/usr") / "bin" / "env"), "docker", "run"]
+        cmd_args = [self.docker_path, "run"]
 
         if interactive:
             cmd_args.append("-it")
@@ -283,9 +292,9 @@ class DockerContainer:
         cmd_args.extend(args)
 
         if interactive:
-            returncode = subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)  # noqa: S603
+            returncode = subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)
             return subprocess.CompletedProcess(cmd_args, returncode)
-        return subprocess.run(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)  # noqa: S603
+        return subprocess.run(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
 
     @property
     def name(self) -> str:
@@ -311,7 +320,7 @@ class DockerContainer:
         # However, that doesn't include progress bars. So call the `docker` command instead:
         name = f"{self.image_name}:{[self.tag, 'latest'][latest]}"
         try:
-            subprocess.check_call(["docker", "pull", name])  # noqa: S603, S607
+            subprocess.check_call([self.docker_path, "pull", name])
             for image in self.client.images.list():
                 if name in image.tags:
                     return image

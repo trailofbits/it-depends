@@ -338,7 +338,7 @@ class PipSourcePackage(SourcePackage):
                     stderr = sys.stderr
                 except io.UnsupportedOperation:
                     stderr = None
-                subprocess.check_call(  # noqa: S603
+                subprocess.check_call(
                     [
                         sys.executable,
                         "-m",

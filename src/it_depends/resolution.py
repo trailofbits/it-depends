@@ -173,7 +173,12 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                         found_source_package = True
                         unupdated_packages.append((source_package, 0))
                 if not found_source_package:
+                    unavailable = [
+                        f"  {r.name}: {r.is_available().reason}" for r in resolvers() if not r.is_available()
+                    ]
                     error_msg = f"Can not resolve {repo_or_spec}"
+                    if unavailable:
+                        error_msg += "\n\nThe following resolvers are unavailable:\n" + "\n".join(unavailable)
                     raise ValueError(error_msg)
             elif isinstance(repo_or_spec, Dependency):
                 unresolved_dependencies = [(repo_or_spec, 0)]
