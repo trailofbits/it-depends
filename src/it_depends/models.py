@@ -19,6 +19,29 @@ _WILDCARD_SPEC = SimpleSpec("*")
 if TYPE_CHECKING:
     from .repository import SourceRepository
 
+_is_known_fn = None
+_by_name_fn = None
+
+
+def _is_known_resolver(name: str) -> bool:
+    """Check if name is a known resolver (lazy-loads resolver module)."""
+    global _is_known_fn  # noqa: PLW0603
+    if _is_known_fn is None:
+        from .resolver import is_known_resolver  # noqa: PLC0415
+
+        _is_known_fn = is_known_resolver
+    return _is_known_fn(name)
+
+
+def _resolver_by_name(name: str) -> DependencyResolver:
+    """Get resolver by name (lazy-loads resolver module)."""
+    global _by_name_fn  # noqa: PLW0603
+    if _by_name_fn is None:
+        from .resolver import resolver_by_name  # noqa: PLC0415
+
+        _by_name_fn = resolver_by_name
+    return _by_name_fn(name)
+
 
 class Vulnerability:
     """Represents a specific vulnerability."""
@@ -75,11 +98,9 @@ class Dependency:
         if not isinstance(semantic_version, SemanticVersion):
             msg = "semantic_version must be a SemanticVersion instance"
             raise TypeError(msg)
-        from .resolver import DependencyResolver, is_known_resolver  # noqa: PLC0415
-
-        if isinstance(source, DependencyResolver):
+        if not isinstance(source, str):
             source = source.name
-        if not is_known_resolver(source):
+        if not _is_known_resolver(source):
             msg = f"{source} is not a known resolver"
             raise ValueError(msg)
         self.source: str = source
@@ -94,9 +115,7 @@ class Dependency:
     @property
     def resolver(self) -> DependencyResolver:
         """Get the resolver for this dependency's source."""
-        from .resolver import resolver_by_name  # noqa: PLC0415
-
-        return resolver_by_name(self.source)
+        return _resolver_by_name(self.source)
 
     @classmethod
     def from_string(cls, description: str) -> Dependency:
@@ -114,9 +133,7 @@ class Dependency:
             package, *remainder = tail.split("@", 1)
             version_string = "@".join(remainder)
             if version_string:
-                from .resolver import resolver_by_name  # noqa: PLC0415
-
-                resolver = resolver_by_name(source)
+                resolver = _resolver_by_name(source)
                 version = resolver.parse_spec(version_string)
             else:
                 version = SimpleSpec("*")
@@ -237,9 +254,7 @@ class Package:
         self.name: str = name
         self.version: Version = version
         self.dependencies: frozenset[Dependency] = frozenset(dependencies)
-        from .resolver import DependencyResolver  # noqa: PLC0415
-
-        if isinstance(source, DependencyResolver):
+        if not isinstance(source, str):
             self.source: str = source.name
         else:
             self.source = source
@@ -286,9 +301,7 @@ class Package:
             The resolver for this package's source
 
         """
-        from .resolver import resolver_by_name  # noqa: PLC0415
-
-        return resolver_by_name(self.source)
+        return _resolver_by_name(self.source)
 
     @classmethod
     def from_string(cls, description: str) -> Package:
