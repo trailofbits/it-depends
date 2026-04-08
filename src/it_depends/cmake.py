@@ -35,6 +35,7 @@ try:
 except ImportError:
     cmake_parsing = None
 
+from ._exec import resolve_executable
 from .dependencies import (
     Dependency,
     DependencyResolver,
@@ -76,6 +77,14 @@ class CMakeResolver(DependencyResolver):
 
     name = "cmake"
     description = "classifies the dependencies of native/cmake packages parsing CMakeLists.txt"
+    _tool_path: str | None = None
+
+    @property
+    def tool_path(self) -> str:
+        """Resolve and cache the path to the cmake executable."""
+        if self._tool_path is None:
+            self._tool_path = resolve_executable("cmake")
+        return self._tool_path
 
     def is_available(self) -> ResolverAvailability:
         """Check if CMake resolver is available."""
@@ -85,7 +94,9 @@ class CMakeResolver(DependencyResolver):
                 reason="`parse_cmake` does not appear to be installed! Please run `pip install parse_cmake`",
             )
 
-        if shutil.which("cmake") is None:
+        try:
+            _ = self.tool_path
+        except FileNotFoundError:
             return ResolverAvailability(
                 is_available=False,
                 reason="`cmake` does not appear to be installed! Make sure it is installed and in the PATH.",
@@ -398,6 +409,7 @@ class CMakeResolver(DependencyResolver):
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
+        cmake_path = self.tool_path
 
         path = repo.path
         logger.info("Getting dependencies for cmake repo %s", path)
@@ -426,9 +438,9 @@ class CMakeResolver(DependencyResolver):
                         cmake_lists.write(patched)
                         cmake_lists.flush()
                     cmake_lists.close()
-                    p = subprocess.run(  # noqa: S603
-                        [  # noqa: S607
-                            "cmake",
+                    p = subprocess.run(
+                        [
+                            cmake_path,
                             "-Wno-dev",
                             "--trace",
                             "--trace-expand",

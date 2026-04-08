@@ -13,7 +13,6 @@ For backward compatibility, all classes and functions are re-exported from this 
 
 # Re-export all the core classes and functions for backward compatibility
 # Re-export commonly used types and classes for backward compatibility
-from collections.abc import Iterable, Iterator
 
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import BaseSpec as SemanticVersion
@@ -50,8 +49,6 @@ __all__ = [
     "DependencyResolver",
     "DockerSetup",
     "InMemoryPackageCache",
-    "Iterable",
-    "Iterator",
     "Package",
     "PackageCache",
     "PackageRepository",

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -15,6 +14,7 @@ if TYPE_CHECKING:
 
 from semantic_version.base import Always, BaseSpec
 
+from ._exec import resolve_executable
 from .dependencies import (
     Dependency,
     DependencyResolver,
@@ -76,7 +76,10 @@ def _parse_workspace_member(member: str) -> str:
         fragment = member[member.rfind("#") + 1 :]
         if "@" in fragment:
             return fragment[: fragment.find("@")]
-        return fragment
+        # Fragment is version-only (e.g., "path+file:///path/to/crate#0.1.0").
+        # Extract the package name from the path component before the fragment.
+        path_part = member[: member.rfind("#")]
+        return path_part.rstrip("/").rsplit("/", 1)[-1]
     logger.warning("Unrecognized workspace member format: %r", member)
     return member
 
@@ -84,15 +87,14 @@ def _parse_workspace_member(member: str) -> str:
 def get_dependencies(
     repo: SourceRepository,
     *,
-    check_for_cargo: bool = True,
+    cargo_path: str | None = None,
     cache: PackageCache | None = None,  # noqa: ARG001
 ) -> Iterator[Package]:
     """Get dependencies from a Cargo project."""
-    if check_for_cargo and shutil.which("cargo") is None:
-        cargo_error = "`cargo` does not appear to be installed! Make sure it is installed and in the PATH."
-        raise ValueError(cargo_error)
+    if cargo_path is None:
+        cargo_path = resolve_executable("cargo")
 
-    metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=repo.path))  # noqa: S607
+    metadata = json.loads(subprocess.check_output([cargo_path, "metadata", "--format-version", "1"], cwd=repo.path))
 
     if "workspace_members" in metadata:
         workspace_members = {_parse_workspace_member(m) for m in metadata["workspace_members"]}
@@ -137,10 +139,20 @@ class CargoResolver(DependencyResolver):
 
     name = "cargo"
     description = "classifies the dependencies of Rust packages using `cargo metadata`"
+    _tool_path: str | None = None
+
+    @property
+    def tool_path(self) -> str:
+        """Resolve and cache the path to the cargo executable."""
+        if self._tool_path is None:
+            self._tool_path = resolve_executable("cargo")
+        return self._tool_path
 
     def is_available(self) -> ResolverAvailability:
         """Check if Cargo is available."""
-        if shutil.which("cargo") is None:
+        try:
+            _ = self.tool_path
+        except FileNotFoundError:
             return ResolverAvailability(
                 is_available=False,
                 reason="`cargo` does not appear to be installed! Make sure it is installed and in the PATH.",
@@ -161,7 +173,7 @@ class CargoResolver(DependencyResolver):
         if not self.can_resolve_from_source(repo):
             return None
         result = None
-        for package in get_dependencies(repo, check_for_cargo=False):
+        for package in get_dependencies(repo, cargo_path=self.tool_path):
             if isinstance(package, SourcePackage):
                 result = package
             elif cache is not None:
@@ -183,26 +195,25 @@ class CargoResolver(DependencyResolver):
         This method searches for packages matching the dependency specification
         and returns an iterator of available packages.
         """
-        pkgid = dependency.package
-
         # Need to translate a semantic version into a cargo semantic version
         #  https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements
         #  caret requirement
         semantic_version = str(dependency.semantic_version)
         semantic_versions = semantic_version.split(",")
+        cargo_path = self.tool_path
         cache = InMemoryPackageCache()
         with cache:
             for version_str in map(str.strip, semantic_versions):
                 processed_version = version_str
                 if processed_version[0].isnumeric():
                     processed_version = "=" + processed_version
-                pkgid = f'{pkgid.split("=")[0].strip()} = "{processed_version}"'
+                cargo_dep = f'{dependency.package} = "{processed_version}"'
 
-                logger.debug("Found %s for %s in crates.io", pkgid, dependency)
+                logger.debug("Found %s for %s in crates.io", cargo_dep, dependency)
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    subprocess.check_output(["cargo", "init"], cwd=tmpdir)  # noqa: S607
+                    subprocess.check_output([cargo_path, "init"], cwd=tmpdir)
                     with Path(tmpdir).joinpath("Cargo.toml").open("a") as f:
-                        f.write(f"{pkgid}\n")
+                        f.write(f"{cargo_dep}\n")
                     self.resolve_from_source(SourceRepository(path=tmpdir), cache)
         cache.set_resolved(dependency)
         # TODO(@evandowning): propagate up any other info we have in this cache  # noqa: TD003, FIX002

@@ -66,9 +66,9 @@ def _update_package(package: Package, depth: int) -> _PackageResult:
                     uir.append(resolver.name)
                     package = updated_package
             except ValueError as e:
-                logger.warning("Error updating dependencies: %s", str(e))
+                logger.warning("Resolver %s error updating dependencies for %s: %s", resolver.name, package.name, e)
             except Exception:
-                logger.exception("Error updating dependencies")
+                logger.exception("Resolver %s failed updating dependencies for %s", resolver.name, package.name)
     return _PackageResult(
         package=package,
         was_updated=len(uir) > 0,
@@ -85,7 +85,7 @@ def _resolve_dependency(dep: Dependency, depth: int) -> _DependencyResult:
                 packages = list(resolver.resolve(dep))
                 return _DependencyResult(dep=dep, packages=packages, depth=depth)
             except Exception:
-                logger.exception("Error updating dependencies")
+                logger.exception("Resolver %s failed resolving dependency %s", resolver.name, dep)
     return _DependencyResult(dep=dep, packages=[], depth=depth)
 
 
@@ -154,6 +154,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
     if cache is None:
         cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
 
+    pool: ThreadPoolExecutor | None = None
     try:
         with tqdm(desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t:
             # Initialize variables
@@ -172,7 +173,12 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                         found_source_package = True
                         unupdated_packages.append((source_package, 0))
                 if not found_source_package:
+                    unavailable = [
+                        f"  {r.name}: {r.is_available().reason}" for r in resolvers() if not r.is_available()
+                    ]
                     error_msg = f"Can not resolve {repo_or_spec}"
+                    if unavailable:
+                        error_msg += "\n\nThe following resolvers are unavailable:\n" + "\n".join(unavailable)
                     raise ValueError(error_msg)
             elif isinstance(repo_or_spec, Dependency):
                 unresolved_dependencies = [(repo_or_spec, 0)]
@@ -233,8 +239,8 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
 
                     # loop through the unupdated packages and see if any are cached:
                     not_updated: list[tuple[Package, int]] = []
-                    was_updatable = False
                     for package, depth in unupdated_packages:
+                        was_updatable = False
                         for resolver in resolvers():
                             if resolver.can_update_dependencies(package):
                                 was_updatable = True
@@ -268,7 +274,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                         reached_fixed_point = False
                         unresolved_dependencies = not_cached
 
-                if max_workers <= 1:
+                if pool is None:
                     # don't use concurrency
                     if unupdated_packages:
                         t.update(1)
@@ -330,4 +336,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
             except KeyboardInterrupt:
                 sys.exit(1)
         raise
+    finally:
+        if pool is not None:
+            pool.shutdown(wait=True, cancel_futures=True)
     return repo

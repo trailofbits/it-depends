@@ -82,6 +82,7 @@ class PipResolver(DependencyResolver):
         try:
             return SimpleSpec(dist_or_str)
         except ValueError:
+            log.warning("Could not parse version spec %r, falling back to wildcard *", dist_or_str)
             return SimpleSpec("*")
 
     @staticmethod
@@ -337,7 +338,7 @@ class PipSourcePackage(SourcePackage):
                     stderr = sys.stderr
                 except io.UnsupportedOperation:
                     stderr = None
-                subprocess.check_call(  # noqa: S603
+                subprocess.check_call(
                     [
                         sys.executable,
                         "-m",

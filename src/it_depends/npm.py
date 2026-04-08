@@ -13,6 +13,7 @@ if TYPE_CHECKING:
 
 from semantic_version import NpmSpec, SimpleSpec, Version
 
+from ._exec import resolve_executable
 from .dependencies import (
     AliasedDependency,
     Dependency,
@@ -33,6 +34,14 @@ class NPMResolver(DependencyResolver):
 
     name = "npm"
     description = "classifies the dependencies of JavaScript packages using `npm`"
+    _tool_path: str | None = None
+
+    @property
+    def tool_path(self) -> str:
+        """Resolve and cache the path to the npm executable."""
+        if self._tool_path is None:
+            self._tool_path = resolve_executable("npm")
+        return self._tool_path
 
     def can_resolve_from_source(self, repo: SourceRepository) -> bool:
         """Check if this resolver can resolve from the given source repository."""
@@ -139,9 +148,9 @@ class NPMResolver(DependencyResolver):
             dependency_name = f"@{dependency_name}"
 
         try:
-            output = subprocess.check_output(  # noqa: S603
-                [  # noqa: S607
-                    "npm",
+            output = subprocess.check_output(
+                [
+                    self.tool_path,
                     "view",
                     "--json",
                     f"{dependency_name}@{dependency.semantic_version!s}",
@@ -229,6 +238,7 @@ class NPMResolver(DependencyResolver):
         if no_whitespace != spec:
             return NPMResolver.parse_spec(no_whitespace)
         # If all parsing attempts fail, return a wildcard spec
+        log.warning("Could not parse version spec %r, falling back to wildcard *", spec)
         return SimpleSpec("*")
 
     def docker_setup(self) -> DockerSetup:
