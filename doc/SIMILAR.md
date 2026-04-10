@@ -1,23 +1,21 @@
 # Similar Tools
 
-It-Depends is a dependency analyzer that builds complete dependency graphs and SBOMs. Unlike most tools in this space, it resolves *all possible* dependency versions (not just a single feasible resolution), supports C/C++ projects via cmake/autotools, and maps native library dependencies through dynamic analysis.
-
-This document compares it to related tools across several categories.
+It-Depends is a dependency analyzer that builds complete dependency graphs and SBOMs. Unlike most tools in this space, it can resolve *all possible* dependency versions (not just a single resolution), supports C/C++ projects via cmake/autotools, and maps native library dependencies through dynamic analysis.
 
 ## Comparison
 
 | Tool | Type | All-version resolution | C/C++ support | Native lib mapping | SBOM | Vuln scanning | Open source |
 |------|------|:---:|:---:|:---:|:---:|:---:|:---:|
-| **It-Depends** | Dependency analyzer | Yes | Yes | Yes | Yes | Yes | Yes |
-| [Syft](https://github.com/anchore/syft) | SBOM generator | No | No | No | Yes | No | Yes |
-| [Trivy](https://github.com/aquasecurity/trivy) | SBOM / scanner | No | No | No | Yes | Yes | Yes |
-| [Grype](https://github.com/anchore/grype) | Vuln scanner | No | No | No | No | Yes | Yes |
-| [OSV-Scanner](https://github.com/google/osv-scanner) | Vuln scanner | No | No | No | Yes | Yes | Yes |
-| [ORT](https://github.com/oss-review-toolkit/ort) | SCA / compliance | No | Partial | No | Yes | Yes | Yes |
-| [Snyk](https://snyk.io/) | SCA platform | No | Partial | No | Yes | Yes | No |
-| [OWASP Dep-Check](https://github.com/jeremylong/DependencyCheck) | SCA / vuln scanner | No | No | No | Yes | Yes | Yes |
-| [Dependabot](https://github.com/dependabot) | Dependency updater | No | No | No | No | No | Yes |
-| [Renovate](https://github.com/renovatebot/renovate) | Dependency updater | No | No | No | No | No | Yes |
+| **It-Depends** | Dependency analyzer | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| [Syft](https://github.com/anchore/syft) | SBOM generator | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
+| [Trivy](https://github.com/aquasecurity/trivy) | SBOM generator / scanner | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| [Grype](https://github.com/anchore/grype) | Vuln scanner | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| [OSV-Scanner](https://github.com/google/osv-scanner) | Vuln scanner | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| [ORT](https://github.com/oss-review-toolkit/ort) | SCA / compliance | ❌ | 🟨 | ❌ | ✅ | ✅ | ✅ |
+| [Snyk](https://snyk.io/) | SCA platform | ❌ | 🟨 | ❌ | ✅ | ✅ | ❌ |
+| [OWASP Dep-Check](https://github.com/jeremylong/DependencyCheck) | SCA / vuln scanner | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| [Dependabot](https://github.com/dependabot) | Dependency updater | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| [Renovate](https://github.com/renovatebot/renovate) | Dependency updater | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
 ## Categories
 

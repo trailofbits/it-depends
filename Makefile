@@ -71,7 +71,7 @@ test tests: $(VENV)/pyvenv.cfg
 
 .PHONY: integration
 integration: $(VENV)/pyvenv.cfg
-	uv run pytest --timeout=7200 --runintegration --cov=$(PY_IMPORT) $(TEST_ARGS)
+	uv run pytest --timeout=600 --runintegration --cov=$(PY_IMPORT) $(TEST_ARGS)
 
 .PHONY: doc
 doc: $(VENV)/pyvenv.cfg
