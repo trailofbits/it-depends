@@ -7,7 +7,7 @@
 
 It-Depends is a tool to automatically build a dependency graph and Software Bill of Materials (SBOM) for packages and arbitrary source code repositories. It supports Go, JavaScript, Rust, Python, C/C++ (cmake and autotools), and Ubuntu packages.
 
-What makes it different from [similar tools](SIMILAR.md):
+What makes it different from [similar tools](doc/SIMILAR.md):
 
 * Resolves _all possible_ dependency versions, not just a single feasible resolution
 * C/C++ support via cmake and autotools without building the project
@@ -26,15 +26,17 @@ Ecosystem-specific tools must be installed separately: `npm` for JavaScript, `ca
 ## Usage
 
 ```shell
-it-depends .                            # Analyze current directory
-it-depends /path/to/project             # Analyze a source repository
-it-depends "pip:numpy"                  # Analyze a pip package
-it-depends "ubuntu:libc6@2.31"          # Analyze an Ubuntu package
-it-depends "npm:lodash@>=4.17.0"        # Specify a version constraint
-it-depends --audit pip:numpy            # Include vulnerability audit
-it-depends . --list                     # List compatible resolvers
-it-depends --output-format dot .        # Output as Graphviz/Dot
-it-depends --depth-limit 1 pip:numpy    # Only direct dependencies
+it-depends .                        # Analyze current directory
+it-depends . --list                 # List compatible resolvers
+it-depends /path/to/project         # Analyze a different repository
+
+it-depends "pip:numpy"              # Analyze a pip package
+it-depends "ubuntu:libc6@2.35"      # Analyze a Ubuntu package
+it-depends "npm:lodash@>=4.17.0"    # Specify a version constraint
+
+it-depends --audit "pip:numpy"                          # Include vulnerability audit
+it-depends --depth-limit 1 "pip:scikit-learn"           # Only direct dependencies
+it-depends --output-format dot --output-file file.dot . # Output as Graphviz/Dot
 ```
 
 ## Development
@@ -44,7 +46,7 @@ git clone https://github.com/trailofbits/it-depends
 cd it-depends
 make dev
 uv run it-depends --help
-make format lint
+make format lint integration
 ```
 
 ## Acknowledgements
