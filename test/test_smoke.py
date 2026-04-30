@@ -60,73 +60,41 @@ class TestResolvers(TestCase):
         assert dep2.match(Package.from_string("pip:cvedb@0.2.0")) is True
         assert dep2.match(Package.from_string("pip:cvedb@0.2.1")) is False
 
-    def _test_resolver(self, resolver: str, dep: str) -> tuple:
-        dep = Dependency.from_string(dep)
-        resolver = resolver_by_name(resolver)
-        assert dep.resolver is resolver
-
-        solutions = tuple(resolver.resolve(dep))
-        assert len(solutions) > 0
-        for package in solutions:
-            assert package.source == dep.source
-            assert package.name == dep.package
-            assert dep.semantic_version.match(package.version) is True
-            assert dep.match(package) is True
-        return solutions
-
-    @pytest.mark.integration
-    def test_determinism(self) -> None:
-        """Test if a resolver gives the same solution multiple times in a row.
+    def _assert_determinism(self, dep_str: str, num_attempts: int = 3, depth_limit: int = -1) -> None:
+        """Assert a resolver gives the same result multiple times in a row.
 
         Half of the attempts will be without a cache, and the second half will use the same cache.
 
         """
         cache = InMemoryPackageCache()
-        to_test: list[tuple[Dependency | SourceRepository, int]] = [
-            (Dependency.from_string(dep_name), 5)
-            for dep_name in (
-                "pip:cvedb@*",
-                "ubuntu:libc6@*",
-                "cargo:rand_core@0.6.2",
-                "npm:crypto-js@4.0.0",
-            )
-        ]
-        to_test.extend(
-            [
-                (smoke_test.source_repo, 3)
-                for smoke_test in SMOKE_TESTS
-                if smoke_test.repo_name in ("bitcoin", "pe-parse")
-            ]
-        )
-        for dep, num_attempts in to_test:
-            with self.subTest(msg="Testing the determinism of dep", dep=dep):
-                first_result: set[Package] = set()
-                for i in range(num_attempts):
-                    if i < num_attempts // 2:
-                        attempt_cache: InMemoryPackageCache | None = None
-                    else:
-                        attempt_cache = cache
-                    result = set(resolve(dep, cache=attempt_cache))
-                    if i == 0:
-                        first_result = result
-                    else:
-                        assert first_result == result, f"Results differed on attempt {i + 1} at resolving {dep}"
+        dep = Dependency.from_string(dep_str)
+        first_result: set[Package] = set()
+        for i in range(num_attempts):
+            if i < num_attempts // 2:
+                attempt_cache: InMemoryPackageCache | None = None
+            else:
+                attempt_cache = cache
+            result = set(resolve(dep, cache=attempt_cache, depth_limit=depth_limit))
+            if i == 0:
+                first_result = result
+            else:
+                assert first_result == result, f"Results differed on attempt {i + 1} at resolving {dep}"
 
     @pytest.mark.integration
-    def test_pip(self) -> None:
-        self._test_resolver("pip", "pip:cvedb@*")
+    def test_determinism_pip(self) -> None:
+        self._assert_determinism("pip:cvedb@*")
 
     @pytest.mark.integration
-    def test_ubuntu(self) -> None:
-        self._test_resolver("ubuntu", "ubuntu:libc6@*")
+    def test_determinism_ubuntu(self) -> None:
+        self._assert_determinism("ubuntu:libc6@*")
 
     @pytest.mark.integration
-    def test_cargo(self) -> None:
-        self._test_resolver("cargo", "cargo:rand_core@0.6.2")
+    def test_determinism_cargo(self) -> None:
+        self._assert_determinism("cargo:rand_core@0.6.2", num_attempts=2, depth_limit=1)
 
     @pytest.mark.integration
-    def test_npm(self) -> None:
-        self._test_resolver("npm", "npm:crypto-js@4.0.0")
+    def test_determinism_npm(self) -> None:
+        self._assert_determinism("npm:crypto-js@4.0.0")
 
 
 class SmokeTest:

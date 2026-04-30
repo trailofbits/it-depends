@@ -50,6 +50,23 @@ def _sanitize_version(version: str) -> str:
     return version
 
 
+_epoch_re = re.compile(r"\d+:")
+
+
+def _clean_dep_version(raw: str | None) -> str:
+    """Clean a dependency version spec from apt output for use with SimpleSpec.
+
+    Handles None (no constraint), Debian tilde pre-release markers,
+    epoch prefixes, and revision suffixes.
+    """
+    if raw is None:
+        return "*"
+    version = raw.split("~", maxsplit=1)[0]
+    version = version.split("-", maxsplit=1)[0]
+    version = version.replace(" ", "")
+    return _epoch_re.sub("", version)
+
+
 class UbuntuResolver(DependencyResolver):
     """Expands dependencies based upon Ubuntu package dependencies."""
 
@@ -141,15 +158,16 @@ class UbuntuResolver(DependencyResolver):
                     error_msg = f"Invalid dependency line in apt output for {package_name}: {line!r}"
                     raise ValueError(error_msg)
                 dep_package = matched.group("package")
-                dep_version = matched.group("version")
+                dep_version = _clean_dep_version(matched.group("version"))
                 try:
-                    # remove trailing ubuntu versions like "-10ubuntu4":
-                    dep_version = dep_version.split("-", maxsplit=1)[0]
-                    dep_version = dep_version.replace(" ", "")
-                    SimpleSpec(dep_version.replace(" ", ""))
-                except Exception:
-                    logger.exception("Error parsing dependencies line")
-                    dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                    SimpleSpec(dep_version)
+                except ValueError:
+                    logger.warning(
+                        "Unparseable dependency version %r for %s, defaulting to *",
+                        matched.group("version"),
+                        dep_package,
+                    )
+                    dep_version = "*"
 
                 deps.append((dep_package, dep_version))
 
