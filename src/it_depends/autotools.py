@@ -239,7 +239,7 @@ class AutotoolsResolver(DependencyResolver):
             logger.debug("Handling: %s", macro_line)
             macro, *arguments = macro_line.split(":")
             try:
-                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)  # type: ignore[assignment]
+                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)
             except Exception:
                 logger.exception("Error replacing variables")
                 continue

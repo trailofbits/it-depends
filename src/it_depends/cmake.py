@@ -219,8 +219,8 @@ class CMakeResolver(DependencyResolver):
             module_name = re.split("(<|>|=|<=|>=)", keyword)[0]
             version_range = keyword[len(module_name) :].strip()
             if not version_range:
-                version_range = None  # type: ignore[assignment]
-            module_specs.append((module_name, version_range))  # type: ignore[arg-type]
+                version_range = None
+            module_specs.append((module_name, version_range))
 
         for module_name, version_range in module_specs:
             query = make_pkg_config_query([module_name])
@@ -409,6 +409,7 @@ class CMakeResolver(DependencyResolver):
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
+        assert cmake_parsing is not None  # guaranteed by can_resolve_from_source -> is_available  # noqa: S101
         cmake_path = self.tool_path
 
         path = repo.path
