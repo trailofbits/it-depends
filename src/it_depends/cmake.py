@@ -409,7 +409,9 @@ class CMakeResolver(DependencyResolver):
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
-        assert cmake_parsing is not None  # guaranteed by can_resolve_from_source -> is_available  # noqa: S101
+        if cmake_parsing is None:
+            msg = "cmake resolver invoked without parse_cmake installed"
+            raise RuntimeError(msg)
         cmake_path = self.tool_path
 
         path = repo.path
