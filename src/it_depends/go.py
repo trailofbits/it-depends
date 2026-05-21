@@ -369,7 +369,7 @@ class GoModule:
         if meta_import.vcs == "mod":
             the_vcs = vcs.VCS_MOD
         else:
-            the_vcs = vcs.vcs_by_cmd(meta_import.vcs)  # type: ignore[assignment]
+            the_vcs = vcs.vcs_by_cmd(meta_import.vcs)
             if the_vcs is None:
                 msg = f"{url}: unknown VCS {meta_import.vcs!r}"
                 raise ValueError(msg)
