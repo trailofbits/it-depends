@@ -1,4 +1,5 @@
 import json
+import re
 import zipfile
 from collections.abc import Callable
 from functools import wraps
@@ -10,7 +11,6 @@ import requests
 
 from it_depends.dependencies import (
     Dependency,
-    InMemoryPackageCache,
     Package,
     PackageRepository,
     SimpleSpec,
@@ -60,17 +60,16 @@ class TestResolvers(TestCase):
     def _assert_determinism(self, dep_str: str, num_attempts: int = 3, depth_limit: int = -1) -> None:
         """Assert that resolving a dependency yields the same package set each time.
 
-        A single shared cache is reused across attempts, so only the root spec is re-fetched
-        live each time (transitive dependencies are served from cache). Comparison is
-        version-agnostic -- by ``(source, name)`` -- so that upstream registry drift between
-        attempts (a version published or yanked mid-run) does not flake the test, while genuine
-        it-depends nondeterminism, which would add or drop a package entirely, is still caught.
+        Each attempt resolves live with a fresh cache, so transitive (and threaded) resolution is
+        re-exercised every attempt, not just the root. Comparison is version-agnostic -- by
+        ``(source, name)`` -- so upstream version drift between attempts (a version published or
+        yanked mid-run) does not flake the test, while genuine it-depends nondeterminism, which
+        would add or drop a package entirely, is still caught.
         """
-        cache = InMemoryPackageCache()
         dep = Dependency.from_string(dep_str)
 
         def identities() -> set[tuple[str, str]]:
-            return {(p.source, p.name) for p in resolve(dep, cache=cache, depth_limit=depth_limit)}
+            return {(p.source, p.name) for p in resolve(dep, depth_limit=depth_limit)}
 
         baseline = identities()
         for attempt in range(1, num_attempts):
@@ -148,6 +147,28 @@ ResolutionObj = dict[str, dict[str, dict[str, str | bool | list[str] | dict[str,
 # image, so they are deliberately not matched by name.
 STABLE_NAME_SOURCES = frozenset({"pip", "npm", "cargo", "go"})
 
+_PIP_NAME_SEP = re.compile(r"[-_.]+")
+
+
+def _normalize_key(key: str) -> str:
+    """Normalize a ``source:name`` key so pip name-spelling drift is not read as a change.
+
+    pip/PyPI treat runs of ``-``, ``_`` and ``.`` as equivalent and are case-insensitive
+    (PEP 503), and johnnydep may return either spelling. Other ecosystems are separator- and
+    case-sensitive, so only ``pip`` names are normalized.
+
+    Args:
+        key: A ``source:name`` resolution key.
+
+    Returns:
+        The key with the pip name lowercased and ``-_.`` runs collapsed to ``-``; unchanged
+        for non-pip sources.
+    """
+    source, sep, name = key.partition(":")
+    if sep and source == "pip":
+        return f"{source}:{_PIP_NAME_SEP.sub('-', name).lower()}"
+    return key
+
 
 def assert_resolution_invariants(actual: ResolutionObj, expected: ResolutionObj, actual_json: Path) -> None:
     """Assert version-agnostic structural invariants of a resolution against a baseline.
@@ -167,15 +188,17 @@ def assert_resolution_invariants(actual: ResolutionObj, expected: ResolutionObj,
             baseline package from a registry ecosystem.
     """
     assert actual, f"resolution produced no packages (see {actual_json})"
-    actual_names = set(actual)
+    actual_names = {_normalize_key(k) for k in actual}
 
     expected_roots = {
-        name for name, versions in expected.items() if any(v.get("is_source_package") for v in versions.values())
+        _normalize_key(name)
+        for name, versions in expected.items()
+        if any(v.get("is_source_package") for v in versions.values())
     }
     missing_roots = expected_roots - actual_names
     assert not missing_roots, f"resolution dropped source package(s) {sorted(missing_roots)} (see {actual_json})"
 
-    stable = {name for name in expected if name.split(":", 1)[0] in STABLE_NAME_SOURCES}
+    stable = {_normalize_key(name) for name in expected if name.split(":", 1)[0] in STABLE_NAME_SOURCES}
     missing = stable - actual_names
     assert not missing, f"resolution missing expected package(s) {sorted(missing)} (see {actual_json})"
 
