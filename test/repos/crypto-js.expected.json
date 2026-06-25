@@ -1,0 +1,12 @@
+{
+    "npm:crypto-js": {
+        "4.0.0": {
+            "dependencies": {},
+            "is_source_package": true,
+            "name": "crypto-js",
+            "source": "npm",
+            "version": "4.0.0",
+            "vulnerabilities": []
+        }
+    }
+}
