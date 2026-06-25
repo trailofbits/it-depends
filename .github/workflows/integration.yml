@@ -44,3 +44,31 @@ jobs:
 
       - name: integration
         run: make integration
+
+  # When the *scheduled* run fails, surface it as a deduplicated issue rather than a
+  # silently-ignored red X. A scheduled failure usually means upstream registry drift
+  # (a yanked or retroactively-edited version) rather than an it-depends regression.
+  report-drift:
+    needs: integration
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open or update drift issue
+        run: |
+          gh label create integration-drift --force \
+            --color B60205 \
+            --description "Scheduled integration tests detected dependency-resolution drift" || true
+          body=$'Scheduled integration tests failed: '"${RUN_URL}"$'\n\nThis usually means upstream dependency-resolution drift (a yanked or retroactively-edited package version) rather than an it-depends regression. Review the failing run; if the change reflects legitimate upstream drift, re-baseline test/repos/*.expected.json via test/rebuild_expected_output.py.'
+          existing="$(gh issue list --label integration-drift --state open --json number --jq '.[0].number')"
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body "${body}"
+          else
+            gh issue create --title "Integration tests: dependency drift detected" \
+              --label integration-drift --body "${body}"
+          fi
