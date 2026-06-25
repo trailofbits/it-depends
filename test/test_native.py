@@ -68,6 +68,52 @@ class TestStraceLibraryRegex(TestCase):
         assert m is not None
         assert m.group(3) == "/etc/ld.so.cache"
 
+    def test_failed_open_does_not_match(self) -> None:
+        """Failed openat probes (ENOENT) must not be counted as loaded libraries."""
+        line = (
+            'openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC) '
+            "= -1 ENOENT (No such file or directory)"
+        )
+        assert STRACE_LIBRARY_REGEX.match(line) is None
+
+    def test_non_enoent_failure_does_not_match(self) -> None:
+        """Any negative return (not just ENOENT) is a failure and must be excluded."""
+        line = 'openat(AT_FDCWD, "/lib/libfoo.so.1", O_RDONLY) = -1 EACCES (Permission denied)'
+        assert STRACE_LIBRARY_REGEX.match(line) is None
+
+    def test_unfinished_open_still_matches(self) -> None:
+        """A successful open split by `strace -f` interleaving is kept.
+
+        The kernel can interrupt a syscall mid-line, emitting the path on a
+        "<unfinished ...>" line and the return value on a later "resumed" line.
+        The unfinished line carries the path and no failure marker, so it must
+        still match; otherwise a genuinely loaded library would be dropped
+        non-deterministically depending on scheduling.
+        """
+        line = '[pid  123] openat(AT_FDCWD, "/lib/x86_64-linux-gnu/libc.so.6", O_RDONLY|O_CLOEXEC <unfinished ...>'
+        m = STRACE_LIBRARY_REGEX.match(line)
+        assert m is not None
+        assert m.group(3) == "/lib/x86_64-linux-gnu/libc.so.6"
+
+    def test_hwcaps_probe_paths_do_not_match(self) -> None:
+        """The dynamic loader's hwcaps search-path probes fail with ENOENT and are excluded.
+
+        These bogus paths previously flooded native resolution with slow apt-file
+        Docker searches, timing out test_determinism_npm.
+        """
+        for path in (
+            "/lib/glibc-hwcaps/x86-64-v3/libproviders.so",
+            "/lib/tls/x86_64/x86_64/libproviders.so",
+            "/lib/x86_64-linux-gnu/glibc-hwcaps/x86-64-v2/libproviders.so",
+        ):
+            line = f'openat(AT_FDCWD, "{path}", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)'
+            assert STRACE_LIBRARY_REGEX.match(line) is None, path
+
+    def test_failed_open_with_pid_prefix_does_not_match(self) -> None:
+        """Failed openat probes from strace -f child processes are also excluded."""
+        line = '[pid  789] openat(AT_FDCWD, "/usr/lib/libfoo.so.1", O_RDONLY) = -1 ENOENT (No such file or directory)'
+        assert STRACE_LIBRARY_REGEX.match(line) is None
+
 
 class TestNative(TestCase):
     def test_native(self) -> None:
