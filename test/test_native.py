@@ -109,6 +109,19 @@ class TestStraceLibraryRegex(TestCase):
             line = f'openat(AT_FDCWD, "{path}", O_RDONLY|O_CLOEXEC) = -1 ENOENT (No such file or directory)'
             assert STRACE_LIBRARY_REGEX.match(line) is None, path
 
+    def test_successful_hwcaps_path_still_matches(self) -> None:
+        """A library actually loaded from a hwcaps path must be kept, not dropped.
+
+        The filter keys off the return value, not the path shape: an optimized
+        library opened successfully (= 3) from a glibc-hwcaps directory is a real
+        dependency. This guards against a future over-broad fix that excludes all
+        hwcaps paths and would silently lose genuinely loaded libraries.
+        """
+        line = 'openat(AT_FDCWD, "/lib/glibc-hwcaps/x86-64-v3/libc.so.6", O_RDONLY|O_CLOEXEC) = 3'
+        m = STRACE_LIBRARY_REGEX.match(line)
+        assert m is not None
+        assert m.group(3) == "/lib/glibc-hwcaps/x86-64-v3/libc.so.6"
+
     def test_failed_open_with_pid_prefix_does_not_match(self) -> None:
         """Failed openat probes from strace -f child processes are also excluded."""
         line = '[pid  789] openat(AT_FDCWD, "/usr/lib/libfoo.so.1", O_RDONLY) = -1 ENOENT (No such file or directory)'
