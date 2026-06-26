@@ -32,5 +32,8 @@ jobs:
       - name: Install Python ${{ matrix.python }}
         run: uv python install ${{ matrix.python }}
 
+      - name: Install dependencies from uv.lock
+        run: make sync INSTALL_EXTRA=test
+
       - name: test
         run: make test INSTALL_EXTRA=test
