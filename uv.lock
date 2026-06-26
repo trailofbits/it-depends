@@ -671,7 +671,7 @@ wheels = [
 
 [[package]]
 name = "it-depends"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "cyclonedx-python-lib" },
     { name = "docker" },
