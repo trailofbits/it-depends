@@ -54,11 +54,12 @@ $(VENV)/pyvenv.cfg: pyproject.toml
 
 # Deterministic install: reproduce the exact dependency versions pinned in
 # uv.lock instead of re-resolving from pyproject.toml (as `dev` does). Use this
-# for CI, releases, and reproducing a known-good environment. `--frozen`
-# installs straight from the lockfile without touching the network resolver.
+# for CI, releases, and reproducing a known-good environment. `--locked` aborts
+# with an error if uv.lock is out of sync with pyproject.toml, rather than
+# silently updating the lockfile.
 .PHONY: sync
 sync:
-	uv sync --frozen --extra $(INSTALL_EXTRA)
+	uv sync --locked --extra $(INSTALL_EXTRA)
 
 .PHONY: lint
 lint: $(VENV)/pyvenv.cfg
