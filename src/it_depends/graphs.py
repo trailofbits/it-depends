@@ -89,7 +89,7 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
             self._handle_new_node(u)
             self._handle_new_node(v)
             edges.append((u, v, *r))
-        super().add_edges_from(ebunch_to_add, **attr)
+        super().add_edges_from(edges, **attr)
 
     def remove_node(self, node_for_removing: T) -> None:
         """Remove a node from the graph."""
