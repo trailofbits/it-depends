@@ -94,7 +94,14 @@ def get_dependencies(
     if cargo_path is None:
         cargo_path = resolve_executable("cargo")
 
-    metadata = json.loads(subprocess.check_output([cargo_path, "metadata", "--format-version", "1"], cwd=repo.path))
+    try:
+        output = subprocess.check_output([cargo_path, "metadata", "--format-version", "1"], cwd=repo.path)
+    except subprocess.CalledProcessError:
+        # A single crate whose temp-project `cargo metadata` fails must not abort the whole
+        # resolution; mirror pip.py's handling of johnnydep failures (see #125).
+        logger.exception("Error running `cargo metadata` in %s", repo.path)
+        return
+    metadata = json.loads(output)
 
     if "workspace_members" in metadata:
         workspace_members = {_parse_workspace_member(m) for m in metadata["workspace_members"]}
@@ -173,20 +180,25 @@ class CargoResolver(DependencyResolver):
         if not self.can_resolve_from_source(repo):
             return None
         result = None
-        for package in get_dependencies(repo, cargo_path=self.tool_path):
-            if isinstance(package, SourcePackage):
-                result = package
-            elif cache is not None:
-                cache.add(package)
+        packages = list(get_dependencies(repo, cargo_path=self.tool_path))
+        if cache is not None:
+            for package in packages:
+                if isinstance(package, SourcePackage):
+                    result = package
+                else:
+                    cache.add(package)
+            # Only mark a dependency as resolved when `cargo metadata` actually resolved a
+            # matching package. Optional/feature-gated deps that the active feature set does
+            # not enable never appear in the resolved package set, so they must fall through
+            # to normal resolution rather than being marked resolved-to-nothing and pruned.
+            for package in packages:
                 for dep in package.dependencies:
-                    if not cache.was_resolved(dep):
+                    if not cache.was_resolved(dep) and next(cache.match(dep), None) is not None:
                         cache.set_resolved(dep)
-        # Mark the SourcePackage's direct dependencies as resolved
-        # since cargo metadata already resolved them.
-        if result is not None and cache is not None:
-            for dep in result.dependencies:
-                if not cache.was_resolved(dep):
-                    cache.set_resolved(dep)
+        else:
+            for package in packages:
+                if isinstance(package, SourcePackage):
+                    result = package
         return result
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
