@@ -44,7 +44,7 @@ it-depends --output-format dot --output-file file.dot . # Output as Graphviz/Dot
 ```shell
 git clone https://github.com/trailofbits/it-depends
 cd it-depends
-make dev
+make sync
 uv run it-depends --help
 make format lint integration
 ```
