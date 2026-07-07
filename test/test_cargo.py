@@ -1,7 +1,9 @@
+import json
+
 import pytest
 
 from it_depends.cache import InMemoryPackageCache
-from it_depends.cargo import CargoResolver, _parse_workspace_member
+from it_depends.cargo import CargoResolver, _parse_workspace_member, get_dependencies
 from it_depends.models import Dependency, Package, SourcePackage
 from it_depends.repository import SourceRepository
 
@@ -29,18 +31,51 @@ def _dep(name: str) -> Dependency:
     return Dependency(package=name, source="cargo", semantic_version=CargoResolver.parse_spec("*"))
 
 
+def test_get_dependencies_ignores_optional_deps(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # noqa: ANN001
+    """Optional (feature-gated) deps are not tracked; only explicitly required deps survive.
+
+    Regression test for #189/#191: a crate may declare a mutually exclusive set of optional
+    deps, so forcing them all into the graph can describe a configuration with no valid
+    resolution. `get_dependencies` keeps only the deps cargo requires under the active feature
+    set, dropping optional and dev/build deps.
+    """
+    metadata = {
+        "packages": [
+            {
+                "name": "myapp",
+                "version": "0.1.0",
+                "dependencies": [
+                    {"name": "serde", "req": "^1", "kind": None, "optional": False},
+                    {"name": "rayon", "req": "^1", "kind": None, "optional": True},
+                    {"name": "criterion", "req": "^0.5", "kind": "dev", "optional": False},
+                ],
+            },
+        ],
+        "workspace_members": ["myapp 0.1.0 (path+file:///tmp/myapp)"],
+    }
+    monkeypatch.setattr(
+        "it_depends.cargo.subprocess.check_output",
+        lambda *args, **kwargs: json.dumps(metadata).encode(),  # noqa: ARG005
+    )
+
+    packages = list(get_dependencies(SourceRepository(path=tmp_path), cargo_path="cargo"))
+
+    assert len(packages) == 1
+    assert {dep.package for dep in packages[0].dependencies} == {"serde"}
+
+
 def test_resolve_from_source_only_marks_resolved_deps(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:  # noqa: ANN001
-    """Optional/feature-gated deps with no matching package must not be marked resolved.
+    """A required dep with no matching package must not be marked resolved.
 
     Regression test for #189: the old shortcut marked every declared dependency as resolved,
-    including optional deps that `cargo metadata` never adds to the resolved package set. Those
-    deps then matched nothing and their subtrees were pruned, collapsing "all possible versions"
-    to the locked tree.
+    including deps that `cargo metadata` never adds to the resolved package set (e.g. a subcrate
+    whose `cargo metadata` errored). Those deps then matched nothing and their subtrees were
+    pruned. Such deps must be left unresolved so normal resolution can retry them.
     """
     repo = SourceRepository(path=tmp_path)
 
-    # `libfoo` is actually resolved (a package is yielded); `libbar` and `rayon` are optional
-    # deps that cargo metadata never resolves, so no package is yielded for them.
+    # `libfoo` is actually resolved (a package is yielded); `libbar` and `libqux` are required
+    # deps that cargo failed to resolve, so no package is yielded for them.
     source_pkg = SourcePackage(
         name="myapp",
         version="0.1.0",
@@ -52,7 +87,7 @@ def test_resolve_from_source_only_marks_resolved_deps(monkeypatch: pytest.Monkey
         name="libfoo",
         version="1.0.0",
         source="cargo",
-        dependencies=[_dep("rayon")],
+        dependencies=[_dep("libqux")],
     )
 
     monkeypatch.setattr(CargoResolver, "can_resolve_from_source", lambda self, repo: True)  # noqa: ARG005
@@ -68,6 +103,6 @@ def test_resolve_from_source_only_marks_resolved_deps(monkeypatch: pytest.Monkey
     assert result is source_pkg
     # libfoo has a matching package in the cache -> resolved.
     assert cache.was_resolved(_dep("libfoo"))
-    # libbar and rayon resolved to nothing -> left unresolved so normal resolution can expand them.
+    # libbar and libqux resolved to nothing -> left unresolved so normal resolution can retry them.
     assert not cache.was_resolved(_dep("libbar"))
-    assert not cache.was_resolved(_dep("rayon"))
+    assert not cache.was_resolved(_dep("libqux"))

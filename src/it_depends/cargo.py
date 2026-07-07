@@ -120,6 +120,12 @@ def get_dependencies(
         for dep in package["dependencies"]:
             if dep["kind"] is not None:
                 continue
+            # Ignore optional (feature-gated) dependencies that are not explicitly required.
+            # A crate may declare a mutually exclusive set of optional deps, so forcing them all
+            # into the graph can describe a configuration that has no valid resolution. We only
+            # track dependencies cargo requires under the active feature set (see #189, #191).
+            if dep["optional"]:
+                continue
             if dep["name"] in dependencies:
                 dependencies[dep["name"]].semantic_version = dependencies[
                     dep["name"]
@@ -188,9 +194,9 @@ class CargoResolver(DependencyResolver):
                 else:
                     cache.add(package)
             # Only mark a dependency as resolved when `cargo metadata` actually resolved a
-            # matching package. Optional/feature-gated deps that the active feature set does
-            # not enable never appear in the resolved package set, so they must fall through
-            # to normal resolution rather than being marked resolved-to-nothing and pruned.
+            # matching package. A required dep that cargo failed to resolve (e.g. a subcrate
+            # whose `cargo metadata` errored) must fall through to normal resolution rather
+            # than being marked resolved-to-nothing and pruned.
             for package in packages:
                 for dep in package.dependencies:
                     if not cache.was_resolved(dep) and next(cache.match(dep), None) is not None:
