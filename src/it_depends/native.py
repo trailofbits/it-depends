@@ -71,6 +71,12 @@ STRACE_LIBRARY_REGEX = re.compile(
         (\.(.+?))?          # group 6: version suffix with dot (e.g. ".6"), group 7: digits only (e.g. "6")
     )
     \"                       # closing quote of the path argument
+    (?!.*=\s*-)              # reject failed calls: strace renders a failure as "= -1 ERRNO"
+                             # (e.g. the dynamic loader's "= -1 ENOENT" search-path probes),
+                             # whose negative return previously matched the old ".*" tail and
+                             # flooded native resolution with bogus library paths. A successful
+                             # open ("= 4") or an interrupted "<unfinished ...>" line has no
+                             # "= -" and is kept.
     .*                       # remainder of the line (flags, return value, etc.)
     """,
     re.VERBOSE,
