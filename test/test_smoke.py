@@ -248,6 +248,7 @@ class TestSmoke(TestCase):
     def test_cargo(self, package_list: PackageRepository) -> None:
         pass
 
+    @pytest.mark.timeout(1800)
     @gh_smoke_test("bitcoin", "bitcoin", "4a267057617a8aa6dc9793c4d711725df5338025")
     def test_autotools(self, package_list: PackageRepository) -> None:
         pass
@@ -257,6 +258,7 @@ class TestSmoke(TestCase):
         pass
 
     # @gh_smoke_test("lifting-bits", "rellic", "9cf73b288a3d0c51d5de7e1060cba8656538596f")
+    @pytest.mark.timeout(1800)
     @gh_smoke_test("trailofbits", "pe-parse", "94bd12ac539382c303896f175a1ab16352e65a8f")
     def test_cmake(self, package_list: PackageRepository) -> None:
         pass
