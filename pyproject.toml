@@ -22,6 +22,7 @@ dependencies = [
     "johnnydep >= 1.20.6",
     "networkx >= 3.4.2",
     "parse_cmake >= 0.4.1",
+    "pip >= 23.0",
     "platformdirs >= 4.4.0",
     "pydantic-settings>=2.7.1,<2.15.0",
     "semantic_version >= 2.10.0",
