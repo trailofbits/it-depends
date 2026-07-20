@@ -1,10 +1,13 @@
 import json
 import re
+import tempfile
+import time
 import zipfile
 from collections.abc import Callable
 from functools import wraps
 from pathlib import Path
 from unittest import TestCase
+from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
@@ -23,6 +26,79 @@ from it_depends.dependencies import (
 IT_DEPENDS_DIR: Path = Path(__file__).absolute().parent.parent
 TESTS_DIR: Path = Path(__file__).absolute().parent
 REPOS_FOLDER = TESTS_DIR / "repos"
+
+_MAX_DOWNLOAD_ATTEMPTS = 4
+_DOWNLOAD_TIMEOUT = (10, 60)  # (connect, read) seconds
+_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
+
+
+def _is_transient(error: requests.exceptions.RequestException) -> bool:
+    """Return whether a failed snapshot request is worth retrying.
+
+    Connection drops and read timeouts are always transient. HTTP errors are transient only for
+    429 and 5xx; a permanent 4xx (e.g. a deleted commit) must surface immediately.
+
+    Args:
+        error: The exception raised by the failed request.
+
+    Returns:
+        ``True`` if the request should be retried, ``False`` if it should propagate immediately.
+    """
+    if isinstance(error, requests.exceptions.HTTPError) and error.response is not None:
+        return error.response.status_code in _RETRYABLE_STATUS
+    return isinstance(error, (requests.exceptions.ConnectionError, requests.exceptions.Timeout))
+
+
+def _attempt_download(url: str, dest: Path) -> requests.exceptions.RequestException | None:
+    """Perform one download attempt, streaming the response body to ``dest``.
+
+    Args:
+        url: The archive URL.
+        dest: Path to write the downloaded zip to.
+
+    Returns:
+        The transient exception if the attempt failed retryably; ``None`` on success.
+
+    Raises:
+        requests.exceptions.HTTPError: On a permanent (non-retryable) HTTP status.
+    """
+    try:
+        with requests.get(url, stream=True, timeout=_DOWNLOAD_TIMEOUT) as response:
+            response.raise_for_status()
+            with dest.open("wb") as f:
+                for chunk in response.iter_content(chunk_size=1 << 16):
+                    f.write(chunk)
+    except requests.exceptions.RequestException as error:
+        if not _is_transient(error):
+            raise
+        return error
+    return None
+
+
+def _download_snapshot(url: str, dest: Path) -> None:
+    """Download a GitHub source-snapshot zip to ``dest``, retrying transient network failures.
+
+    codeload.github.com intermittently returns 200 then stalls mid-body, timing out the read; a
+    single-attempt fetch flaked the whole integration matrix. Each attempt re-issues the full
+    request (so a stalled body read is retried, not just connection setup) and streams to disk.
+
+    Args:
+        url: The ``https://github.com/.../archive/<commit>.zip`` URL.
+        dest: Path to write the downloaded zip to.
+
+    Raises:
+        requests.exceptions.HTTPError: On a permanent (non-retryable) HTTP status.
+        RuntimeError: If every attempt failed with a transient error.
+    """
+    last_error: requests.exceptions.RequestException | None = None
+    for attempt in range(_MAX_DOWNLOAD_ATTEMPTS):
+        last_error = _attempt_download(url, dest)
+        if last_error is None:
+            return
+        if attempt < _MAX_DOWNLOAD_ATTEMPTS - 1:
+            time.sleep(2**attempt)
+    msg = f"failed to download {url} after {_MAX_DOWNLOAD_ATTEMPTS} attempts: {last_error}"
+    raise RuntimeError(msg) from last_error
 
 
 class TestResolvers(TestCase):
@@ -111,10 +187,7 @@ class SmokeTest:
             if not self.url.startswith(("http://", "https://")):
                 msg = "Invalid URL scheme: %s"
                 raise ValueError(msg % self.url)
-            response = requests.get(self.url, stream=True, timeout=10)
-            response.raise_for_status()
-            with self._snapshot_zip.open("wb") as f:
-                f.write(response.content)
+            _download_snapshot(self.url, self._snapshot_zip)
             with zipfile.ZipFile(self._snapshot_zip, "r") as zip_ref:
                 zip_ref.extractall(REPOS_FOLDER)
         return self._snapshot_folder
@@ -262,3 +335,75 @@ class TestSmoke(TestCase):
     @gh_smoke_test("trailofbits", "pe-parse", "94bd12ac539382c303896f175a1ab16352e65a8f")
     def test_cmake(self, package_list: PackageRepository) -> None:
         pass
+
+
+def _ok_response(payload: bytes) -> MagicMock:
+    resp = MagicMock()
+    resp.__enter__.return_value = resp
+    resp.raise_for_status.return_value = None
+    resp.iter_content.return_value = [payload]
+    return resp
+
+
+def _transient_response() -> MagicMock:
+    resp = MagicMock()
+    resp.__enter__.return_value = resp
+    resp.raise_for_status.return_value = None
+    resp.iter_content.side_effect = requests.exceptions.ConnectionError("read timed out")
+    return resp
+
+
+def _http_error_response(status: int) -> MagicMock:
+    resp = MagicMock()
+    resp.__enter__.return_value = resp
+    resp.raise_for_status.side_effect = requests.exceptions.HTTPError(response=MagicMock(status_code=status))
+    return resp
+
+
+class TestSnapshotDownload(TestCase):
+    """Unit tests for the retrying snapshot downloader; the network is mocked at ``requests.get``."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dest = Path(self._tmp.name) / "snapshot.zip"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def test_is_transient_classification(self) -> None:
+        assert _is_transient(requests.exceptions.ConnectionError())
+        assert _is_transient(requests.exceptions.Timeout())
+        assert _is_transient(_http_error_response(503).raise_for_status.side_effect)
+        assert not _is_transient(_http_error_response(404).raise_for_status.side_effect)
+
+    def test_retries_transient_failure_then_succeeds(self) -> None:
+        responses = [_transient_response() for _ in range(_MAX_DOWNLOAD_ATTEMPTS - 1)] + [_ok_response(b"payload")]
+        with (
+            patch.object(requests, "get", side_effect=responses) as mock_get,
+            patch.object(time, "sleep") as mock_sleep,
+        ):
+            _download_snapshot("https://example.com/x.zip", self.dest)
+        assert self.dest.read_bytes() == b"payload"
+        assert mock_get.call_count == _MAX_DOWNLOAD_ATTEMPTS
+        assert mock_sleep.call_count == _MAX_DOWNLOAD_ATTEMPTS - 1
+
+    def test_raises_after_exhausting_retries(self) -> None:
+        responses = [_transient_response() for _ in range(_MAX_DOWNLOAD_ATTEMPTS)]
+        with (
+            patch.object(requests, "get", side_effect=responses) as mock_get,
+            patch.object(time, "sleep") as mock_sleep,
+            pytest.raises(RuntimeError, match="after 4 attempts"),
+        ):
+            _download_snapshot("https://example.com/x.zip", self.dest)
+        assert mock_get.call_count == _MAX_DOWNLOAD_ATTEMPTS
+        assert mock_sleep.call_count == _MAX_DOWNLOAD_ATTEMPTS - 1
+
+    def test_permanent_http_error_is_not_retried(self) -> None:
+        with (
+            patch.object(requests, "get", side_effect=[_http_error_response(404)]) as mock_get,
+            patch.object(time, "sleep") as mock_sleep,
+            pytest.raises(requests.exceptions.HTTPError),
+        ):
+            _download_snapshot("https://example.com/x.zip", self.dest)
+        assert mock_get.call_count == 1
+        mock_sleep.assert_not_called()
