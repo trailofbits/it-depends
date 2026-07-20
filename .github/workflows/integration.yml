@@ -22,6 +22,9 @@ jobs:
       (github.event_name == 'schedule' && github.ref == 'refs/heads/master') ||
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'integration'))
     strategy:
+      # Report every Python version independently; a transient flake in one job must not
+      # cancel (and thereby mask) the others.
+      fail-fast: false
       matrix:
         python: ["3.10", "3.11", "3.12", "3.13"]
     runs-on: ubuntu-latest
@@ -29,6 +32,15 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+
+      # Smoke-test snapshots are pinned to immutable commits, so cache them keyed on the files
+      # that define those commits plus the committed baselines. After the first fetch, runs no
+      # longer hit codeload.github.com.
+      - name: Cache source snapshots
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: test/repos
+          key: smoke-snapshots-${{ hashFiles('test/test_smoke.py', 'test/repos/*.expected.json') }}
 
       - name: Install dependencies
         run: |
