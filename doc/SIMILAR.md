@@ -11,7 +11,7 @@ It-Depends is a dependency analyzer that builds complete dependency graphs and S
 | [cdxgen](https://github.com/CycloneDX/cdxgen) | SBOM generator | ❌ | ✅ | ❌ | ✅ | ❌ | ✅ |
 | [Trivy](https://github.com/aquasecurity/trivy) | SBOM generator / scanner | ❌ | 🟨 | ❌ | ✅ | ✅ | ✅ |
 | [Grype](https://github.com/anchore/grype) | Vuln scanner | ❌ | 🟨 | ❌ | ❌ | ✅ | ✅ |
-| [OSV-Scanner](https://github.com/google/osv-scanner) | Vuln scanner | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ |
+| [OSV-Scanner](https://github.com/google/osv-scanner) | Vuln scanner | ❌ | ✅ | ❌ | ✅ | ✅ | ✅ |
 | [deps.dev](https://deps.dev/) | Dependency-graph API | ❌ | ❌ | ❌ | ❌ | ✅ | 🟨 |
 | [OWASP Dependency-Track](https://owasp.org/www-project-dependency-track/) | SBOM monitoring | ❌ | ❌ | ❌ | 🟨 | ✅ | ✅ |
 | [ORT](https://github.com/oss-review-toolkit/ort) | SCA / compliance | ❌ | 🟨 | ❌ | ✅ | ✅ | ✅ |
@@ -30,7 +30,7 @@ It-Depends is a dependency analyzer that builds complete dependency graphs and S
 >
 > *"Native lib mapping" means resolving native shared-library (`.so`) dependencies. It-Depends does this through dynamic runtime tracing (strace inside Docker), observing libraries that are actually loaded — including `dlopen`'d ones. 🟨 marks tools (FOSSA, Black Duck) that map native libraries only via static `ldd` load-time resolution.*
 >
-> *"SBOM generation" means producing an SBOM. Ingesting or scanning an existing SBOM does not count — hence OSV-Scanner's ❌. Dependency-Track is 🟨: it ingests SBOMs and can re-export an enriched CycloneDX/VEX document, but cannot generate one from source.*
+> *"SBOM generation" means producing an SBOM, not merely ingesting or scanning an existing one. Dependency-Track is 🟨: it ingests SBOMs and can re-export an enriched CycloneDX/VEX document, but cannot generate one from source.*
 >
 > *🟨 under "Open source" (deps.dev, FOSSA, Socket) marks a proprietary or hosted core paired with an open component — deps.dev's API definitions and CC-BY dataset, FOSSA's `fossa-cli`, and Socket's CLI — while the analysis engine itself remains closed.*
 
@@ -60,9 +60,9 @@ It-Depends is a dependency analyzer that builds complete dependency graphs and S
 
 A newer category uses call-graph or dataflow reachability analysis to determine whether a vulnerable function is actually reachable from first-party code, suppressing noise from unreachable CVEs. These tools resolve a single locked dependency graph (not all versions) and layer reachability on top.
 
-- **[Endor Labs](https://www.endorlabs.com/)** -- AppSec platform built around static call-graph reachability, deprioritizing unreachable vulnerable functions. First-class C/C++ support via source-file fingerprinting. Proprietary.
+- **[Endor Labs](https://www.endorlabs.com/)** -- AppSec platform built around static call-graph reachability, deprioritizing unreachable vulnerable functions. First-class C/C++ support via code signatures and embeddings. Proprietary.
 - **[Semgrep Supply Chain](https://semgrep.dev/products/semgrep-supply-chain/)** -- Lockfile-driven SCA with static dataflow reachability, sold as a paid add-on to the Semgrep platform. The open-source Semgrep engine is the SAST scanner, not this SCA product, which does not cover C/C++.
-- **[Socket](https://socket.dev/)** -- Supply-chain scanner combining behavioral malware detection with CVE scanning, plus call-graph reachability from its April 2025 Coana acquisition. C/C++ support is Conan-only. The CLI is open source; the backend is proprietary.
+- **[Socket](https://socket.dev/)** -- Supply-chain scanner combining behavioral malware detection with CVE scanning, plus call-graph reachability from its April 2025 Coana acquisition. C/C++ support is Conan-only and CVE-only — reachability does not yet extend to C/C++. The CLI is open source; the backend is proprietary.
 
 ### Vulnerability Scanners
 
