@@ -56,6 +56,11 @@ Documentation = "https://trailofbits.github.io/it-depends/"
 Issues = "https://github.com/trailofbits/it-depends/issues"
 Source = "https://github.com/trailofbits/it-depends"
 
+[tool.uv]
+# Supply-chain hardening: ignore package releases younger than one week so that a
+# malicious or compromised upload has time to be caught and yanked before we resolve it.
+exclude-newer = "1 week"
+
 [tool.pytest.ini_options]
 norecursedirs = ["test/repos"]
 
