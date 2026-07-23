@@ -1,6 +1,8 @@
 from platform import machine
 from unittest import TestCase
 
+import pytest
+
 from it_depends.dependencies import Package, Version
 from it_depends.native import STRACE_LIBRARY_REGEX, get_native_dependencies
 
@@ -129,6 +131,7 @@ class TestStraceLibraryRegex(TestCase):
 
 
 class TestNative(TestCase):
+    @pytest.mark.integration
     def test_native(self) -> None:
         deps = {
             dep.package
