@@ -1,9 +1,12 @@
 from unittest import TestCase
 
+import pytest
+
 from it_depends.ubuntu.apt import file_to_packages
 
 
 class TestAPT(TestCase):
+    @pytest.mark.integration
     def test_file_to_package(self) -> None:
         assert file_to_packages("/usr/bin/python3") == [
             "python3-activipy",
