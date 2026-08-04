@@ -193,7 +193,7 @@ class GoModule:
         """Create Go module from GitHub repository."""
         github_url = f"https://raw.githubusercontent.com/{github_org}/{github_repo}/{tag}/go.mod"
         try:
-            with request.urlopen(github_url) as response:  # noqa: S310
+            with request.urlopen(github_url) as response:
                 return GoModule.parse_mod(response.read())
         except HTTPError as e:
             if e.code == 404:  # noqa: PLR2004

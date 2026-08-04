@@ -753,7 +753,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'test'" },
     { name = "pytest-rerunfailures", marker = "extra == 'test'" },
     { name = "pytest-timeout", marker = "extra == 'test'" },
-    { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.14.9,<1.0" },
+    { name = "ruff", marker = "extra == 'lint'", specifier = ">=0.16.0,<1.0" },
     { name = "semantic-version", specifier = ">=2.10.0" },
     { name = "sqlalchemy", specifier = ">=2.0.43" },
     { name = "tqdm", specifier = ">=4.67.1" },
