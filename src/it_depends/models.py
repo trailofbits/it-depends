@@ -401,7 +401,7 @@ class SourcePackage(Package):
     It is a package that exists on disk, but not necessarily in a remote repository.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         name: str,
         version: Version,
