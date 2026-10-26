@@ -320,10 +320,7 @@ class PartialResolution:
 @functools.lru_cache
 def resolvers() -> frozenset[DependencyResolver]:
     """Get collection of all the default instances of DependencyResolvers."""
-    return frozenset(
-        cls()  # type: ignore[abstract]
-        for cls in DependencyResolver.__subclasses__()
-    )
+    return frozenset(cls() for cls in DependencyResolver.__subclasses__())
 
 
 @functools.lru_cache
