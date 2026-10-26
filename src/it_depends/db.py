@@ -231,7 +231,7 @@ class DBPackage(Base, Package):
     @property
     def version(self) -> Version:
         """Get the version of the package."""
-        return self.resolver.parse_version(self.version_str)  # type: ignore[arg-type]
+        return self.resolver.parse_version(self.version_str)
 
     @version.setter
     def version(self, new_version: Version | str) -> None:
