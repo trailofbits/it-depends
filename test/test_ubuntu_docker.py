@@ -16,7 +16,7 @@ class _FakePath:
     def exists(self) -> bool:
         return self._contents is not None
 
-    def open(self, *args: object, **kwargs: object) -> io.StringIO:
+    def open(self, *_args: object, **_kwargs: object) -> io.StringIO:
         assert self._contents is not None
         return io.StringIO(self._contents)
 
@@ -67,8 +67,6 @@ class TestIsRunningUbuntu(TestCase):
     def test_the_name_match_is_case_insensitive_and_tolerates_whitespace(self) -> None:
         assert self._call('  name = "ubuntu"  \n') is True
 
-    def test_stops_reading_once_the_version_is_known(self) -> None:
-        # Once version_id has been captured the loop breaks on the next line
-        # rather than scanning the rest of the file.
+    def test_accepts_trailing_metadata_after_the_version(self) -> None:
         contents = 'NAME="Ubuntu"\nVERSION_ID="22.04"\nPRETTY_NAME="Ubuntu 22.04.3 LTS"\n'
         assert self._call(contents, "22.04") is True
