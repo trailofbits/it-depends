@@ -59,6 +59,7 @@ class TestResolution(TestCase):
                 return package.name in self.updatable
 
             def update_dependencies(self, package: Package) -> Package:
+                self.update_calls.append(package.name)
                 if package.name in self.update_errors:
                     raise self.update_errors[package.name]
                 return package.update_dependencies(self.updated_deps.get(package.name, frozenset()))
@@ -78,6 +79,7 @@ class TestResolution(TestCase):
         # re-instantiates every subclass, which would otherwise reset it.
         self.resolver.resolved = {}
         self.resolver.resolve_calls = []
+        self.resolver.update_calls = []
         self.resolver.updatable = set()
         self.resolver.update_errors = {}
         self.resolver.updated_deps = {}
@@ -90,6 +92,11 @@ class TestResolution(TestCase):
         self.addCleanup(patcher.stop)
 
     def tearDown(self) -> None:
+        # Stop the patches registered in setUp before dropping the fake, and
+        # release every reference to it: a fake left registered as a resolver
+        # subclass would be picked up by later tests.
+        self.doCleanups()
+        del self.resolver
         del self.fake_cls
         resolvers.cache_clear()
         resolver_by_name.cache_clear()
@@ -260,19 +267,24 @@ class TestResolution(TestCase):
 
         assert {p.name for p in repo} == {"root-pkg", "child"}
         assert repo.updated_by(child) == frozenset()
+        # The updater returning an unchanged package by default hides a stray
+        # call, so assert directly that it was never asked to update anything.
+        assert self.resolver.update_calls == []
 
     def test_cache_recording_an_update_without_the_package_keeps_the_resolved_package(self) -> None:
         """When the cache records an update but stores no package, the resolved package is kept."""
         cache = InMemoryPackageCache()
+        # The cache must be nonempty for the `was_updated` check to apply, and it
+        # must not hold `child`: resolving a Dependency would add it to the cache
+        # before the update check, so `child` is passed as the root instead.
+        cache.add(self._pkg("unrelated"))
         child = self._pkg("child")
         cache.set_updated(child, self.resolver.name)
         self.resolver.updatable = {"child"}
-        self.resolver.resolved["child"] = [child]
-        self.resolver.resolved["root-dep"] = [self._pkg("root-pkg", dependencies=(self._dep("child"),))]
 
-        repo = resolve(self._dep("root-dep"), cache=cache, max_workers=1)
+        repo = resolve(child, cache=cache, max_workers=1)
 
-        assert {p.name for p in repo} == {"root-pkg", "child"}
+        assert set(repo) == {child}
 
     def test_concurrent_package_update_is_applied(self) -> None:
         """With several workers a package-update result is still recorded on the repository."""
@@ -373,6 +385,11 @@ class TestResolveSBOM(TestCase):
         self.resolver = FakeResolver()
 
     def tearDown(self) -> None:
+        # Stop the patches registered in setUp before dropping the fake, and
+        # release every reference to it: a fake left registered as a resolver
+        # subclass would be picked up by later tests.
+        self.doCleanups()
+        del self.resolver
         del self.fake_cls
         resolvers.cache_clear()
         resolver_by_name.cache_clear()
