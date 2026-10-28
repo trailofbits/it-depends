@@ -108,10 +108,7 @@ class TestUrlForImportPath(TestCase):
     """Tests for GoModule.url_for_import_path."""
 
     def test_builds_a_go_get_url(self) -> None:
-        assert (
-            GoModule.url_for_import_path("github.com/foo/bar")
-            == "https://github.com/foo/bar?go-get=1"
-        )
+        assert GoModule.url_for_import_path("github.com/foo/bar") == "https://github.com/foo/bar?go-get=1"
 
     def test_raises_without_a_slash(self) -> None:
         with pytest.raises(VCSResolutionError, match="does not contain a slash"):
