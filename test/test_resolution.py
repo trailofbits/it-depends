@@ -38,6 +38,10 @@ class TestResolution(TestCase):
     """Decision paths of `resolve()`."""
 
     def setUp(self) -> None:
+        # Snapshot the registered resolvers before the fake registers itself:
+        # tearDown asserts the registry is back to this set after cleanup.
+        self.resolver_names_before = frozenset(resolver.name for resolver in resolvers())
+
         class FakeResolver(DependencyResolver):
             name: str = "fake"
             description: str = "Used by the resolution tests"
@@ -102,6 +106,11 @@ class TestResolution(TestCase):
         resolver_by_name.cache_clear()
         gc.collect()
         gc.collect()
+
+        # `resolvers()` builds from the live subclasses of DependencyResolver, so
+        # a fake that survived this cleanup would show up here. Rebuild the cache
+        # after the collect and assert the registry is back to its pre-test state.
+        assert {resolver.name for resolver in resolvers()} == self.resolver_names_before
 
     def _dep(self, name: str, spec: str = "*") -> Dependency:
         return Dependency(package=name, source=self.resolver, semantic_version=SimpleSpec(spec))
@@ -358,6 +367,10 @@ class TestResolveSBOM(TestCase):
     """Decision paths of `resolve_sbom()`."""
 
     def setUp(self) -> None:
+        # Snapshot the registered resolvers before the fake registers itself:
+        # tearDown asserts the registry is back to this set after cleanup.
+        self.resolver_names_before = frozenset(resolver.name for resolver in resolvers())
+
         class FakeResolver(DependencyResolver):
             name: str = "fake-sbom"
             description: str = "Used by the SBOM resolution tests"
@@ -395,6 +408,11 @@ class TestResolveSBOM(TestCase):
         resolver_by_name.cache_clear()
         gc.collect()
         gc.collect()
+
+        # `resolvers()` builds from the live subclasses of DependencyResolver, so
+        # a fake that survived this cleanup would show up here. Rebuild the cache
+        # after the collect and assert the registry is back to its pre-test state.
+        assert {resolver.name for resolver in resolvers()} == self.resolver_names_before
 
     def _dep(self, name: str, spec: str = "*") -> Dependency:
         return Dependency(package=name, source=self.resolver, semantic_version=SimpleSpec(spec))
