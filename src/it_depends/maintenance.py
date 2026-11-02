@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 from datetime import datetime, timezone
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 from urllib.parse import quote, urlsplit
 
@@ -13,6 +14,8 @@ import requests
 from .models import MaintenanceInfo, SourcePackage
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from .cache import PackageRepository
     from .models import Package
 
@@ -47,43 +50,43 @@ def _get_json(url: str, token: str | None = None) -> Any:  # noqa: ANN401
     return response.json()
 
 
-def _repository_url(package: Package) -> str | None:
+def _repository_url(package: Package, get_json: Callable[[str], Any]) -> str | None:
     """Look up registry metadata without changing the dependency resolvers."""
     name = quote(package.name, safe="")
     if package.source == "go":
         # The shared parser validates the exact hostname before any GitHub request.
         return "https://" + package.name
     if package.source == "pip":
-        info = _get_json(f"https://pypi.org/pypi/{name}/json")["info"]
+        info = get_json(f"https://pypi.org/pypi/{name}/json")["info"]
         urls = info.get("project_urls") or {}
         candidates = [urls.get(key) for key in ("Source", "Source Code", "Repository", "Code")]
         candidates.extend(urls.values())
         candidates.append(info.get("home_page"))
         return next((url for url in candidates if isinstance(url, str) and extract_github_repo(url)), None)
     if package.source == "npm":
-        repository = _get_json(f"https://registry.npmjs.org/{name}").get("repository")
+        repository = get_json(f"https://registry.npmjs.org/{name}").get("repository")
         return repository.get("url") if isinstance(repository, dict) else repository
     if package.source == "cargo":
-        repository = _get_json(f"https://crates.io/api/v1/crates/{name}")["crate"].get("repository")
+        repository = get_json(f"https://crates.io/api/v1/crates/{name}")["crate"].get("repository")
         return repository if isinstance(repository, str) else None
     return None
 
 
-def _check_package(package: Package, stale_days: int, token: str | None) -> MaintenanceInfo:
+def _check_package(package: Package, stale_days: int, get_json: Callable[[str], Any]) -> MaintenanceInfo:
     """Check one package, preserving failures as unknown maintenance status."""
     info = MaintenanceInfo()
     try:
         if isinstance(package, SourcePackage):
             info.error = "Local source package has no verified registry repository"
             return info
-        url = _repository_url(package)
+        url = _repository_url(package, get_json)
         github_repo = extract_github_repo(url) if isinstance(url, str) else None
         if github_repo is None:
             info.error = "No GitHub repository found"
             return info
         owner, repo = github_repo
         info.repository_url = f"https://github.com/{owner}/{repo}"
-        commits = _get_json(f"https://api.github.com/repos/{owner}/{repo}/commits?per_page=1", token)
+        commits = get_json(f"https://api.github.com/repos/{owner.lower()}/{repo.lower()}/commits?per_page=1")
         date = commits[0]["commit"]["committer"]["date"]
         last_commit = datetime.fromisoformat(date.replace("Z", "+00:00"))
         if last_commit.tzinfo is None:
@@ -94,12 +97,37 @@ def _check_package(package: Package, stale_days: int, token: str | None) -> Main
         info.is_stale = info.days_since_update > stale_days
     except requests.HTTPError as error:
         status = error.response.status_code if error.response is not None else "unknown"
-        info.error = f"Maintenance lookup failed (HTTP {status}); check access and API rate limits"
+        if _is_rate_limited(error):
+            info.error = f"API rate limit reached (HTTP {status}); retry after the limit resets"
+            if info.repository_url:
+                info.error += "; configure GITHUB_TOKEN for authenticated GitHub access"
+        else:
+            info.error = f"Maintenance lookup failed (HTTP {status}); check access and API rate limits"
     except requests.RequestException:
         info.error = "Maintenance request failed; check network access and retry"
     except (ValueError, TypeError, KeyError, IndexError, AttributeError):
         info.error = "Missing or invalid registry metadata or GitHub commit date"
     return info
+
+
+def _is_rate_limited(error: requests.HTTPError) -> bool:
+    """Recognize throttling without treating ordinary access failures as rate limits."""
+    response = error.response
+    if response is None:
+        return False
+    if response.status_code == HTTPStatus.TOO_MANY_REQUESTS:
+        return True
+    if response.status_code != HTTPStatus.FORBIDDEN:
+        return False
+    if response.headers.get("X-RateLimit-Remaining") == "0" or "Retry-After" in response.headers:
+        return True
+    # GitHub secondary limits may omit the retry/quota headers.
+    try:
+        data = response.json()
+    except ValueError:
+        return False
+    message = data.get("message") if isinstance(data, dict) else None
+    return isinstance(message, str) and "rate limit" in message.lower()
 
 
 def check_maintenance_status(
@@ -122,6 +150,27 @@ def check_maintenance_status(
         msg = "stale_threshold_days must be nonnegative"
         raise ValueError(msg)
     token = github_token or os.getenv("GITHUB_TOKEN")
+    responses: dict[str, Any] = {}
+    github_limit: requests.HTTPError | None = None
+
+    def get_json(url: str) -> Any:  # noqa: ANN401
+        """Reuse responses and failures for this run, honoring GitHub throttling."""
+        nonlocal github_limit
+        if url not in responses:
+            is_github = urlsplit(url).hostname == "api.github.com"
+            if is_github and github_limit is not None:
+                raise github_limit
+            try:
+                responses[url] = _get_json(url, token)
+            except requests.RequestException as error:
+                responses[url] = error
+                if is_github and isinstance(error, requests.HTTPError) and _is_rate_limited(error):
+                    github_limit = error
+        result = responses[url]
+        if isinstance(result, requests.RequestException):
+            raise result
+        return result
+
     for package in repo:
-        package.maintenance_info = _check_package(package, stale_threshold_days, token)
+        package.maintenance_info = _check_package(package, stale_threshold_days, get_json)
     return repo

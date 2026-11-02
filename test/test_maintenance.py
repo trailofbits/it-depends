@@ -15,7 +15,7 @@ from it_depends import _cli
 from it_depends.cache import PackageRepository
 from it_depends.config import Settings
 from it_depends.maintenance import check_maintenance_status, extract_github_repo
-from it_depends.models import MaintenanceInfo, Package, SourcePackage
+from it_depends.models import MaintenanceInfo, Package, SourcePackage, Vulnerability
 from it_depends.repository import SourceRepository
 from it_depends.sbom import SBOM, cyclonedx_to_json
 
@@ -130,7 +130,7 @@ def test_invalid_commit_response(data: object) -> None:
     assert package.to_obj()["maintenance"]["is_stale"] is None
 
 
-@pytest.mark.parametrize("status", [403, 404, 409, 429, 500])
+@pytest.mark.parametrize("status", [403, 404, 409, 500])
 def test_http_errors_continue(status: int) -> None:
     first = Package("github.com/owner/first", "1.0.0", "go")
     second = Package("github.com/owner/second", "1.0.0", "go")
@@ -251,3 +251,136 @@ def test_go_untrusted_module_paths_do_not_request(name: str) -> None:
     assert package.maintenance_info is not None
     assert package.maintenance_info.error == "No GitHub repository found"
     assert package.maintenance_info.is_stale is None
+
+
+@pytest.mark.parametrize(
+    "info",
+    [
+        None,
+        MaintenanceInfo(is_stale=False, days_since_update=0),
+        MaintenanceInfo(is_stale=True, days_since_update=500),
+        MaintenanceInfo(error="Unknown repository"),
+    ],
+)
+def test_cli_json_preserves_maintenance_and_existing_fields(info: MaintenanceInfo | None) -> None:
+    package = Package("demo", "1.0.0", "pip", vulnerabilities=[Vulnerability("CVE-DEMO", ["alias"], "summary")])
+    package.maintenance_info = info
+    output: list[str] = []
+    # Exercise the real CLI serialization path rather than mocking it out.
+    _cli._write_output(  # noqa: SLF001
+        Settings(_cli_parse_args=["pip:demo"]), Mock(), _repo(package), None, output_write=output.append
+    )
+    record = json.loads(output[0])["pip:demo"]["1.0.0"]
+    assert record["is_source_package"] is False
+    assert record["vulnerabilities"] == ["CVE-DEMO (alias)"]
+    if info is not None:
+        assert record["maintenance"]["is_stale"] is info.is_stale
+        assert record["maintenance"]["days_since_update"] == info.days_since_update
+        assert record["maintenance"]["error"] == info.error
+    else:
+        assert "maintenance" not in record
+
+
+def test_versions_share_lookups_and_results_are_independent() -> None:
+    packages = [Package("demo", f"1.0.{i}", "pip") for i in range(3)]
+    with patch("it_depends.maintenance.requests.get") as get:
+        get.side_effect = [
+            _response({"info": {"project_urls": {"Source": "https://github.com/owner/repo"}}}),
+            _response(_commits("2000-01-01T00:00:00Z")),
+        ]
+        check_maintenance_status(_repo(*packages))
+    assert get.call_count == 2  # noqa: PLR2004
+    assert all(p.maintenance_info and p.maintenance_info.is_stale for p in packages)
+    assert packages[0].maintenance_info is not packages[1].maintenance_info
+
+
+def test_packages_sharing_repository_fetch_github_once() -> None:
+    packages = [Package("first", "1.0.0", "pip"), Package("second", "1.0.0", "npm")]
+    with patch("it_depends.maintenance.requests.get") as get:
+        get.side_effect = [
+            _response({"info": {"home_page": "https://github.com/Owner/Repo"}}),
+            _response(_commits("2000-01-01T00:00:00Z")),
+            _response({"repository": "https://github.com/owner/repo.git"}),
+        ]
+        check_maintenance_status(_repo(*packages))
+    assert get.call_count == 3  # noqa: PLR2004
+    assert all(p.maintenance_info and p.maintenance_info.is_stale for p in packages)
+
+
+def test_failed_registry_lookup_is_not_repeated_for_versions() -> None:
+    packages = [Package("demo", f"1.0.{i}", "pip") for i in range(3)]
+    with patch("it_depends.maintenance.requests.get", side_effect=requests.Timeout) as get:
+        check_maintenance_status(_repo(*packages))
+    get.assert_called_once()
+    assert all(p.maintenance_info and p.maintenance_info.error for p in packages)
+
+
+@pytest.mark.parametrize(
+    ("status", "headers"),
+    [(429, {"Retry-After": "60"}), (403, {"X-RateLimit-Remaining": "0"}), (403, {"Retry-After": "60"})],
+)
+def test_rate_limit_stops_github_requests(status: int, headers: dict[str, str]) -> None:
+    packages = [Package(f"github.com/owner/repo{i}", "1.0.0", "go") for i in range(3)]
+    response = requests.Response()
+    response.status_code = status
+    response.headers.update(headers)
+    with patch("it_depends.maintenance.requests.get", side_effect=requests.HTTPError(response=response)) as get:
+        check_maintenance_status(_repo(*packages))
+    get.assert_called_once()
+    for package in packages:
+        assert package.maintenance_info is not None
+        assert package.maintenance_info.is_stale is None
+        assert "rate limit" in str(package.maintenance_info.error).lower()
+        assert "GITHUB_TOKEN" in str(package.maintenance_info.error)
+
+
+def test_lookup_cache_is_scoped_to_one_run() -> None:
+    package = Package("github.com/owner/repo", "1.0.0", "go")
+    with patch("it_depends.maintenance.requests.get", return_value=_response(_commits("2000-01-01T00:00:00Z"))) as get:
+        check_maintenance_status(_repo(package))
+        check_maintenance_status(_repo(package))
+    assert get.call_count == 2  # noqa: PLR2004
+
+
+def test_registry_throttling_does_not_disable_github() -> None:
+    registry_package = Package("demo", "1.0.0", "pip")
+    github_package = Package("github.com/owner/repo", "1.0.0", "go")
+    response = requests.Response()
+    response.status_code = 429
+    with patch("it_depends.maintenance.requests.get") as get:
+        get.side_effect = [requests.HTTPError(response=response), _response(_commits("2000-01-01T00:00:00Z"))]
+        check_maintenance_status(_repo(registry_package, github_package))
+    assert registry_package.maintenance_info is not None
+    assert registry_package.maintenance_info.is_stale is None
+    assert github_package.maintenance_info is not None
+    assert github_package.maintenance_info.is_stale is True
+
+
+def test_cached_success_survives_rate_limit_and_next_run_retries() -> None:
+    first = Package("github.com/owner/first", "1.0.0", "go")
+    limited = Package("github.com/owner/limited", "1.0.0", "go")
+    same_repo = Package("github.com/owner/first/submodule", "1.0.0", "go")
+    response = requests.Response()
+    response.status_code = 429
+    with patch("it_depends.maintenance.requests.get") as get:
+        get.side_effect = [_response(_commits("2000-01-01T00:00:00Z")), requests.HTTPError(response=response)]
+        check_maintenance_status(_repo(first, limited, same_repo))
+    assert get.call_count == 2  # noqa: PLR2004
+    assert same_repo.maintenance_info is not None
+    assert same_repo.maintenance_info.is_stale is True
+    with patch("it_depends.maintenance.requests.get", return_value=_response(_commits("2000-01-01T00:00:00Z"))) as get:
+        check_maintenance_status(_repo(limited))
+    get.assert_called_once()
+    assert limited.maintenance_info is not None
+    assert limited.maintenance_info.is_stale is True
+
+
+def test_secondary_rate_limit_without_headers_stops_requests() -> None:
+    packages = [Package(f"github.com/owner/repo{i}", "1.0.0", "go") for i in range(2)]
+    response = requests.Response()
+    response.status_code = 403
+    response._content = b'{"message": "You have exceeded a secondary rate limit."}'  # noqa: SLF001
+    with patch("it_depends.maintenance.requests.get", side_effect=requests.HTTPError(response=response)) as get:
+        check_maintenance_status(_repo(*packages))
+    get.assert_called_once()
+    assert all(p.maintenance_info and p.maintenance_info.is_stale is None for p in packages)
