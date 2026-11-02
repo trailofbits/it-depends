@@ -166,6 +166,8 @@ def test_timeout_and_environment_token(monkeypatch: pytest.MonkeyPatch) -> None:
         {"info": None},
         {"info": {"project_urls": []}},
         {"info": {"project_urls": {"Source": "https://github.com.evil.test/owner/repo"}}},
+        {"info": {"project_urls": {"Source": "https://evil.test/github.com/owner/repo"}}},
+        {"info": {"project_urls": {"Source": "https://github.com@evil.test/owner/repo"}}},
     ],
 )
 def test_bad_registry_metadata(metadata: object) -> None:
@@ -228,3 +230,24 @@ def test_cli_maintenance_opt_in(*, enabled: bool) -> None:
         check.assert_called_once_with(repo, stale_threshold_days=12)
     else:
         check.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "github.com.evil.test/owner/repo",
+        "evil.test/github.com/owner/repo",
+        "github.com@evil.test/owner/repo",
+        "github.com/owner/..",
+        "github.com/owner/repo%2f..",
+        "github.com/owner",
+    ],
+)
+def test_go_untrusted_module_paths_do_not_request(name: str) -> None:
+    package = Package(name, "1.0.0", "go")
+    with patch("it_depends.maintenance.requests.get") as get:
+        check_maintenance_status(_repo(package))
+    get.assert_not_called()
+    assert package.maintenance_info is not None
+    assert package.maintenance_info.error == "No GitHub repository found"
+    assert package.maintenance_info.is_stale is None

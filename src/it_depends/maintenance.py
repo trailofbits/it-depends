@@ -51,7 +51,8 @@ def _repository_url(package: Package) -> str | None:
     """Look up registry metadata without changing the dependency resolvers."""
     name = quote(package.name, safe="")
     if package.source == "go":
-        return "https://" + package.name if package.name.startswith("github.com/") else None
+        # The shared parser validates the exact hostname before any GitHub request.
+        return "https://" + package.name
     if package.source == "pip":
         info = _get_json(f"https://pypi.org/pypi/{name}/json")["info"]
         urls = info.get("project_urls") or {}
