@@ -6,15 +6,16 @@ import functools
 import itertools
 import logging
 import re
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ._exec import resolve_executable
 from .dependencies import (
     Dependency,
     DependencyResolver,
+    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourcePackage,
@@ -27,7 +28,14 @@ if TYPE_CHECKING:
 
     from .models import Package
 
-from .ubuntu.apt import cached_file_to_package as file_to_package
+from .ubuntu.apt import (
+    cached_file_to_package as file_to_package,
+)
+from .ubuntu.apt import (
+    make_autotools_include_query,
+    make_library_query,
+    make_pkg_config_query,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +53,28 @@ class AutotoolsResolver(DependencyResolver):
 
     name = "autotools"
     description = "classifies the dependencies of native/autotools packages parsing configure.ac"
+    _aclocal_path: str | None = None
+    _autoconf_path: str | None = None
+
+    @property
+    def aclocal_path(self) -> str:
+        """Resolve and cache the path to the aclocal executable."""
+        if self._aclocal_path is None:
+            self._aclocal_path = resolve_executable("aclocal")
+        return self._aclocal_path
+
+    @property
+    def autoconf_path(self) -> str:
+        """Resolve and cache the path to the autoconf executable."""
+        if self._autoconf_path is None:
+            self._autoconf_path = resolve_executable("autoconf")
+        return self._autoconf_path
 
     def is_available(self) -> ResolverAvailability:
         """Check if autotools resolver is available."""
-        if shutil.which("autoconf") is None:
+        try:
+            _ = self.autoconf_path
+        except FileNotFoundError:
             return ResolverAvailability(
                 is_available=False,
                 reason="`autoconf` does not appear to be installed! Make sure it is installed and in the PATH.",
@@ -67,7 +93,8 @@ class AutotoolsResolver(DependencyResolver):
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Generic-Headers.html
         """
         logger.info("AC_CHECK_HEADER %s", header_file)
-        package_name = file_to_package(f"{re.escape(header_file)}", file_to_package_cache=file_to_package_cache)
+        query = make_autotools_include_query([header_file])
+        package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
     @staticmethod
@@ -77,12 +104,10 @@ class AutotoolsResolver(DependencyResolver):
         Checks for the presence of certain C, C++, or Fortran library archive files.
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Libraries.html#Libraries
         """
-        lib_file, function_name = function.split(".")
+        lib_file, _ = function.split(".")
         logger.info("AC_CHECK_LIB %s", lib_file)
-        package_name = file_to_package(
-            f"lib{re.escape(lib_file)}(.a|.so)",
-            file_to_package_cache=file_to_package_cache,
-        )
+        query = make_library_query([lib_file])
+        package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
 
     @staticmethod
@@ -97,9 +122,9 @@ class AutotoolsResolver(DependencyResolver):
         """
         if not version:
             version = "*"
-        module_file = re.escape(module_name + ".pc")
-        logger.info("PKG_CHECK_MODULES %s, %s", module_file, version)
-        package_name = file_to_package(module_file, file_to_package_cache=file_to_package_cache)
+        logger.info("PKG_CHECK_MODULES %s.pc, %s", module_name, version)
+        query = make_pkg_config_query([module_name])
+        package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec(version), source="ubuntu")
 
     @staticmethod
@@ -135,28 +160,63 @@ class AutotoolsResolver(DependencyResolver):
             raise ValueError(msg)
         return token
 
+    def _process_macro(
+        self,
+        macro: str,
+        arguments: tuple[str, ...] | list[str],
+        file_to_package_cache: list[tuple[str, str]],
+    ) -> Dependency | None:
+        """Process a single autoconf trace macro into a dependency."""
+        try:
+            if macro == "AC_CHECK_HEADER":
+                return self._ac_check_header(
+                    header_file=arguments[0],
+                    file_to_package_cache=file_to_package_cache,
+                )
+            if macro == "AC_CHECK_LIB":
+                return self._ac_check_lib(
+                    function=arguments[0],
+                    file_to_package_cache=file_to_package_cache,
+                )
+            if macro == "PKG_CHECK_MODULES":
+                module_name, *version = arguments[0].split(" ")
+                return self._pkg_check_modules(
+                    module_name=module_name,
+                    version="".join(version),
+                    file_to_package_cache=file_to_package_cache,
+                )
+            logger.error("Macro not supported %r", macro)
+        except Exception:
+            logger.exception("Error processing macro %s", macro)
+        return None
+
     def resolve(self, dependency: Dependency) -> Iterator[Package]:  # noqa: ARG002
-        """Resolve a dependency to packages."""
-        return NotImplementedError  # type: ignore[return-value]
+        """Resolve a dependency to packages.
+
+        Autotools can only resolve from source, not by package name.
+        """
+        return iter(())
 
     def resolve_from_source(
         self,
         repo: SourceRepository,
-        cache: object | None = None,  # noqa: ARG002
+        cache: PackageCache | None = None,  # noqa: ARG002
     ) -> SourcePackage | None:
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
         logger.info("Getting dependencies for autotool repo %s", repo.path.absolute())
+        aclocal_path = self.aclocal_path
+        autoconf_path = self.autoconf_path
         with tempfile.NamedTemporaryFile() as tmp:
             # builds a temporary copy of configure.ac containing aclocal env
-            subprocess.check_output(("aclocal", f"--output={tmp.name}"), cwd=repo.path)  # noqa: S603
+            subprocess.check_output((aclocal_path, f"--output={tmp.name}"), cwd=repo.path)
             with Path(tmp.name).open("ab") as tmp2, (repo.path / "configure.ac").open("rb") as conf:
                 tmp2.write(conf.read())
 
-            trace = subprocess.check_output(  # noqa: S603
+            trace = subprocess.check_output(
                 (
-                    "autoconf",
+                    autoconf_path,
                     "-t",
                     "AC_CHECK_HEADER:$n:$1",
                     "-t",
@@ -169,47 +229,23 @@ class AutotoolsResolver(DependencyResolver):
                 ),
                 cwd=repo.path,
             ).decode("utf8")
-            configure = subprocess.check_output(["autoconf", tmp.name], cwd=repo.path).decode("utf8")  # noqa: S603, S607
+            configure = subprocess.check_output([autoconf_path, tmp.name], cwd=repo.path).decode("utf8")
 
         file_to_package_cache: list[tuple[str, str]] = []
         deps = []
         for macro_line in trace.split("\n"):
+            if not macro_line:
+                continue
             logger.debug("Handling: %s", macro_line)
             macro, *arguments = macro_line.split(":")
             try:
-                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)  # type: ignore[assignment]
+                arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)
             except Exception:
                 logger.exception("Error replacing variables")
                 continue
-            try:
-                if macro == "AC_CHECK_HEADER":
-                    deps.append(
-                        self._ac_check_header(
-                            header_file=arguments[0],
-                            file_to_package_cache=file_to_package_cache,
-                        )
-                    )
-                elif macro == "AC_CHECK_LIB":
-                    deps.append(
-                        self._ac_check_lib(
-                            function=arguments[0],
-                            file_to_package_cache=file_to_package_cache,
-                        )
-                    )
-                elif macro == "PKG_CHECK_MODULES":
-                    module_name, *version = arguments[0].split(" ")
-                    deps.append(
-                        self._pkg_check_modules(
-                            module_name=module_name,
-                            version="".join(version),
-                            file_to_package_cache=file_to_package_cache,
-                        )
-                    )
-                else:
-                    logger.error("Macro not supported %r", macro)
-            except Exception:
-                logger.exception("Error processing macro %s", macro)
-                continue
+            dep = self._process_macro(macro, arguments, file_to_package_cache)
+            if dep is not None:
+                deps.append(dep)
 
         """
         # Identity of this package.

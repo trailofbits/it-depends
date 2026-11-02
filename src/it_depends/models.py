@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -18,6 +19,29 @@ _WILDCARD_SPEC = SimpleSpec("*")
 
 if TYPE_CHECKING:
     from .repository import SourceRepository
+
+_is_known_fn = None
+_by_name_fn = None
+
+
+def _is_known_resolver(name: str) -> bool:
+    """Check if name is a known resolver (lazy-loads resolver module)."""
+    global _is_known_fn  # noqa: PLW0603
+    if _is_known_fn is None:
+        from .resolver import is_known_resolver  # noqa: PLC0415
+
+        _is_known_fn = is_known_resolver
+    return _is_known_fn(name)
+
+
+def _resolver_by_name(name: str) -> DependencyResolver:
+    """Get resolver by name (lazy-loads resolver module)."""
+    global _by_name_fn  # noqa: PLW0603
+    if _by_name_fn is None:
+        from .resolver import resolver_by_name  # noqa: PLC0415
+
+        _by_name_fn = resolver_by_name
+    return _by_name_fn(name)
 
 
 class Vulnerability:
@@ -45,7 +69,7 @@ class Vulnerability:
 
     def __hash__(self) -> int:
         """Compute hash for vulnerability."""
-        return hash((self.id, "".join(self.aliases), self.summary))
+        return hash(self.id)
 
     def __lt__(self, other: object) -> bool:
         """Compare vulnerabilities for sorting."""
@@ -55,56 +79,15 @@ class Vulnerability:
         return self.id < other.id
 
 
+@dataclass
 class MaintenanceInfo:
-    """Represents maintenance status information for a package."""
+    """GitHub commit activity; a null staleness value means the check failed."""
 
-    def __init__(
-        self,
-        repository_url: str | None = None,
-        last_commit_date: str | None = None,
-        is_stale: bool = False,
-        days_since_update: int | None = None,
-        error: str | None = None,
-    ) -> None:
-        """Initialize maintenance information.
-
-        Args:
-            repository_url: GitHub repository URL
-            last_commit_date: ISO 8601 timestamp of last commit (from pushed_at)
-            is_stale: Whether package exceeds staleness threshold
-            days_since_update: Days since last update
-            error: Error message if check failed
-
-        """
-        self.repository_url = repository_url
-        self.last_commit_date = last_commit_date
-        self.is_stale = is_stale
-        self.days_since_update = days_since_update
-        self.error = error
-
-    def to_obj(self) -> dict[str, Any]:
-        """Convert to dictionary for serialization."""
-        return {
-            "repository_url": self.repository_url,
-            "last_commit_date": self.last_commit_date,
-            "is_stale": self.is_stale,
-            "days_since_update": self.days_since_update,
-            "error": self.error,
-        }
-
-    def __eq__(self, other: object) -> bool:
-        """Check equality with another MaintenanceInfo."""
-        if isinstance(other, MaintenanceInfo):
-            return (
-                self.repository_url == other.repository_url
-                and self.last_commit_date == other.last_commit_date
-                and self.is_stale == other.is_stale
-            )
-        return False
-
-    def __hash__(self) -> int:
-        """Compute hash for MaintenanceInfo."""
-        return hash((self.repository_url, self.last_commit_date, self.is_stale))
+    repository_url: str | None = None
+    last_commit_date: str | None = None
+    is_stale: bool | None = None
+    days_since_update: int | None = None
+    error: str | None = None
 
 
 class Dependency:
@@ -127,11 +110,9 @@ class Dependency:
         if not isinstance(semantic_version, SemanticVersion):
             msg = "semantic_version must be a SemanticVersion instance"
             raise TypeError(msg)
-        from .resolver import DependencyResolver, is_known_resolver  # noqa: PLC0415
-
-        if isinstance(source, DependencyResolver):
+        if not isinstance(source, str):
             source = source.name
-        if not is_known_resolver(source):
+        if not _is_known_resolver(source):
             msg = f"{source} is not a known resolver"
             raise ValueError(msg)
         self.source: str = source
@@ -146,9 +127,7 @@ class Dependency:
     @property
     def resolver(self) -> DependencyResolver:
         """Get the resolver for this dependency's source."""
-        from .resolver import resolver_by_name  # noqa: PLC0415
-
-        return resolver_by_name(self.source)
+        return _resolver_by_name(self.source)
 
     @classmethod
     def from_string(cls, description: str) -> Dependency:
@@ -166,9 +145,7 @@ class Dependency:
             package, *remainder = tail.split("@", 1)
             version_string = "@".join(remainder)
             if version_string:
-                from .resolver import resolver_by_name  # noqa: PLC0415
-
-                resolver = resolver_by_name(source)
+                resolver = _resolver_by_name(source)
                 version = resolver.parse_spec(version_string)
             else:
                 version = SimpleSpec("*")
@@ -199,7 +176,7 @@ class Dependency:
 
     def includes(self, other: Dependency) -> bool:
         """Check if this dependency includes another dependency."""
-        if not isinstance(other, Dependency) or (self.package != other.package and self.source != other.source):
+        if not isinstance(other, Dependency) or self.package != other.package or self.source != other.source:
             return False
         return bool(self.semantic_version.clause.includes(other.semantic_version.clause))
 
@@ -273,7 +250,6 @@ class Package:
         source: str | DependencyResolver,
         dependencies: Iterable[Dependency] = (),
         vulnerabilities: Iterable[Vulnerability] = (),
-        maintenance_info: MaintenanceInfo | None = None,
     ) -> None:
         """Initialize a package.
 
@@ -283,7 +259,6 @@ class Package:
             source: Source resolver name or resolver instance
             dependencies: Package dependencies
             vulnerabilities: Known vulnerabilities
-            maintenance_info: Package maintenance information
 
         """
         if isinstance(version, str):
@@ -291,14 +266,12 @@ class Package:
         self.name: str = name
         self.version: Version = version
         self.dependencies: frozenset[Dependency] = frozenset(dependencies)
-        from .resolver import DependencyResolver  # noqa: PLC0415
-
-        if isinstance(source, DependencyResolver):
+        if not isinstance(source, str):
             self.source: str = source.name
         else:
             self.source = source
         self.vulnerabilities: frozenset[Vulnerability] = frozenset(vulnerabilities)
-        self.maintenance_info: MaintenanceInfo | None = maintenance_info
+        self.maintenance_info: MaintenanceInfo | None = None
 
     @property
     def full_name(self) -> str:
@@ -331,19 +304,6 @@ class Package:
         self.vulnerabilities = self.vulnerabilities.union(vulnerabilities)
         return self
 
-    def update_maintenance_info(self, info: MaintenanceInfo) -> Package:
-        """Update package maintenance information.
-
-        Args:
-            info: Maintenance information to add
-
-        Returns:
-            Self for method chaining
-
-        """
-        self.maintenance_info = info
-        return self
-
     @property
     def resolver(self) -> DependencyResolver:
         """Get the initial main resolver for this package.
@@ -354,9 +314,7 @@ class Package:
             The resolver for this package's source
 
         """
-        from .resolver import resolver_by_name  # noqa: PLC0415
-
-        return resolver_by_name(self.source)
+        return _resolver_by_name(self.source)
 
     @classmethod
     def from_string(cls, description: str) -> Package:
@@ -407,7 +365,7 @@ class Package:
 
     def to_obj(self) -> dict[str, Any]:
         """Convert package to dictionary representation."""
-        obj = {
+        obj: dict[str, Any] = {
             "source": self.source,
             "name": self.name,
             "version": str(self.version),
@@ -415,7 +373,7 @@ class Package:
             "vulnerabilities": [vuln.to_obj() for vuln in self.vulnerabilities],
         }
         if self.maintenance_info:
-            obj["maintenance"] = self.maintenance_info.to_obj()
+            obj["maintenance"] = asdict(self.maintenance_info)
         return obj
 
     def dumps(self) -> str:
@@ -450,7 +408,7 @@ class Package:
 
     def __hash__(self) -> int:
         """Compute hash for package."""
-        return hash((self.version, self.name, self.version))
+        return hash((self.name, self.source, self.version))
 
 
 class SourcePackage(Package):
@@ -459,7 +417,7 @@ class SourcePackage(Package):
     It is a package that exists on disk, but not necessarily in a remote repository.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         name: str,
         version: Version,

@@ -1,0 +1,44 @@
+name: Scan dependencies for vulnerabilities with uv audit
+
+on:
+  # Once per day
+  schedule:
+    - cron: "0 0 * * *"
+  # Run on push to master branch
+  push:
+    branches:
+      - master
+  # Run on labeled pull requests
+  pull_request:
+    types: [labeled, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  uv-audit:
+    # Run on schedule or pull request with 'audit' label
+    if: |
+      (github.event_name == 'schedule' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'audit'))
+    strategy:
+      matrix:
+        python: ["3.10", "3.11", "3.12", "3.13"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+
+      - name: Install Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      # uv audit reads pyproject.toml + uv.lock directly, so the project does
+      # not need to be installed. --locked fails if the lockfile is out of sync.
+      # uv prefers the managed Python installed above, and --python-version
+      # defaults to it, so each job audits its own version.
+      - name: Run uv audit
+        run: uv audit --locked

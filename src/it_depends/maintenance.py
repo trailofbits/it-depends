@@ -1,368 +1,126 @@
-"""Package maintenance status checking functionality."""
+"""Best-effort checks of default-branch commit activity on GitHub."""
 
 from __future__ import annotations
 
-import logging
 import os
 import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from urllib.parse import quote, urlsplit
 
-from requests import Session
-from tqdm import tqdm
+import requests
+
+from .models import MaintenanceInfo, SourcePackage
 
 if TYPE_CHECKING:
-    from .cache import DBPackageCache
-    from .dependencies import Package, PackageRepository
-    from .models import MaintenanceInfo
-
-logger = logging.getLogger(__name__)
+    from .cache import PackageRepository
+    from .models import Package
 
 
 def extract_github_repo(url: str) -> tuple[str, str] | None:
-    """Extract owner and repo from GitHub URL.
-
-    Args:
-        url: GitHub repository URL in various formats
-
-    Returns:
-        Tuple of (owner, repo) or None if not a GitHub URL
-
-    Examples:
-        >>> extract_github_repo("https://github.com/owner/repo")
-        ('owner', 'repo')
-        >>> extract_github_repo("git@github.com:owner/repo.git")
-        ('owner', 'repo')
-        >>> extract_github_repo("https://github.com/owner/repo.git")
-        ('owner', 'repo')
-
-    """
-    if not url:
+    """Extract a validated owner and repository from HTTPS, Git, or SSH URLs."""
+    url = url.removeprefix("git+")
+    if url.startswith("git@github.com:"):
+        url = "ssh://git@github.com/" + url.removeprefix("git@github.com:")
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
         return None
+    if parsed.scheme not in {"https", "http", "git", "ssh"} or parsed.hostname != "github.com":
+        return None
+    parts = parsed.path.strip("/").split("/")
+    if len(parts) < 2:  # noqa: PLR2004
+        return None
+    owner, repo = parts[0], parts[1].removesuffix(".git")
+    if not re.fullmatch(r"[A-Za-z0-9-]+", owner) or not re.fullmatch(r"[A-Za-z0-9_.-]+", repo):
+        return None
+    return (owner, repo) if repo not in {".", ".."} else None
 
-    # Handle various URL formats
-    patterns = [
-        r"github\.com[:/]([^/]+)/([^/\.]+)(?:\.git)?",  # HTTPS or SSH
-        r"github\.com/([^/]+)/([^/]+?)(?:\.git)?$",  # With optional .git suffix
-    ]
 
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            owner, repo = match.groups()
-            # Remove .git suffix if present
-            repo = repo.rstrip(".git")
-            return (owner, repo)
+def _get_json(url: str, token: str | None = None) -> Any:  # noqa: ANN401
+    """Fetch JSON with bounded latency; send credentials only to the GitHub API."""
+    headers = {"Accept": "application/json", "User-Agent": "it-depends"}
+    if token and urlsplit(url).hostname == "api.github.com":
+        headers["Authorization"] = f"Bearer {token}"
+    response = requests.get(url, headers=headers, timeout=10)
+    response.raise_for_status()
+    return response.json()
 
+
+def _repository_url(package: Package) -> str | None:
+    """Look up registry metadata without changing the dependency resolvers."""
+    name = quote(package.name, safe="")
+    if package.source == "go":
+        return "https://" + package.name if package.name.startswith("github.com/") else None
+    if package.source == "pip":
+        info = _get_json(f"https://pypi.org/pypi/{name}/json")["info"]
+        urls = info.get("project_urls") or {}
+        candidates = [urls.get(key) for key in ("Source", "Source Code", "Repository", "Code")]
+        candidates.extend(urls.values())
+        candidates.append(info.get("home_page"))
+        return next((url for url in candidates if isinstance(url, str) and extract_github_repo(url)), None)
+    if package.source == "npm":
+        repository = _get_json(f"https://registry.npmjs.org/{name}").get("repository")
+        return repository.get("url") if isinstance(repository, dict) else repository
+    if package.source == "cargo":
+        repository = _get_json(f"https://crates.io/api/v1/crates/{name}")["crate"].get("repository")
+        return repository if isinstance(repository, str) else None
     return None
 
 
-class GitHubClient:
-    """Client for GitHub API interactions."""
-
-    API_BASE = "https://api.github.com"
-
-    def __init__(self, token: str | None = None) -> None:
-        """Initialize GitHub API client.
-
-        Args:
-            token: GitHub personal access token for authentication
-
-        """
-        self.session = Session()
-        if token:
-            self.session.headers["Authorization"] = f"token {token}"
-        self.session.headers["Accept"] = "application/vnd.github.v3+json"
-        self.remaining_requests: int | None = None
-        self.reset_time: int | None = None
-
-    def fetch_repo_metadata(self, owner: str, repo: str) -> dict | None:
-        """Fetch repository metadata from GitHub API.
-
-        Args:
-            owner: Repository owner
-            repo: Repository name
-
-        Returns:
-            Repository metadata dict or None if failed
-
-        """
-        try:
-            response = self.session.get(
-                f"{self.API_BASE}/repos/{owner}/{repo}",
-                timeout=10,
-            )
-
-            # Track rate limits
-            self.remaining_requests = int(response.headers.get("X-RateLimit-Remaining", 0))
-            self.reset_time = int(response.headers.get("X-RateLimit-Reset", 0))
-
-            if self.remaining_requests is not None and self.remaining_requests < 10:
-                logger.warning(
-                    f"GitHub API rate limit low: {self.remaining_requests} requests remaining"
-                )
-
-            if response.status_code == 404:
-                logger.debug(f"Repository not found: {owner}/{repo}")
-                return None
-
-            if response.status_code == 403:
-                logger.warning("GitHub API rate limit exceeded")
-                return None
-
-            response.raise_for_status()
-            return response.json()
-
-        except Exception as e:
-            logger.debug(f"GitHub API error for {owner}/{repo}: {e}")
-            return None
-
-    def extract_maintenance_date(self, metadata: dict) -> str | None:
-        """Extract last maintenance date from repo metadata.
-
-        Args:
-            metadata: Repository metadata from GitHub API
-
-        Returns:
-            ISO 8601 timestamp string or None
-
-        """
-        # Use pushed_at (reflects actual code commits)
-        pushed_at = metadata.get("pushed_at")
-        if pushed_at:
-            return pushed_at
-
-        # Fallback to created_at if no pushes
-        created_at = metadata.get("created_at")
-        if created_at:
-            return created_at
-
-        return None
+def _check_package(package: Package, stale_days: int, token: str | None) -> MaintenanceInfo:
+    """Check one package, preserving failures as unknown maintenance status."""
+    info = MaintenanceInfo()
+    try:
+        if isinstance(package, SourcePackage):
+            info.error = "Local source package has no verified registry repository"
+            return info
+        url = _repository_url(package)
+        github_repo = extract_github_repo(url) if isinstance(url, str) else None
+        if github_repo is None:
+            info.error = "No GitHub repository found"
+            return info
+        owner, repo = github_repo
+        info.repository_url = f"https://github.com/{owner}/{repo}"
+        commits = _get_json(f"https://api.github.com/repos/{owner}/{repo}/commits?per_page=1", token)
+        date = commits[0]["commit"]["committer"]["date"]
+        last_commit = datetime.fromisoformat(date.replace("Z", "+00:00"))
+        if last_commit.tzinfo is None:
+            info.error = "Commit date has no timezone"
+            return info
+        info.last_commit_date = date
+        info.days_since_update = max(0, (datetime.now(timezone.utc) - last_commit).days)
+        info.is_stale = info.days_since_update > stale_days
+    except requests.HTTPError as error:
+        status = error.response.status_code if error.response is not None else "unknown"
+        info.error = f"Maintenance lookup failed (HTTP {status}); check access and API rate limits"
+    except requests.RequestException:
+        info.error = "Maintenance request failed; check network access and retry"
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError):
+        info.error = "Missing or invalid registry metadata or GitHub commit date"
+    return info
 
 
 def check_maintenance_status(
     repo: PackageRepository,
     stale_threshold_days: int = 365,
     github_token: str | None = None,
-    cache: DBPackageCache | None = None,
-    cache_ttl: int = 86400,
-    nworkers: int | None = None,
 ) -> PackageRepository:
-    """Enrich packages with maintenance information.
+    """Enrich packages sequentially with GitHub default-branch commit activity.
 
     Args:
-        repo: Package repository to enrich
-        stale_threshold_days: Days threshold for staleness
-        github_token: GitHub API token
-        cache: Database cache for GitHub metadata
-        cache_ttl: Cache TTL in seconds
-        nworkers: Number of worker threads
+        repo: Packages to enrich in place.
+        stale_threshold_days: Nonnegative number of whole days allowed without a commit.
+        github_token: Optional token; defaults to GITHUB_TOKEN from the environment.
 
     Returns:
-        Enriched package repository
+        The supplied repository, including errors for packages that could not be checked.
 
     """
-    from .models import MaintenanceInfo
-
-    github_client = GitHubClient(token=github_token)
-
-    def _check_package_maintenance(pkg: Package) -> tuple[Package, MaintenanceInfo]:
-        """Check maintenance status for a single package."""
-        # Try to get repository URL from package resolver
-        repo_url = None
-        try:
-            if hasattr(pkg.resolver, "get_repository_url"):
-                repo_url = pkg.resolver.get_repository_url(pkg)
-        except Exception as e:
-            logger.debug(f"Failed to get repo URL for {pkg.name}: {e}")
-
-        if not repo_url:
-            return (
-                pkg,
-                MaintenanceInfo(error="No GitHub repository URL found"),
-            )
-
-        # Extract owner/repo from URL
-        github_info = extract_github_repo(repo_url)
-        if not github_info:
-            return (
-                pkg,
-                MaintenanceInfo(
-                    repository_url=repo_url,
-                    error="Repository not hosted on GitHub",
-                ),
-            )
-
-        owner, repo_name = github_info
-
-        # Check cache first (if available)
-        if cache:
-            cached = _get_cached_metadata(cache, owner, repo_name, cache_ttl, stale_threshold_days)
-            if cached:
-                return (pkg, cached)
-
-        # Fetch from GitHub API
-        metadata = github_client.fetch_repo_metadata(owner, repo_name)
-        if not metadata:
-            return (
-                pkg,
-                MaintenanceInfo(
-                    repository_url=repo_url,
-                    error="Failed to fetch repository metadata",
-                ),
-            )
-
-        # Extract maintenance date
-        last_commit_str = github_client.extract_maintenance_date(metadata)
-        if not last_commit_str:
-            return (
-                pkg,
-                MaintenanceInfo(
-                    repository_url=repo_url,
-                    error="No commit date found",
-                ),
-            )
-
-        # Calculate staleness
-        try:
-            last_commit = datetime.fromisoformat(last_commit_str.replace("Z", "+00:00"))
-            now = datetime.now(timezone.utc)
-            days_since = (now - last_commit).days
-            is_stale = days_since > stale_threshold_days
-        except (ValueError, AttributeError) as e:
-            logger.debug(f"Failed to parse date for {owner}/{repo_name}: {e}")
-            return (
-                pkg,
-                MaintenanceInfo(
-                    repository_url=repo_url,
-                    error="Failed to parse commit date",
-                ),
-            )
-
-        maintenance_info = MaintenanceInfo(
-            repository_url=repo_url,
-            last_commit_date=last_commit_str,
-            is_stale=is_stale,
-            days_since_update=days_since,
-        )
-
-        # Cache result
-        if cache:
-            _cache_metadata(cache, owner, repo_name, last_commit_str)
-
-        return (pkg, maintenance_info)
-
-    # Process packages in parallel
-    with (
-        ThreadPoolExecutor(max_workers=nworkers) as executor,
-        tqdm(desc="Checking maintenance status", leave=False, unit=" packages") as t,
-    ):
-        futures = {executor.submit(_check_package_maintenance, pkg): pkg for pkg in repo}
-        t.total = len(futures)
-
-        for future in as_completed(futures):
-            try:
-                t.update(1)
-                pkg, maintenance_info = future.result()
-                pkg.update_maintenance_info(maintenance_info)
-            except Exception:
-                logger.exception("Failed to check maintenance status")
-
-    # Log summary
-    stale_count = sum(1 for pkg in repo if pkg.maintenance_info and pkg.maintenance_info.is_stale)
-    if stale_count > 0:
-        logger.info(
-            f"Found {stale_count} stale packages (>{stale_threshold_days} days since update)"
-        )
-
+    if stale_threshold_days < 0:
+        msg = "stale_threshold_days must be nonnegative"
+        raise ValueError(msg)
+    token = github_token or os.getenv("GITHUB_TOKEN")
+    for package in repo:
+        package.maintenance_info = _check_package(package, stale_threshold_days, token)
     return repo
-
-
-def _get_cached_metadata(
-    cache: DBPackageCache,
-    owner: str,
-    repo: str,
-    ttl: int,
-    stale_threshold_days: int,
-) -> MaintenanceInfo | None:
-    """Get cached GitHub metadata if still valid.
-
-    Args:
-        cache: Database cache
-        owner: Repository owner
-        repo: Repository name
-        ttl: Cache time-to-live in seconds
-        stale_threshold_days: Threshold for staleness calculation
-
-    Returns:
-        MaintenanceInfo if cache is valid, None otherwise
-
-    """
-    from .db import GitHubMetadataCache
-    from .models import MaintenanceInfo
-
-    try:
-        result = (
-            cache.session.query(GitHubMetadataCache)
-            .filter(
-                GitHubMetadataCache.owner == owner,
-                GitHubMetadataCache.repo == repo,
-            )
-            .first()
-        )
-
-        if not result:
-            return None
-
-        # Check if cache is still valid
-        fetched_at = datetime.fromisoformat(result.fetched_at)
-        if (datetime.now(timezone.utc) - fetched_at).total_seconds() > ttl:
-            return None
-
-        # Reconstruct MaintenanceInfo from cache
-        if result.pushed_at:
-            last_commit = datetime.fromisoformat(result.pushed_at.replace("Z", "+00:00"))
-            days_since = (datetime.now(timezone.utc) - last_commit).days
-            return MaintenanceInfo(
-                repository_url=f"https://github.com/{owner}/{repo}",
-                last_commit_date=result.pushed_at,
-                is_stale=days_since > stale_threshold_days,
-                days_since_update=days_since,
-            )
-
-        return None
-    except Exception as e:
-        logger.debug(f"Cache lookup failed: {e}")
-        return None
-
-
-def _cache_metadata(
-    cache: DBPackageCache,
-    owner: str,
-    repo: str,
-    pushed_at: str,
-) -> None:
-    """Store GitHub metadata in cache.
-
-    Args:
-        cache: Database cache
-        owner: Repository owner
-        repo: Repository name
-        pushed_at: ISO 8601 timestamp of last push
-
-    """
-    from .db import GitHubMetadataCache
-
-    try:
-        cache.session.merge(
-            GitHubMetadataCache(
-                owner=owner,
-                repo=repo,
-                pushed_at=pushed_at,
-                fetched_at=datetime.now(timezone.utc).isoformat(),
-            )
-        )
-        cache.session.commit()
-    except Exception as e:
-        logger.debug(f"Failed to cache metadata: {e}")

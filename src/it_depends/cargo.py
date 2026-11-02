@@ -4,19 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
-
-import requests
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
 from semantic_version.base import Always, BaseSpec
 
+from ._exec import resolve_executable
 from .dependencies import (
     Dependency,
     DependencyResolver,
@@ -66,21 +64,47 @@ class CargoSpec(SimpleSpec):
         return CargoSpec(f"{self.expression},{other.expression}")
 
 
+def _parse_workspace_member(member: str) -> str:
+    """Extract the package name from a cargo workspace member string.
+
+    Handles both old format ("name version (path)")
+    and new format ("path+file:///...#name@version").
+    """
+    if " " in member:
+        return member[: member.find(" ")]
+    if "#" in member:
+        fragment = member[member.rfind("#") + 1 :]
+        if "@" in fragment:
+            return fragment[: fragment.find("@")]
+        # Fragment is version-only (e.g., "path+file:///path/to/crate#0.1.0").
+        # Extract the package name from the path component before the fragment.
+        path_part = member[: member.rfind("#")]
+        return path_part.rstrip("/").rsplit("/", 1)[-1]
+    logger.warning("Unrecognized workspace member format: %r", member)
+    return member
+
+
 def get_dependencies(
     repo: SourceRepository,
     *,
-    check_for_cargo: bool = True,
+    cargo_path: str | None = None,
     cache: PackageCache | None = None,  # noqa: ARG001
 ) -> Iterator[Package]:
     """Get dependencies from a Cargo project."""
-    if check_for_cargo and shutil.which("cargo") is None:
-        cargo_error = "`cargo` does not appear to be installed! Make sure it is installed and in the PATH."
-        raise ValueError(cargo_error)
+    if cargo_path is None:
+        cargo_path = resolve_executable("cargo")
 
-    metadata = json.loads(subprocess.check_output(["cargo", "metadata", "--format-version", "1"], cwd=repo.path))  # noqa: S607
+    try:
+        output = subprocess.check_output([cargo_path, "metadata", "--format-version", "1"], cwd=repo.path)
+    except subprocess.CalledProcessError:
+        # A single crate whose temp-project `cargo metadata` fails must not abort the whole
+        # resolution; mirror pip.py's handling of johnnydep failures (see #125).
+        logger.exception("Error running `cargo metadata` in %s", repo.path)
+        return
+    metadata = json.loads(output)
 
     if "workspace_members" in metadata:
-        workspace_members = {member[: member.find(" ")] for member in metadata["workspace_members"]}
+        workspace_members = {_parse_workspace_member(m) for m in metadata["workspace_members"]}
     else:
         workspace_members = set()
 
@@ -95,6 +119,12 @@ def get_dependencies(
         dependencies: dict[str, Dependency] = {}
         for dep in package["dependencies"]:
             if dep["kind"] is not None:
+                continue
+            # Ignore optional (feature-gated) dependencies that are not explicitly required.
+            # A crate may declare a mutually exclusive set of optional deps, so forcing them all
+            # into the graph can describe a configuration that has no valid resolution. We only
+            # track dependencies cargo requires under the active feature set (see #189, #191).
+            if dep["optional"]:
                 continue
             if dep["name"] in dependencies:
                 dependencies[dep["name"]].semantic_version = dependencies[
@@ -122,10 +152,20 @@ class CargoResolver(DependencyResolver):
 
     name = "cargo"
     description = "classifies the dependencies of Rust packages using `cargo metadata`"
+    _tool_path: str | None = None
+
+    @property
+    def tool_path(self) -> str:
+        """Resolve and cache the path to the cargo executable."""
+        if self._tool_path is None:
+            self._tool_path = resolve_executable("cargo")
+        return self._tool_path
 
     def is_available(self) -> ResolverAvailability:
         """Check if Cargo is available."""
-        if shutil.which("cargo") is None:
+        try:
+            _ = self.tool_path
+        except FileNotFoundError:
             return ResolverAvailability(
                 is_available=False,
                 reason="`cargo` does not appear to be installed! Make sure it is installed and in the PATH.",
@@ -141,19 +181,30 @@ class CargoResolver(DependencyResolver):
         """Check if this resolver can resolve dependencies from the given repository."""
         return bool(self.is_available()) and (repo.path / "Cargo.toml").exists()
 
-    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:
+    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
         result = None
-        for package in get_dependencies(repo, check_for_cargo=False):
-            if isinstance(package, SourcePackage):
-                result = package
-            elif cache is not None and hasattr(cache, "add"):
-                cache.add(package)
+        packages = list(get_dependencies(repo, cargo_path=self.tool_path))
+        if cache is not None:
+            for package in packages:
+                if isinstance(package, SourcePackage):
+                    result = package
+                else:
+                    cache.add(package)
+            # Only mark a dependency as resolved when `cargo metadata` actually resolved a
+            # matching package. A required dep that cargo failed to resolve (e.g. a subcrate
+            # whose `cargo metadata` errored) must fall through to normal resolution rather
+            # than being marked resolved-to-nothing and pruned.
+            for package in packages:
                 for dep in package.dependencies:
-                    if not cache.was_resolved(dep):  # type: ignore[attr-defined]
-                        cache.set_resolved(dep)  # type: ignore[attr-defined]
+                    if not cache.was_resolved(dep) and next(cache.match(dep), None) is not None:
+                        cache.set_resolved(dep)
+        else:
+            for package in packages:
+                if isinstance(package, SourcePackage):
+                    result = package
         return result
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
@@ -162,50 +213,26 @@ class CargoResolver(DependencyResolver):
         This method searches for packages matching the dependency specification
         and returns an iterator of available packages.
         """
-        pkgid = dependency.package
-
         # Need to translate a semantic version into a cargo semantic version
         #  https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#caret-requirements
         #  caret requirement
         semantic_version = str(dependency.semantic_version)
         semantic_versions = semantic_version.split(",")
+        cargo_path = self.tool_path
         cache = InMemoryPackageCache()
         with cache:
             for version_str in map(str.strip, semantic_versions):
                 processed_version = version_str
                 if processed_version[0].isnumeric():
                     processed_version = "=" + processed_version
-                pkgid = f'{pkgid.split("=")[0].strip()} = "{processed_version}"'
+                cargo_dep = f'{dependency.package} = "{processed_version}"'
 
-                logger.debug("Found %s for %s in crates.io", pkgid, dependency)
+                logger.debug("Found %s for %s in crates.io", cargo_dep, dependency)
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    subprocess.check_output(["cargo", "init"], cwd=tmpdir)  # noqa: S607
+                    subprocess.check_output([cargo_path, "init"], cwd=tmpdir)
                     with Path(tmpdir).joinpath("Cargo.toml").open("a") as f:
-                        f.write(f"{pkgid}\n")
+                        f.write(f"{cargo_dep}\n")
                     self.resolve_from_source(SourceRepository(path=tmpdir), cache)
         cache.set_resolved(dependency)
         # TODO(@evandowning): propagate up any other info we have in this cache  # noqa: TD003, FIX002
         return cache.match(dependency)
-
-    @staticmethod
-    def get_repository_url(package: Package) -> str | None:
-        """Get GitHub repository URL for Cargo package.
-
-        Args:
-            package: Package to get repository URL for
-
-        Returns:
-            Repository URL or None if not found
-
-        """
-        try:
-            response = requests.get(
-                f"https://crates.io/api/v1/crates/{package.name}",
-                timeout=5,
-            )
-            if response.status_code == 200:
-                data = response.json()
-                return data.get("crate", {}).get("repository")
-            return None
-        except requests.RequestException:
-            return None

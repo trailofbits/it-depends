@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, TypeVar, cast
 
 from typing_extensions import Self
 
+from ._exec import resolve_executable
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
@@ -51,6 +53,14 @@ class VCS:
         self.cmd: str = cmd
         self.scheme: list[str] = list(scheme)
         self.ping_cmd: list[str] = list(ping_cmd)
+        self._tool_path: str | None = None
+
+    @property
+    def tool_path(self) -> str:
+        """Resolve and cache the path to the VCS executable."""
+        if self._tool_path is None:
+            self._tool_path = resolve_executable(self.cmd)
+        return self._tool_path
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         """Set the default instance when subclassing."""
@@ -75,10 +85,13 @@ class VCS:
         if os.environ.get("GIT_SSH", "") == "" and os.environ.get("GIT_SSH_COMMAND", "") == "":
             # disable any ssh connection pooling by git
             env["GIT_SSH_COMMAND"] = "ssh -o ControlMaster=no"
+        try:
+            resolved_cmd = self.tool_path
+        except FileNotFoundError:
+            return None
         for scheme in self.scheme:
-            cmd = [self.cmd] + [c.replace("{scheme}", scheme).replace("{repo}", repo) for c in self.ping_cmd]
-            # Note: repo is validated by the caller, this is safe
-            if subprocess.call(cmd, stdout=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=env) == 0:  # noqa: S603
+            cmd = [resolved_cmd] + [c.replace("{scheme}", scheme).replace("{repo}", repo) for c in self.ping_cmd]
+            if subprocess.call(cmd, stdout=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=env) == 0:
                 return scheme
         return None
 

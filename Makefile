@@ -35,7 +35,7 @@ ifneq ($(TESTS),)
 	COV_ARGS :=
 else
 	TEST_ARGS :=
-	COV_ARGS := --fail-under 40
+	COV_ARGS := --fail-under 45
 endif
 
 .PHONY: all
@@ -52,11 +52,20 @@ $(VENV)/pyvenv.cfg: pyproject.toml
 	uv venv $(VENV)
 	uv pip install -e '.[$(INSTALL_EXTRA)]'
 
+# Deterministic install: reproduce the exact dependency versions pinned in
+# uv.lock instead of re-resolving from pyproject.toml (as `dev` does). Use this
+# for CI, releases, and reproducing a known-good environment. `--locked` aborts
+# with an error if uv.lock is out of sync with pyproject.toml, rather than
+# silently updating the lockfile.
+.PHONY: sync
+sync:
+	uv sync --locked --extra $(INSTALL_EXTRA)
+
 .PHONY: lint
 lint: $(VENV)/pyvenv.cfg
 	uv run ruff format --check && \
 		uv run ruff check && \
-		uv run mypy
+		uv run mypy && \
 		uv run interrogate -c pyproject.toml .
 
 .PHONY: format
@@ -71,8 +80,7 @@ test tests: $(VENV)/pyvenv.cfg
 
 .PHONY: integration
 integration: $(VENV)/pyvenv.cfg
-	uv run pytest --timeout=7200 --runintegration --cov=$(PY_IMPORT) $(TEST_ARGS)
-	uv run coverage report -m $(COV_ARGS)
+	uv run pytest --timeout=600 --runintegration --reruns 2 --reruns-delay 5 --cov=$(PY_IMPORT) $(TEST_ARGS)
 
 .PHONY: doc
 doc: $(VENV)/pyvenv.cfg

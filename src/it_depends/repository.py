@@ -5,8 +5,10 @@ from __future__ import annotations
 import atexit
 import subprocess
 from pathlib import Path
-from shutil import rmtree, which
+from shutil import rmtree
 from tempfile import mkdtemp
+
+from ._exec import resolve_executable
 
 
 class SourceRepository:
@@ -35,13 +37,8 @@ class SourceRepository:
 
         atexit.register(cleanup)
 
-        # Find git executable safely
-        git_path = which("git")
-        if git_path is None:
-            error_msg = "git executable not found in PATH"
-            raise RuntimeError(error_msg)
-
-        subprocess.check_call([git_path, "clone", git_url], cwd=tmpdir)  # noqa: S603
+        git_path = resolve_executable("git")
+        subprocess.check_call([git_path, "clone", git_url], cwd=tmpdir)
         for file in Path(tmpdir).iterdir():
             if file.is_dir():
                 return SourceRepository(file)

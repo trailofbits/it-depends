@@ -1,389 +1,230 @@
-"""Unit tests for maintenance checking functionality."""
+"""Maintenance checks and their JSON, CLI, and CycloneDX integration."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, Mock, patch
+import json
+from datetime import datetime, timedelta, timezone
+from unittest.mock import Mock, patch
 
 import pytest
-
-from it_depends.maintenance import GitHubClient, extract_github_repo
-from it_depends.models import MaintenanceInfo, Package
-
-
-class TestGitHubURLExtraction:
-    """Tests for extracting owner/repo from GitHub URLs."""
-
-    def test_https_url(self) -> None:
-        """Test extraction from HTTPS URL."""
-        url = "https://github.com/owner/repo"
-        result = extract_github_repo(url)
-        assert result == ("owner", "repo")
-
-    def test_https_url_with_git_suffix(self) -> None:
-        """Test extraction from HTTPS URL with .git suffix."""
-        url = "https://github.com/owner/repo.git"
-        result = extract_github_repo(url)
-        assert result == ("owner", "repo")
-
-    def test_ssh_url(self) -> None:
-        """Test extraction from SSH URL."""
-        url = "git@github.com:owner/repo.git"
-        result = extract_github_repo(url)
-        assert result == ("owner", "repo")
-
-    def test_ssh_url_without_git_suffix(self) -> None:
-        """Test extraction from SSH URL without .git."""
-        url = "git@github.com:owner/repo"
-        result = extract_github_repo(url)
-        assert result == ("owner", "repo")
-
-    def test_url_with_subpath(self) -> None:
-        """Test extraction handles URLs with subpaths."""
-        url = "https://github.com/owner/repo/tree/main"
-        result = extract_github_repo(url)
-        assert result == ("owner", "repo")
-
-    def test_non_github_url(self) -> None:
-        """Test non-GitHub URLs return None."""
-        url = "https://bitbucket.org/owner/repo"
-        result = extract_github_repo(url)
-        assert result is None
-
-    def test_empty_url(self) -> None:
-        """Test empty URL returns None."""
-        result = extract_github_repo("")
-        assert result is None
-
-    def test_none_url(self) -> None:
-        """Test None URL returns None."""
-        result = extract_github_repo(None)  # type: ignore[arg-type]
-        assert result is None
-
-    def test_malformed_url(self) -> None:
-        """Test malformed URL returns None."""
-        url = "github.com"
-        result = extract_github_repo(url)
-        assert result is None
-
-
-class TestMaintenanceInfo:
-    """Tests for MaintenanceInfo data class."""
-
-    def test_initialization_with_all_fields(self) -> None:
-        """Test MaintenanceInfo initialization with all fields."""
-        info = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo",
-            last_commit_date="2023-05-22T14:30:00Z",
-            is_stale=True,
-            days_since_update=500,
-            error=None,
-        )
-        assert info.repository_url == "https://github.com/owner/repo"
-        assert info.last_commit_date == "2023-05-22T14:30:00Z"
-        assert info.is_stale is True
-        assert info.days_since_update == 500
-        assert info.error is None
-
-    def test_initialization_with_error(self) -> None:
-        """Test MaintenanceInfo initialization with error."""
-        info = MaintenanceInfo(error="Failed to fetch repository metadata")
-        assert info.repository_url is None
-        assert info.last_commit_date is None
-        assert info.is_stale is False
-        assert info.days_since_update is None
-        assert info.error == "Failed to fetch repository metadata"
-
-    def test_to_obj_serialization(self) -> None:
-        """Test serialization to dictionary."""
-        info = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo",
-            last_commit_date="2023-05-22T14:30:00Z",
-            is_stale=False,
-            days_since_update=120,
-        )
-        obj = info.to_obj()
-        assert obj == {
-            "repository_url": "https://github.com/owner/repo",
-            "last_commit_date": "2023-05-22T14:30:00Z",
-            "is_stale": False,
-            "days_since_update": 120,
-            "error": None,
-        }
-
-    def test_equality(self) -> None:
-        """Test equality comparison."""
-        info1 = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo",
-            last_commit_date="2023-05-22T14:30:00Z",
-            is_stale=True,
-        )
-        info2 = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo",
-            last_commit_date="2023-05-22T14:30:00Z",
-            is_stale=True,
-        )
-        assert info1 == info2
-
-    def test_inequality(self) -> None:
-        """Test inequality comparison."""
-        info1 = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo1",
-            last_commit_date="2023-05-22T14:30:00Z",
-        )
-        info2 = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo2",
-            last_commit_date="2023-05-22T14:30:00Z",
-        )
-        assert info1 != info2
-
-    def test_hash(self) -> None:
-        """Test hashing for set/dict usage."""
-        info1 = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo",
-            last_commit_date="2023-05-22T14:30:00Z",
-            is_stale=True,
-        )
-        info2 = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo",
-            last_commit_date="2023-05-22T14:30:00Z",
-            is_stale=True,
-        )
-        # Same info should have same hash
-        assert hash(info1) == hash(info2)
-        # Should be usable in sets
-        info_set = {info1, info2}
-        assert len(info_set) == 1
-
-
-class TestGitHubClient:
-    """Tests for GitHubClient API interactions."""
-
-    def test_initialization_without_token(self) -> None:
-        """Test client initialization without token."""
-        client = GitHubClient()
-        assert "Authorization" not in client.session.headers
-        assert "Accept" in client.session.headers
-
-    def test_initialization_with_token(self) -> None:
-        """Test client initialization with token."""
-        client = GitHubClient(token="test_token")
-        assert client.session.headers["Authorization"] == "token test_token"
-
-    @patch("it_depends.maintenance.Session")
-    def test_fetch_repo_metadata_success(self, mock_session_class: Mock) -> None:
-        """Test successful repository metadata fetch."""
-        # Setup mock
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.headers = {
-            "X-RateLimit-Remaining": "100",
-            "X-RateLimit-Reset": "1234567890",
-        }
-        mock_response.json.return_value = {
-            "name": "repo",
-            "pushed_at": "2023-05-22T14:30:00Z",
-            "stargazers_count": 1000,
-        }
-
-        mock_session = Mock()
-        mock_session.get.return_value = mock_response
-        mock_session_class.return_value = mock_session
-
-        client = GitHubClient()
-        client.session = mock_session
-        metadata = client.fetch_repo_metadata("owner", "repo")
-
-        assert metadata is not None
-        assert metadata["name"] == "repo"
-        assert metadata["pushed_at"] == "2023-05-22T14:30:00Z"
-        assert client.remaining_requests == 100
-
-    @patch("it_depends.maintenance.Session")
-    def test_fetch_repo_metadata_not_found(self, mock_session_class: Mock) -> None:
-        """Test 404 response for non-existent repository."""
-        mock_response = Mock()
-        mock_response.status_code = 404
-
-        mock_session = Mock()
-        mock_session.get.return_value = mock_response
-        mock_session_class.return_value = mock_session
-
-        client = GitHubClient()
-        client.session = mock_session
-        metadata = client.fetch_repo_metadata("owner", "nonexistent")
-
-        assert metadata is None
-
-    @patch("it_depends.maintenance.Session")
-    def test_fetch_repo_metadata_rate_limit(self, mock_session_class: Mock) -> None:
-        """Test 403 response for rate limit exceeded."""
-        mock_response = Mock()
-        mock_response.status_code = 403
-
-        mock_session = Mock()
-        mock_session.get.return_value = mock_response
-        mock_session_class.return_value = mock_session
-
-        client = GitHubClient()
-        client.session = mock_session
-        metadata = client.fetch_repo_metadata("owner", "repo")
-
-        assert metadata is None
-
-    def test_extract_maintenance_date_with_pushed_at(self) -> None:
-        """Test extracting maintenance date from pushed_at field."""
-        client = GitHubClient()
-        metadata = {
-            "pushed_at": "2023-05-22T14:30:00Z",
-            "created_at": "2020-01-01T00:00:00Z",
-        }
-        date = client.extract_maintenance_date(metadata)
-        assert date == "2023-05-22T14:30:00Z"
-
-    def test_extract_maintenance_date_fallback_to_created_at(self) -> None:
-        """Test fallback to created_at when pushed_at is missing."""
-        client = GitHubClient()
-        metadata = {"created_at": "2020-01-01T00:00:00Z"}
-        date = client.extract_maintenance_date(metadata)
-        assert date == "2020-01-01T00:00:00Z"
-
-    def test_extract_maintenance_date_no_dates(self) -> None:
-        """Test returns None when no dates available."""
-        client = GitHubClient()
-        metadata = {"name": "repo"}
-        date = client.extract_maintenance_date(metadata)
-        assert date is None
-
-
-class TestPackageIntegration:
-    """Tests for Package class integration with maintenance info."""
-
-    def test_package_with_maintenance_info(self) -> None:
-        """Test creating package with maintenance info."""
-        info = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo",
-            last_commit_date="2023-05-22T14:30:00Z",
-            is_stale=False,
-            days_since_update=120,
-        )
-        pkg = Package(
-            name="test-package",
-            version="1.0.0",
-            source="npm",
-            maintenance_info=info,
-        )
-        assert pkg.maintenance_info == info
-
-    def test_package_without_maintenance_info(self) -> None:
-        """Test creating package without maintenance info."""
-        pkg = Package(name="test-package", version="1.0.0", source="npm")
-        assert pkg.maintenance_info is None
-
-    def test_update_maintenance_info(self) -> None:
-        """Test updating package with maintenance info."""
-        pkg = Package(name="test-package", version="1.0.0", source="npm")
-        info = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo",
-            is_stale=True,
-        )
-        result = pkg.update_maintenance_info(info)
-        assert pkg.maintenance_info == info
-        assert result == pkg  # Should return self for chaining
-
-    def test_to_obj_includes_maintenance(self) -> None:
-        """Test package serialization includes maintenance info."""
-        info = MaintenanceInfo(
-            repository_url="https://github.com/owner/repo",
-            last_commit_date="2023-05-22T14:30:00Z",
-            is_stale=True,
-            days_since_update=500,
-        )
-        pkg = Package(
-            name="test-package",
-            version="1.0.0",
-            source="npm",
-            maintenance_info=info,
-        )
-        obj = pkg.to_obj()
-        assert "maintenance" in obj
-        assert obj["maintenance"]["repository_url"] == "https://github.com/owner/repo"
-        assert obj["maintenance"]["is_stale"] is True
-
-    def test_to_obj_without_maintenance(self) -> None:
-        """Test package serialization without maintenance info."""
-        pkg = Package(name="test-package", version="1.0.0", source="npm")
-        obj = pkg.to_obj()
-        assert "maintenance" not in obj
-
-
-class TestResolverURLExtraction:
-    """Tests for resolver get_repository_url methods."""
-
-    @patch("it_depends.npm.subprocess.check_output")
-    def test_npm_get_repository_url(self, mock_subprocess: Mock) -> None:
-        """Test NPM resolver repository URL extraction."""
-        from it_depends.npm import NPMResolver
-
-        mock_subprocess.return_value = b'{"url": "https://github.com/lodash/lodash"}'
-
-        pkg = Package(name="lodash", version="4.17.21", source="npm")
-        url = NPMResolver.get_repository_url(pkg)
-
-        assert url == "https://github.com/lodash/lodash"
-
-    @patch("it_depends.pip.requests.get")
-    def test_pip_get_repository_url(self, mock_get: Mock) -> None:
-        """Test Pip resolver repository URL extraction."""
-        from it_depends.pip import PipResolver
-
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "info": {
-                "project_urls": {
-                    "Source": "https://github.com/psf/requests",
-                }
-            }
-        }
-        mock_get.return_value = mock_response
-
-        pkg = Package(name="requests", version="2.31.0", source="pip")
-        url = PipResolver.get_repository_url(pkg)
-
-        assert url == "https://github.com/psf/requests"
-
-    @patch("it_depends.cargo.requests.get")
-    def test_cargo_get_repository_url(self, mock_get: Mock) -> None:
-        """Test Cargo resolver repository URL extraction."""
-        from it_depends.cargo import CargoResolver
-
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "crate": {"repository": "https://github.com/rust-lang/cargo"}
-        }
-        mock_get.return_value = mock_response
-
-        pkg = Package(name="cargo", version="0.1.0", source="cargo")
-        url = CargoResolver.get_repository_url(pkg)
-
-        assert url == "https://github.com/rust-lang/cargo"
-
-    def test_go_get_repository_url(self) -> None:
-        """Test Go resolver repository URL extraction."""
-        from it_depends.go import GoResolver
-
-        # Test with GitHub package
-        pkg = Package(name="github.com/user/repo", version="1.0.0", source="go")
-        url = GoResolver.get_repository_url(pkg)
-        assert url == "https://github.com/user/repo"
-
-        # Test with non-GitHub package
-        pkg2 = Package(name="golang.org/x/tools", version="1.0.0", source="go")
-        url2 = GoResolver.get_repository_url(pkg2)
-        assert url2 is None
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+import requests
+from pydantic import ValidationError
+from semantic_version import Version
+
+from it_depends import _cli
+from it_depends.cache import PackageRepository
+from it_depends.config import Settings
+from it_depends.maintenance import check_maintenance_status, extract_github_repo
+from it_depends.models import MaintenanceInfo, Package, SourcePackage
+from it_depends.repository import SourceRepository
+from it_depends.sbom import SBOM, cyclonedx_to_json
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("https://github.com/owner/widget", ("owner", "widget")),
+        ("git@github.com:owner/project.git", ("owner", "project")),
+        ("git+https://github.com/owner/project.test.git", ("owner", "project.test")),
+        ("ssh://git@github.com/owner/project", ("owner", "project")),
+        ("https://github.com/owner/project/tree/main?x=1#readme", ("owner", "project")),
+        ("https://github.com.evil.test/owner/project", None),
+        ("https://evil.test/github.com/owner/project", None),
+        ("https://github.com@evil.test/owner/project", None),
+        ("https://github.com/owner/..", None),
+        ("https://github.com/owner/a%2fb", None),
+        ("https://github.com/owner/", None),
+        ("https://[", None),
+        ("", None),
+    ],
+)
+def test_repository_urls(url: str, expected: tuple[str, str] | None) -> None:
+    assert extract_github_repo(url) == expected
+
+
+def _repo(*packages: Package) -> PackageRepository:
+    repo = PackageRepository()
+    for package in packages:
+        repo.add(package)
+    return repo
+
+
+def _response(data: object) -> Mock:
+    return Mock(json=Mock(return_value=data))
+
+
+def _commits(date: str) -> list[dict]:
+    return [{"commit": {"committer": {"date": date}}}]
+
+
+@pytest.mark.parametrize(
+    ("source", "name", "metadata", "registry"),
+    [
+        (
+            "pip",
+            "demo",
+            {"info": {"project_urls": {"Source": "https://github.com/owner/widget"}}},
+            "https://pypi.org/pypi/demo/json",
+        ),
+        (
+            "pip",
+            "demo",
+            {"info": {"project_urls": None, "home_page": "https://github.com/owner/widget"}},
+            "https://pypi.org/pypi/demo/json",
+        ),
+        (
+            "npm",
+            "@scope/demo",
+            {"repository": {"url": "git+https://github.com/owner/widget.git"}},
+            "https://registry.npmjs.org/%40scope%2Fdemo",
+        ),
+        ("npm", "demo", {"repository": "https://github.com/owner/widget"}, "https://registry.npmjs.org/demo"),
+        (
+            "cargo",
+            "demo",
+            {"crate": {"repository": "https://github.com/owner/widget"}},
+            "https://crates.io/api/v1/crates/demo",
+        ),
+    ],
+)
+def test_registry_lookup(source: str, name: str, metadata: dict, registry: str) -> None:
+    package = Package(name, "1.0.0", source)
+    with patch("it_depends.maintenance.requests.get") as get:
+        get.side_effect = [_response(metadata), _response(_commits("2000-01-01T00:00:00Z"))]
+        check_maintenance_status(_repo(package), github_token="test-token")  # noqa: S106
+    assert get.call_args_list[0].args[0] == registry
+    assert "Authorization" not in get.call_args_list[0].kwargs["headers"]
+    assert get.call_args_list[1].kwargs["headers"]["Authorization"] == "Bearer test-token"
+    assert package.maintenance_info is not None
+    assert package.maintenance_info.repository_url == "https://github.com/owner/widget"
+    assert package.maintenance_info.is_stale is True
+    assert package.maintenance_info.error is None
+
+
+@pytest.mark.parametrize(("days", "stale"), [(364, False), (365, False), (366, True), (-1, False)])
+def test_staleness_boundary(days: int, *, stale: bool) -> None:
+    package = Package("github.com/owner/widget/submodule/v2", "1.0.0", "go")
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    date = (now - timedelta(days=days)).isoformat()
+    with (
+        patch("it_depends.maintenance.requests.get", return_value=_response(_commits(date))) as get,
+        patch("it_depends.maintenance.datetime", wraps=datetime) as clock,
+    ):
+        clock.now.return_value = now
+        repo = _repo(package)
+        assert check_maintenance_status(repo) is repo
+    assert get.call_args.args[0] == "https://api.github.com/repos/owner/widget/commits?per_page=1"
+    assert package.maintenance_info is not None
+    assert package.maintenance_info.is_stale is stale
+    assert package.maintenance_info.days_since_update == max(0, days)
+
+
+@pytest.mark.parametrize("data", [[], {}, None, _commits("bad"), _commits("2020-01-01"), _commits(None)])
+def test_invalid_commit_response(data: object) -> None:
+    package = Package("github.com/owner/widget", "1.0.0", "go")
+    with patch("it_depends.maintenance.requests.get", return_value=_response(data)):
+        check_maintenance_status(_repo(package))
+    assert package.maintenance_info is not None
+    assert package.maintenance_info.error
+    assert package.maintenance_info.is_stale is None
+    assert package.to_obj()["maintenance"]["is_stale"] is None
+
+
+@pytest.mark.parametrize("status", [403, 404, 409, 429, 500])
+def test_http_errors_continue(status: int) -> None:
+    first = Package("github.com/owner/first", "1.0.0", "go")
+    second = Package("github.com/owner/second", "1.0.0", "go")
+    response = requests.Response()
+    response.status_code = status
+    with patch("it_depends.maintenance.requests.get") as get:
+        get.side_effect = [requests.HTTPError(response=response), _response(_commits("2000-01-01T00:00:00Z"))]
+        check_maintenance_status(_repo(first, second))
+    assert first.maintenance_info is not None
+    assert f"HTTP {status}" in str(first.maintenance_info.error)
+    assert first.maintenance_info.is_stale is None
+    assert second.maintenance_info is not None
+    assert second.maintenance_info.is_stale is True
+
+
+def test_timeout_and_environment_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+    package = Package("github.com/owner/widget", "1.0.0", "go")
+    with patch("it_depends.maintenance.requests.get", side_effect=requests.Timeout) as get:
+        check_maintenance_status(_repo(package))
+    assert get.call_args.kwargs["timeout"] == 10  # noqa: PLR2004
+    assert get.call_args.kwargs["headers"]["Authorization"] == "Bearer test-token"
+    assert package.maintenance_info is not None
+    assert package.maintenance_info.is_stale is None
+    assert "test-token" not in package.dumps()
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {},
+        [],
+        {"info": None},
+        {"info": {"project_urls": []}},
+        {"info": {"project_urls": {"Source": "https://github.com.evil.test/owner/repo"}}},
+    ],
+)
+def test_bad_registry_metadata(metadata: object) -> None:
+    package = Package("demo", "1.0.0", "pip")
+    with patch("it_depends.maintenance.requests.get", return_value=_response(metadata)) as get:
+        check_maintenance_status(_repo(package))
+    get.assert_called_once()
+    assert package.maintenance_info is not None
+    assert package.maintenance_info.error
+    assert package.maintenance_info.is_stale is None
+
+
+def test_unsupported_and_local_packages_do_not_request() -> None:
+    local = SourcePackage("demo", Version("1.0.0"), SourceRepository("."), "pip")
+    repo = _repo(local, Package("demo", "1.0.0", "ubuntu"), Package("golang.org/x/tools", "1.0.0", "go"))
+    with patch("it_depends.maintenance.requests.get") as get:
+        check_maintenance_status(repo)
+    get.assert_not_called()
+    assert all(p.maintenance_info and p.maintenance_info.error for p in repo)
+
+
+def test_threshold_validation() -> None:
+    with pytest.raises(ValueError, match="nonnegative"):
+        check_maintenance_status(PackageRepository(), stale_threshold_days=-1)
+    with pytest.raises(ValidationError):
+        Settings(_cli_parse_args=["pip:demo", "--stale-threshold", "-1"])
+
+
+def test_optional_json_and_cyclonedx_properties() -> None:
+    root = Package("root", "1.0.0", "pip")
+    child = Package("child", "1.0.0", "pip")
+    assert "maintenance" not in root.to_obj()
+    root.maintenance_info = MaintenanceInfo(is_stale=False, days_since_update=0)
+    child.maintenance_info = MaintenanceInfo(error="No GitHub repository found")
+    output = json.loads(cyclonedx_to_json(SBOM([(root, child)], [root]).to_cyclonedx()))
+    components = {c["name"]: {p["name"]: p["value"] for p in c["properties"]} for c in output["components"]}
+    assert components["root"]["maintenance:is_stale"] == "false"
+    assert components["root"]["maintenance:days_since_update"] == "0"
+    assert "maintenance:is_stale" not in components["child"]
+    assert components["child"]["maintenance:error"] == child.maintenance_info.error
+    assert json.loads(root.dumps())["maintenance"]["is_stale"] is False
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+def test_cli_maintenance_opt_in(*, enabled: bool) -> None:
+    settings = Settings(
+        _cli_parse_args=["pip:demo", *(["--check-maintenance", "--stale-threshold", "12"] if enabled else [])]
+    )
+    repo = _repo(Package("demo", "1.0.0", "pip"))
+    with (
+        patch.object(_cli, "Settings", return_value=settings),
+        patch.object(_cli, "setup_logger"),
+        patch.object(_cli, "DBPackageCache"),
+        patch.object(_cli, "resolve", return_value=repo),
+        patch.object(_cli, "_write_output"),
+        patch.object(_cli, "check_maintenance_status", return_value=repo) as check,
+    ):
+        _cli.main()
+    if enabled:
+        check.assert_called_once_with(repo, stale_threshold_days=12)
+    else:
+        check.assert_not_called()

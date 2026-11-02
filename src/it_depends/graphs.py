@@ -49,11 +49,9 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
         """Get shortest path length between two nodes."""
         if self._all_pairs_shortest_paths is None:
             self._all_pairs_shortest_paths = dict(nx.all_pairs_shortest_path_length(self))
-        if (
-            from_node not in self._all_pairs_shortest_paths or to_node not in self._all_pairs_shortest_paths[from_node]  # type: ignore[index]
-        ):
+        if from_node not in self._all_pairs_shortest_paths or to_node not in self._all_pairs_shortest_paths[from_node]:
             return -1
-        return self._all_pairs_shortest_paths[from_node][to_node]  # type: ignore[index]
+        return self._all_pairs_shortest_paths[from_node][to_node]
 
     def _handle_new_node(self, node: T) -> None:
         """Handle adding a new node."""
@@ -91,7 +89,7 @@ class RootedDiGraph(nx.DiGraph, Generic[T, R]):
             self._handle_new_node(u)
             self._handle_new_node(v)
             edges.append((u, v, *r))
-        super().add_edges_from(ebunch_to_add, **attr)
+        super().add_edges_from(edges, **attr)
 
     def remove_node(self, node_for_removing: T) -> None:
         """Remove a node from the graph."""

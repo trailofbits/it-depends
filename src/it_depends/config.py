@@ -54,20 +54,9 @@ class Settings(BaseSettings):
     stale_threshold: int = Field(
         alias="stale-threshold",
         default=365,
+        ge=0,
         description="""Days since last commit to consider a package stale.
         Default: 365 (1 year). Requires --check-maintenance.""",
-    )
-    github_token: str | None = Field(
-        alias="github-token",
-        default=None,
-        description="""GitHub personal access token for API requests.
-        If not provided, uses GITHUB_TOKEN environment variable.
-        Authenticated: 5000 requests/hour. Unauthenticated: 60 requests/hour.""",
-    )
-    maintenance_cache_ttl: int = Field(
-        alias="maintenance-cache-ttl",
-        default=86400,
-        description="""Cache TTL for maintenance data in seconds. Default: 86400 (24 hours).""",
     )
     database: Path = Field(
         default=DEFAULT_DB_PATH,
@@ -80,7 +69,7 @@ class Settings(BaseSettings):
         default=-1,
         description="""Depth limit for recursively solving dependencies.""",
     )
-    clear_cache: bool = Field(
+    clear_cache: CliImplicitFlag[bool] = Field(
         alias="clear-cache",
         default=False,
         description="""Clears the database specified by `--database` (equivalent

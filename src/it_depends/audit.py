@@ -70,8 +70,9 @@ class OSVProject(VulnerabilityProvider):
     def query(self, pkg: Package) -> Iterable[OSVVulnerability]:
         """Query the OSV project for vulnerabilities in package."""
         q = {"version": str(pkg.version), "package": {"name": pkg.name}}
-        r = post(OSVProject.QUERY_URL, json=q).json()  # noqa: S113
-        return map(OSVVulnerability.from_osv_dict, r.get("vulns", []))
+        r = post(OSVProject.QUERY_URL, json=q, timeout=30)
+        r.raise_for_status()
+        return map(OSVVulnerability.from_osv_dict, r.json().get("vulns", []))
 
 
 def vulnerabilities(repo: PackageRepository, nworkers: int | None = None) -> PackageRepository:
@@ -83,7 +84,7 @@ def vulnerabilities(repo: PackageRepository, nworkers: int | None = None) -> Pac
         # Do not modify pkg here to ensure no concurrent
         # modifications, instead return and let the main
         # thread handle the updates.
-        return (pkg, frozenset({vuln: vuln for vuln in ret}))
+        return (pkg, frozenset(ret))
 
     with (
         ThreadPoolExecutor(max_workers=nworkers) as executor,

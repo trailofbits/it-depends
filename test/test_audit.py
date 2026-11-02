@@ -95,13 +95,14 @@ class TestAudit(TestCase):
         package_vuln = {(pkg.name, str(pkg.version)): _random_vulnerabilities(10) for pkg in packages}
 
         # Mocks the json-request to OSV, returns whatever info is in the package_vuln-map
-        def _osv_response(_, json: dict) -> Mock:  # noqa: ANN001
+        def _osv_response(_, json: dict, **kwargs: object) -> Mock:  # noqa: ANN001, ARG001
             m = Mock()
             key = (json["package"]["name"], json["version"])
             if key in package_vuln:
                 m.json.return_value = {"vulns": [x.to_obj() for x in package_vuln[key]]}
             else:
                 m.json.return_value = {}
+            m.raise_for_status = Mock()
             return m
 
         mock_post.side_effect = _osv_response
@@ -122,10 +123,11 @@ class TestAudit(TestCase):
         lock = threading.Lock()
         counter = 0
 
-        def _osv_response(_, json: dict) -> Mock:  # noqa: ANN001, ARG001
+        def _osv_response(_, json: dict, **kwargs: object) -> Mock:  # noqa: ANN001, ARG001
             nonlocal counter
             m = Mock()
             m.json.return_value = {}
+            m.raise_for_status = Mock()
             with lock:
                 counter += 1
                 if counter % 2 == 0:

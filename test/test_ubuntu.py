@@ -2,63 +2,104 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from it_depends.dependencies import Dependency
-from it_depends.ubuntu.resolver import UbuntuResolver
+from it_depends.ubuntu.resolver import UbuntuResolver, _clean_dep_version
+
+
+class TestCleanDepVersion(TestCase):
+    """Tests for _clean_dep_version helper."""
+
+    def test_none_returns_star(self) -> None:
+        assert _clean_dep_version(None) == "*"
+
+    def test_simple_version_spec(self) -> None:
+        assert _clean_dep_version(">= 2.29") == ">=2.29"
+
+    def test_epoch_stripped(self) -> None:
+        assert _clean_dep_version(">= 1:4.4.10") == ">=4.4.10"
+
+    def test_tilde_stripped(self) -> None:
+        assert _clean_dep_version(">= 3.0~~alpha1") == ">=3.0"
+        assert _clean_dep_version(">= 1.15~beta1") == ">=1.15"
+
+    def test_dash_stripped(self) -> None:
+        assert _clean_dep_version(">= 4.4.10-10ubuntu4") == ">=4.4.10"
+
+    def test_epoch_and_dash(self) -> None:
+        assert _clean_dep_version("= 1:7.0.1-12") == "=7.0.1"
+
+    def test_all_combined(self) -> None:
+        assert _clean_dep_version(">= 1:4.4.10~alpha1-10ubuntu4") == ">=4.4.10"
 
 
 class TestUbuntu(TestCase):
     def test_ubuntu(self) -> None:
         contents = """Package: dkms
-Version: 2.8.1-5ubuntu2
+Version: 3.0.11-1ubuntu13
 Priority: optional
 Section: admin
 Origin: Ubuntu
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-Original-Maintainer: Dynamic Kernel Modules Support Team <dkms@packages.debian.org>
+Original-Maintainer: Dynamic Kernel Module System Team <dkms@packages.debian.org>
 Bugs: https://bugs.launchpad.net/ubuntu/+filebug
-Installed-Size: 296 kB
+Installed-Size: 196 kB
+Provides: dkms-autopkgtest (= 3.0.11-1ubuntu13)
 Pre-Depends: lsb-release
-Depends: kmod | kldutils, gcc | c-compiler, dpkg-dev, make | build-essential, coreutils (>= 7.3), patch, dctrl-tools
-Recommends: fakeroot, sudo, linux-headers-686-pae | linux-headers-amd64 | linux-headers-generic | linux-headers
+Depends: kmod | kldutils, gcc, gcc-13, dpkg-dev, make | build-essential, patch
+Recommends: fakeroot, sudo, linux-headers-generic | linux-headers-686-pae | linux-headers-amd64 | linux-headers
 Suggests: menu, e2fsprogs
-Breaks: shim-signed (<< 1.34~)
-Homepage: https://github.com/dell-oss/dkms
-Download-Size: 66,8 kB
-APT-Manual-Installed: no
-APT-Sources: http://ar.archive.ubuntu.com/ubuntu focal-updates/main amd64 Packages
-Description: Dynamic Kernel Module Support Framework
- DKMS is a framework designed to allow individual kernel modules to be upgraded
- without changing the whole kernel. It is also very easy to rebuild modules as
- you upgrade kernels.
-
-Package: dkms
-Version: 2.8.1-5ubuntu1
-Priority: optional
-Section: admin
-Origin: Ubuntu
-Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-Original-Maintainer: Dynamic Kernel Modules Support Team <dkms@packages.debian.org>
-Bugs: https://bugs.launchpad.net/ubuntu/+filebug
-Installed-Size: 296 kB
-Pre-Depends: lsb-release
-Depends: kmod | kldutils, gcc | c-compiler, dpkg-dev, make | build-essential, coreutils (>= 7.5), patch
-Recommends: fakeroot, sudo, linux-headers-686-pae | linux-headers-amd64 | linux-headers-generic | linux-headers
-Suggests: menu, e2fsprogs
-Breaks: shim-signed (<< 1.34~)
-Homepage: https://github.com/dell-oss/dkms
-Download-Size: 66,6 kB
-APT-Sources: http://ar.archive.ubuntu.com/ubuntu focal/main amd64 Packages
-Description: Dynamic Kernel Module Support Framework
- DKMS is a framework designed to allow individual kernel modules to be upgraded
- without changing the whole kernel. It is also very easy to rebuild modules as
- you upgrade kernels.
-
+Homepage: https://github.com/dell/dkms
+Download-Size: 51.5 kB
+APT-Sources: http://ports.ubuntu.com/ubuntu-ports noble/main arm64 Packages
+Description: Dynamic Kernel Module System (DKMS)
 """
-        with patch("it_depends.ubuntu.docker.run_command") as mock:
+        with patch("it_depends.ubuntu.resolver.run_command") as mock:
             mock.return_value = contents.encode()
             deps = tuple(UbuntuResolver().resolve(dependency=Dependency(package="dkms", source="ubuntu")))
             assert len(deps) == 1
             assert str(deps[0]) == (
-                "ubuntu:dkms@2.8.1[ubuntu:build-essential@*,ubuntu:c-compiler@*,"
-                "ubuntu:coreutils@>=7.4,ubuntu:dctrl-tools@*,ubuntu:dpkg-dev@*,"
-                "ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]"
+                "ubuntu:dkms@3.0.11[ubuntu:build-essential@*,ubuntu:dpkg-dev@*,"
+                "ubuntu:gcc-13@*,ubuntu:gcc@*,ubuntu:kldutils@*,ubuntu:kmod@*,ubuntu:make@*,ubuntu:patch@*]"
             )
+
+    def test_ubuntu_epoch_dependency(self) -> None:
+        """Epoch-prefixed dependency versions are parsed correctly."""
+        contents = b"""Package: libcrypt1
+Version: 1:4.4.27-1
+Depends: libc6 (>= 1:2.25)
+"""
+        with patch("it_depends.ubuntu.resolver.run_command") as mock:
+            mock.return_value = contents
+            deps = tuple(UbuntuResolver().resolve(dependency=Dependency(package="libcrypt1", source="ubuntu")))
+            assert len(deps) == 1
+            dep_list = sorted(deps[0].dependencies, key=lambda d: d.package)
+            assert len(dep_list) == 1
+            assert dep_list[0].package == "libc6"
+            assert str(dep_list[0].semantic_version) == ">=2.25"
+
+    def test_ubuntu_tilde_dependency(self) -> None:
+        """Tilde pre-release dependency versions are parsed correctly."""
+        contents = b"""Package: libfoo
+Version: 3.0.0-1
+Depends: libbar (>= 3.0.0~~alpha1)
+"""
+        with patch("it_depends.ubuntu.resolver.run_command") as mock:
+            mock.return_value = contents
+            deps = tuple(UbuntuResolver().resolve(dependency=Dependency(package="libfoo", source="ubuntu")))
+            assert len(deps) == 1
+            dep_list = list(deps[0].dependencies)
+            assert len(dep_list) == 1
+            assert dep_list[0].package == "libbar"
+            assert str(dep_list[0].semantic_version) == ">=3.0.0"
+
+    def test_ubuntu_no_version_dependency(self) -> None:
+        """Dependencies without version constraints default to *."""
+        contents = b"""Package: mypkg
+Version: 1.0.0-1
+Depends: gcc, make
+"""
+        with patch("it_depends.ubuntu.resolver.run_command") as mock:
+            mock.return_value = contents
+            deps = tuple(UbuntuResolver().resolve(dependency=Dependency(package="mypkg", source="ubuntu")))
+            assert len(deps) == 1
+            for d in deps[0].dependencies:
+                assert str(d.semantic_version) == "*"

@@ -1,12 +1,13 @@
 """Software Bill of Materials (SBOM) generation module."""
 
 from collections.abc import Iterable
+from dataclasses import asdict
 from typing import TypeVar
 
 from cyclonedx.builder.this import this_component as cdx_lib_component
-from cyclonedx.model import XsUri
+from cyclonedx.model import Property, XsUri
 from cyclonedx.model.bom import Bom
-from cyclonedx.model.component import Component, ComponentType, Property
+from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.contact import OrganizationalEntity
 from cyclonedx.output.json import JsonV1Dot5
 
@@ -27,24 +28,14 @@ def _add_maintenance_properties(component: Component, package: Package) -> None:
         package: Package with maintenance information
 
     """
-    if package.maintenance_info:
-        info = package.maintenance_info
-        if info.repository_url:
-            component.properties.add(
-                Property(name="maintenance:repository_url", value=info.repository_url)
-            )
-        if info.last_commit_date:
-            component.properties.add(
-                Property(name="maintenance:last_commit_date", value=info.last_commit_date)
-            )
-        if info.days_since_update is not None:
-            component.properties.add(
-                Property(name="maintenance:days_since_update", value=str(info.days_since_update))
-            )
-        if info.is_stale:
-            component.properties.add(Property(name="maintenance:is_stale", value="true"))
-        if info.error:
-            component.properties.add(Property(name="maintenance:error", value=info.error))
+    if package.maintenance_info is not None:
+        for name, value in asdict(package.maintenance_info).items():
+            if value is not None:
+                component.properties.add(
+                    Property(
+                        name=f"maintenance:{name}", value=str(value).lower() if isinstance(value, bool) else str(value)
+                    )
+                )
 
 
 class SBOM:

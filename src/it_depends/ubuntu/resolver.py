@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import logging
 import re
-import shutil
 import subprocess
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
+from it_depends._exec import resolve_executable
 from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     Package,
+    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourcePackage,
@@ -33,14 +34,55 @@ logger = logging.getLogger(__name__)
 APT_RETURN_CODE_PACKAGE_NOT_FOUND = 100
 
 
+def _sanitize_version(version: str) -> str:
+    """Clean Debian version suffixes that produce invalid semver identifiers.
+
+    Version.coerce treats '+' as a build metadata separator and '.' as an
+    identifier delimiter. Debian suffixes like '+ds.', '+dfsg.', or multiple
+    '+' segments (e.g. '+ds.+really1.0') can produce empty identifiers after
+    splitting. Strip trailing dots and collapse runs of dots to prevent this.
+    """
+    version = re.sub(r"\.+", ".", version).rstrip(".")
+    if "+" in version:
+        base, build = version.split("+", maxsplit=1)
+        build = ".".join(part for part in build.replace("+", ".").split(".") if part)
+        return f"{base}+{build}" if build else base
+    return version
+
+
+_epoch_re = re.compile(r"\d+:")
+
+
+def _clean_dep_version(raw: str | None) -> str:
+    """Clean a dependency version spec from apt output for use with SimpleSpec.
+
+    Handles None (no constraint), Debian tilde pre-release markers,
+    epoch prefixes, and revision suffixes.
+    """
+    if raw is None:
+        return "*"
+    version = raw.split("~", maxsplit=1)[0]
+    version = version.split("-", maxsplit=1)[0]
+    version = version.replace(" ", "")
+    return _epoch_re.sub("", version)
+
+
 class UbuntuResolver(DependencyResolver):
     """Expands dependencies based upon Ubuntu package dependencies."""
 
     name = "ubuntu"
     description = "expands dependencies based upon Ubuntu package dependencies"
+    _tool_path: str | None = None
 
     _pattern = re.compile(r" *(?P<package>[^ ]*)( *\((?P<version>.*)\))? *")
     _ubuntu_version = re.compile("([0-9]+:)*(?P<version>[^-]*)(-.*)*")
+
+    @property
+    def tool_path(self) -> str:
+        """Resolve and cache the path to the docker executable."""
+        if self._tool_path is None:
+            self._tool_path = resolve_executable("docker")
+        return self._tool_path
 
     @staticmethod
     @lru_cache(maxsize=2048)
@@ -97,7 +139,7 @@ class UbuntuResolver(DependencyResolver):
         if matched:
             # TODO: Ubuntu versions can include "~", which the semantic_version # noqa: FIX002, TD002, TD003
             #       library does not like. So hack a fix by simply dropping everything after the tilde:
-            raw_version = matched.group("version").split("~", maxsplit=1)[0]
+            raw_version = _sanitize_version(matched.group("version").split("~", maxsplit=1)[0])
             return Version.coerce(raw_version)
         logger.warning("Failed to parse package %s %s", package_name, line)
         return None
@@ -116,15 +158,16 @@ class UbuntuResolver(DependencyResolver):
                     error_msg = f"Invalid dependency line in apt output for {package_name}: {line!r}"
                     raise ValueError(error_msg)
                 dep_package = matched.group("package")
-                dep_version = matched.group("version")
+                dep_version = _clean_dep_version(matched.group("version"))
                 try:
-                    # remove trailing ubuntu versions like "-10ubuntu4":
-                    dep_version = dep_version.split("-", maxsplit=1)[0]
-                    dep_version = dep_version.replace(" ", "")
-                    SimpleSpec(dep_version.replace(" ", ""))
-                except Exception:
-                    logger.exception("Error parsing dependencies line")
-                    dep_version = "*"  # Yolo FIXME Invalid simple block '= 1:7.0.1-12'
+                    SimpleSpec(dep_version)
+                except ValueError:
+                    logger.warning(
+                        "Unparseable dependency version %r for %s, defaulting to *",
+                        matched.group("version"),
+                        dep_package,
+                    )
+                    dep_version = "*"
 
                 deps.append((dep_package, dep_version))
 
@@ -160,7 +203,7 @@ class UbuntuResolver(DependencyResolver):
                         dependencies=deps,
                     )
             except (ValueError, subprocess.CalledProcessError):
-                pass
+                logger.warning("Failed to resolve native dependencies for %s", dependency.package)
         else:
             for package in UbuntuResolver.ubuntu_packages(dependency.package):
                 if package.version in dependency.semantic_version:
@@ -172,7 +215,9 @@ class UbuntuResolver(DependencyResolver):
 
     def is_available(self) -> ResolverAvailability:
         """Check if the resolver is available."""
-        if shutil.which("docker") is None:
+        try:
+            _ = self.tool_path
+        except FileNotFoundError:
             return ResolverAvailability(
                 is_available=False,
                 reason="`Ubuntu` classifier needs to have Docker installed. Try apt install docker.io.",
@@ -183,7 +228,7 @@ class UbuntuResolver(DependencyResolver):
         """Check if the resolver can resolve from source."""
         return False
 
-    def resolve_from_source(self, _repo: SourceRepository, _cache: object | None = None) -> SourcePackage | None:
+    def resolve_from_source(self, _repo: SourceRepository, _cache: PackageCache | None = None) -> SourcePackage | None:
         """Resolve from source repository."""
         return None
 

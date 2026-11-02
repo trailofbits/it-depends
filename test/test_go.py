@@ -1,5 +1,7 @@
 from unittest import TestCase
 
+import pytest
+
 from it_depends.go import GoModule, GoSpec, GoVersion
 
 EXAMPLE_MOD = """
@@ -28,6 +30,7 @@ go 1.12
 
 
 class TestGo(TestCase):
+    @pytest.mark.integration
     def test_load_from_github(self) -> None:
         GoModule.from_git("github.com/golang/protobuf", "https://github.com/golang/protobuf", tag="v1.4.3")
 

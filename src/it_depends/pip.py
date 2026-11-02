@@ -10,8 +10,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 
-import requests
-
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
@@ -23,6 +21,7 @@ from .dependencies import (
     DependencyResolver,
     DockerSetup,
     Package,
+    PackageCache,
     SemanticVersion,
     SimpleSpec,
     SourcePackage,
@@ -48,7 +47,7 @@ class PipResolver(DependencyResolver):
             or (repo.path / "pyproject.toml").exists()
         )
 
-    def resolve_from_source(self, repo: SourceRepository, cache: object | None = None) -> SourcePackage | None:  # noqa: ARG002
+    def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> SourcePackage | None:  # noqa: ARG002
         """Resolve package from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
@@ -83,6 +82,7 @@ class PipResolver(DependencyResolver):
         try:
             return SimpleSpec(dist_or_str)
         except ValueError:
+            log.warning("Could not parse version spec %r, falling back to wildcard *", dist_or_str)
             return SimpleSpec("*")
 
     @staticmethod
@@ -113,6 +113,57 @@ class PipResolver(DependencyResolver):
         return Dependency(package=name, semantic_version=version, source=PipResolver())
 
     @staticmethod
+    def _get_lower_bound(spec: SemanticVersion) -> Version | None:
+        """Extract the lower bound version from a spec if it's a simple >= or > constraint.
+
+        Args:
+            spec: Semantic version specification
+
+        Returns:
+            The lower bound Version, or None if not a simple lower-bound constraint
+
+        """
+        clause = spec.clause
+        if hasattr(clause, "operator") and hasattr(clause, "target") and (clause.operator in (">=", ">")):
+            return clause.target
+        return None
+
+    @staticmethod
+    def _merge_dependencies(deps: Iterable[Dependency]) -> list[Dependency]:
+        """Merge dependencies with the same package name, keeping the least restrictive.
+
+        When multiple dependencies exist for the same package (e.g., due to environment
+        markers), this keeps the one with the lowest version constraint (least restrictive).
+
+        Args:
+            deps: Iterable of dependencies to merge
+
+        Returns:
+            List of merged dependencies with duplicates removed
+
+        """
+        by_package: dict[str, Dependency] = {}
+        for dep in deps:
+            key = dep.package
+            if key not in by_package:
+                by_package[key] = dep
+            else:
+                existing = by_package[key]
+                existing_lb = PipResolver._get_lower_bound(existing.semantic_version)
+                new_lb = PipResolver._get_lower_bound(dep.semantic_version)
+
+                if existing_lb is not None and new_lb is not None:
+                    # Keep the one with lower bound (less restrictive)
+                    if new_lb < existing_lb:
+                        by_package[key] = dep
+                elif new_lb is None and existing_lb is not None:
+                    # Prefer wildcard/complex specs as they may be less restrictive
+                    by_package[key] = dep
+                # Otherwise keep existing
+
+        return list(by_package.values())
+
+    @staticmethod
     def get_dependencies(
         dist_or_requirements_txt_path: JohnnyDist | Path | str,
     ) -> Iterable[Dependency]:
@@ -126,18 +177,20 @@ class PipResolver(DependencyResolver):
 
         """
         if isinstance(dist_or_requirements_txt_path, JohnnyDist):
-            return (
+            all_deps = [
                 Dependency(
                     package=child.name,
                     semantic_version=PipResolver._get_specifier(child),
                     source=PipResolver(),
                 )
                 for child in dist_or_requirements_txt_path.children
-            )
+            ]
+            return PipResolver._merge_dependencies(all_deps)
         if isinstance(dist_or_requirements_txt_path, str):
             dist_or_requirements_txt_path = Path(dist_or_requirements_txt_path)
         with (dist_or_requirements_txt_path / "requirements.txt").open() as f:
-            return [d for d in (PipResolver.parse_requirements_txt_line(line) for line in f) if d is not None]
+            deps = [d for d in (PipResolver.parse_requirements_txt_line(line) for line in f) if d is not None]
+            return PipResolver._merge_dependencies(deps)
 
     @staticmethod
     def get_version(version_str: str, none_default: Version | None = None) -> Version | None:
@@ -234,37 +287,12 @@ class PipResolver(DependencyResolver):
                     recurse=False,
                 )
             )
+        except subprocess.CalledProcessError:
+            log.exception("Error using JohnnyDep to resolve %s", dependency.package)
+            return iter(())
         except ValueError as e:
             log.warning(str(e))
             return iter(())
-
-    @staticmethod
-    def get_repository_url(package: Package) -> str | None:
-        """Get GitHub repository URL for PyPI package.
-
-        Args:
-            package: Package to get repository URL for
-
-        Returns:
-            Repository URL or None if not found
-
-        """
-        try:
-            response = requests.get(
-                f"https://pypi.org/pypi/{package.name}/json",
-                timeout=5,
-            )
-            if response.status_code == 200:
-                data = response.json()
-                project_urls = data.get("info", {}).get("project_urls", {})
-                # Try common keys for repository URLs
-                for key in ["Source", "Repository", "Homepage", "Code", "source"]:
-                    url = project_urls.get(key)
-                    if url and "github.com" in url:
-                        return url
-            return None
-        except requests.RequestException:
-            return None
 
 
 class PipSourcePackage(SourcePackage):
@@ -310,7 +338,7 @@ class PipSourcePackage(SourcePackage):
                     stderr = sys.stderr
                 except io.UnsupportedOperation:
                     stderr = None
-                subprocess.check_call(  # noqa: S603
+                subprocess.check_call(
                     [
                         sys.executable,
                         "-m",

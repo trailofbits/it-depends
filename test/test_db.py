@@ -9,6 +9,7 @@ from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     Package,
+    PackageCache,
     ResolverAvailability,
     SimpleSpec,
     SourceRepository,
@@ -30,7 +31,7 @@ class TestDB(TestCase):
             def can_resolve_from_source(self, repo: SourceRepository) -> bool:  # noqa: ARG002
                 return False
 
-            def resolve_from_source(self, repo: SourceRepository, cache=None) -> None:  # noqa: ANN001
+            def resolve_from_source(self, repo: SourceRepository, cache: PackageCache | None = None) -> None:
                 raise NotImplementedError
 
             def resolve(self, dependency: Dependency) -> Iterator[Package]:
@@ -65,5 +66,5 @@ class TestDB(TestCase):
             assert len(cache) == 1
             # try adding the package again, but with fewer dependencies:
             smaller_pkg = Package(name="package", version=Version.coerce("1.0.0"), source=UnusedResolver())
-            with pytest.raises(ValueError, match="Package .* has already been resolved with more dependencies"):
+            with pytest.raises(ValueError, match=r"Package .* has already been resolved with more dependencies"):
                 cache.add(smaller_pkg)

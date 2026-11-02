@@ -83,11 +83,11 @@ class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
                         dependencies=deps,
                     )
             packages_by_name[pkg.full_name] = pkg
-            graph.add_node(pkg)  # type: ignore[arg-type]
-        for pkg in graph:  # type: ignore[assignment]
+            graph.add_node(pkg)
+        for pkg in graph:
             for dep in pkg.dependencies:
                 if dep.package_full_name in packages_by_name:
-                    graph.add_edge(pkg, packages_by_name[dep.package_full_name], dependency=dep)  # type: ignore[arg-type]
+                    graph.add_edge(pkg, packages_by_name[dep.package_full_name], dependency=dep)
         graph._collapsed = True
         return graph
 

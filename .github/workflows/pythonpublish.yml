@@ -1,34 +1,58 @@
-# This workflows will upload a Python Package using Twine when a release is created
-# For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
-
-name: Upload Python Package
-
 on:
   release:
-    types: [published]
+    types:
+      - published
 
-permissions:
-  contents: read
+name: release
+
+permissions: {}
+
 
 jobs:
-  deploy:
-
-    runs-on: ubuntu-20.04
-
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v1
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       with:
-        python-version: '3.x'
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install setuptools wheel twine
-    - name: Build and publish
-      env:
-        TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
-        TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-      run: |
-        python setup.py sdist bdist_wheel
-        twine upload dist/*
+        persist-credentials: false
+
+    - name: Set up Python
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      with:
+        python-version: "3.x"
+
+    - name: Install build tools
+      run: python -m pip install --upgrade build twine
+
+    - name: Build distributions
+      run: python -m build
+
+    - name: Check distributions
+      run: python -m twine check dist/*
+
+    - name: Upload distributions
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: distributions
+        path: dist/
+
+  publish:
+    name: Publish Python distributions to PyPI
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/it-depends
+    needs: [build]
+    permissions:
+      # Used to publish to PyPI with Trusted Publishing.
+      id-token: write
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: distributions
+          path: dist/
+
+      - name: Publish distributions
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
