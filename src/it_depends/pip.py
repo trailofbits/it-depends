@@ -248,25 +248,35 @@ class PipResolver(DependencyResolver):
             version = SimpleSpec("*")
         queue = [(dist, version)]
         packages: list[Package] = []
+        visited: set[tuple[str, str, tuple[str, ...]]] = set()
         while queue:
             dist, sem_version = queue.pop()
-            none_default = Version.coerce(dist.version_installed) if dist.version_installed is not None else None
-            for pkg_version in sem_version.filter(
-                filter(
-                    lambda v: v is not None,
-                    (PipResolver.get_version(v_str, none_default=none_default) for v_str in dist.versions_available),
+            none_default = self.get_version(dist.version_installed) if dist.version_installed is not None else None
+            for raw_version in dist.versions_available:
+                pkg_version = self.get_version(raw_version, none_default=none_default)
+                if pkg_version is None or not sem_version.match(pkg_version):
+                    continue
+                key = (dist.name, raw_version, tuple(dist.extras_requested))
+                if key in visited:
+                    continue
+                visited.add(key)
+                # A distribution's metadata describes one release, not every available version.
+                # Reuse matching metadata (including local wheels); otherwise pin the original
+                # PyPI version string, which may not survive conversion to semantic_version.
+                release = dist
+                if raw_version != "none" and raw_version != dist.metadata.get("version"):
+                    extras = f"[{','.join(dist.extras_requested)}]" if dist.extras_requested else ""
+                    release = JohnnyDist(f"{dist.name}{extras}=={raw_version}")
+                packages.append(
+                    Package(
+                        name=release.name,
+                        version=pkg_version,
+                        dependencies=self.get_dependencies(release),
+                        source=self,
+                    )
                 )
-            ):
-                package = Package(
-                    name=dist.name,
-                    version=pkg_version,
-                    dependencies=self.get_dependencies(dist),
-                    source=self,
-                )
-                packages.append(package)
-                if not recurse:
-                    break
-                queue.extend((child, self._get_specifier(child)) for child in dist.children)
+                if recurse:
+                    queue.extend((child, self._get_specifier(child)) for child in release.children)
         return packages
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
