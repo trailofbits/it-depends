@@ -11,13 +11,13 @@ from urllib.parse import quote, urlsplit
 
 import requests
 
-from .models import MaintenanceInfo, SourcePackage
+from it_depends.models import AliasedDependency, MaintenanceInfo, Package, SourcePackage
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .cache import PackageRepository
-    from .models import Package
+    from it_depends.cache import PackageRepository
+    from it_depends.models import Dependency
 
 
 def extract_github_repo(url: str) -> tuple[str, str] | None:
@@ -133,6 +133,34 @@ def _is_rate_limited(error: requests.HTTPError) -> bool:
     return isinstance(message, str) and "rate limit" in message.lower()
 
 
+def _npm_dependencies(repo: PackageRepository) -> dict[str, list[Dependency]]:
+    """Index npm dependency declarations by their logical package names."""
+    dependencies: dict[str, list[Dependency]] = {}
+    for package in repo:
+        for dependency in package.dependencies:
+            if dependency.source == "npm":
+                dependencies.setdefault(dependency.package, []).append(dependency)
+    return dependencies
+
+
+def _npm_registry_package(package: Package, dependencies: list[Dependency]) -> Package | None:
+    """Use a unique version-matching alias target without renaming the graph node."""
+    if package.source != "npm" or isinstance(package, SourcePackage):
+        return package
+    if not any(isinstance(dependency, AliasedDependency) for dependency in dependencies):
+        return package
+    targets = set()
+    for dependency in dependencies:
+        if dependency.match(package):
+            target = package.name
+            if isinstance(dependency, AliasedDependency):
+                target = f"@{dependency.alias_name.removeprefix('@')}"
+            targets.add(target)
+    if len(targets) != 1:
+        return None
+    return Package(targets.pop(), package.version, package.source)
+
+
 def check_maintenance_status(
     repo: PackageRepository,
     stale_threshold_days: int = 365,
@@ -174,6 +202,13 @@ def check_maintenance_status(
             raise result
         return result
 
+    npm_dependencies = _npm_dependencies(repo)
     for package in repo:
-        package.maintenance_info = _check_package(package, stale_threshold_days, get_json)
+        registry_package = _npm_registry_package(package, npm_dependencies.get(package.name, []))
+        if registry_package is None:
+            message = f"Cannot verify npm alias target for {package}"
+            message += "; re-resolve with unambiguous dependency metadata"
+            package.maintenance_info = MaintenanceInfo(error=message)
+        else:
+            package.maintenance_info = _check_package(registry_package, stale_threshold_days, get_json)
     return repo
