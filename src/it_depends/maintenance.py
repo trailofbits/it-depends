@@ -52,7 +52,10 @@ def _get_json(url: str, token: str | None = None) -> Any:  # noqa: ANN401
 
 def _repository_url(package: Package, get_json: Callable[[str], Any]) -> str | None:
     """Look up registry metadata without changing the dependency resolvers."""
-    name = quote(package.name, safe="")
+    name = package.name
+    if package.source == "npm" and name.count("/") == 1 and not name.startswith("@"):
+        name = f"@{name}"
+    name = quote(name, safe="")
     if package.source == "go":
         # The shared parser validates the exact hostname before any GitHub request.
         return "https://" + package.name
