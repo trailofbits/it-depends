@@ -1,12 +1,13 @@
 """Regression tests for release-specific pip dependency metadata."""
 
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 from zipfile import ZipFile
 
 import pytest
-from johnnydep import JohnnyDist
+from johnnydep import JohnnyDist, JohnnyError, lib
 from packaging.requirements import Requirement
 
 from it_depends.dependencies import Dependency, SimpleSpec
@@ -123,10 +124,54 @@ def test_legacy_local_version(installed: str | None) -> None:
 
 
 @pytest.mark.usefixtures("registry")
-def test_release_metadata_failure_is_not_replaced_with_latest() -> None:
-    dist = JohnnyDist("python-dateutil")
-    with (
-        patch("johnnydep.lib._get_info", side_effect=ValueError("metadata unavailable")),
-        pytest.raises(ValueError, match="metadata unavailable"),
-    ):
-        list(PipResolver().resolve_dist(dist, version=SimpleSpec("==2.8.1"), recurse=False))
+@pytest.mark.parametrize(
+    "error",
+    [ValueError("invalid metadata"), subprocess.CalledProcessError(1, ["pip", "wheel"]), JohnnyError("no wheel")],
+)
+@pytest.mark.parametrize("failed_version", ["2.8.1", "2.8.2"])
+def test_public_resolver_retains_releases_after_metadata_failure(
+    error: Exception,
+    failed_version: str,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    get_info = lib._get_info  # noqa: SLF001
+
+    def info(req: Requirement, *args: object) -> SimpleNamespace:
+        if str(req.specifier) == f"=={failed_version}":
+            raise error
+        return get_info(req, *args)
+
+    with patch("johnnydep.lib._get_info", side_effect=info):
+        packages = list(PipResolver().resolve(Dependency.from_string("pip:python-dateutil@*")))
+    expected = {"2.8.1": {"six"}, "2.8.2": {"six"}, "3.0.0": {"tzdata"}}
+    del expected[failed_version]
+    assert {str(p.version): {d.package for d in p.dependencies} for p in packages} == expected
+    assert f"python-dateutil=={failed_version}" in caplog.text
+    assert "Skipping" in caplog.text
+
+
+@pytest.mark.usefixtures("registry")
+def test_public_resolver_retains_releases_after_dependency_metadata_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    get_dependencies = PipResolver.get_dependencies
+
+    def dependencies(dist: JohnnyDist) -> object:
+        if dist.metadata["version"] == "2.8.2":
+            message = "child metadata unavailable"
+            raise ValueError(message)
+        return get_dependencies(dist)
+
+    with patch.object(PipResolver, "get_dependencies", side_effect=dependencies):
+        packages = list(PipResolver().resolve(Dependency.from_string("pip:python-dateutil@*")))
+    assert [str(p.version) for p in packages] == ["2.8.1", "3.0.0"]
+    assert "python-dateutil==2.8.2" in caplog.text
+
+
+@pytest.mark.usefixtures("registry")
+def test_all_failed_releases_return_empty_with_diagnostics(caplog: pytest.LogCaptureFixture) -> None:
+    with patch.object(PipResolver, "get_dependencies", side_effect=ValueError("metadata unavailable")):
+        packages = list(PipResolver().resolve(Dependency.from_string("pip:python-dateutil@*")))
+    assert packages == []
+    for version in ("2.8.1", "2.8.2", "3.0.0"):
+        assert f"python-dateutil=={version}" in caplog.text

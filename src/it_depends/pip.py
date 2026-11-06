@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-from johnnydep import JohnnyDist
+from johnnydep import JohnnyDist, JohnnyError
 from johnnydep.logs import configure_logging
 
 from .dependencies import (
@@ -260,23 +260,28 @@ class PipResolver(DependencyResolver):
                 if key in visited:
                     continue
                 visited.add(key)
-                # A distribution's metadata describes one release, not every available version.
-                # Reuse matching metadata (including local wheels); otherwise pin the original
-                # PyPI version string, which may not survive conversion to semantic_version.
-                release = dist
-                if raw_version != "none" and raw_version != dist.metadata.get("version"):
-                    extras = f"[{','.join(dist.extras_requested)}]" if dist.extras_requested else ""
-                    release = JohnnyDist(f"{dist.name}{extras}=={raw_version}")
-                packages.append(
-                    Package(
-                        name=release.name,
-                        version=pkg_version,
-                        dependencies=self.get_dependencies(release),
-                        source=self,
+                try:
+                    # A distribution's metadata describes one release, not every available version.
+                    # Reuse matching metadata (including local wheels); otherwise pin the original
+                    # PyPI version string, which may not survive conversion to semantic_version.
+                    release = dist
+                    if raw_version != "none" and raw_version != dist.metadata.get("version"):
+                        extras = f"[{','.join(dist.extras_requested)}]" if dist.extras_requested else ""
+                        release = JohnnyDist(f"{dist.name}{extras}=={raw_version}")
+                    packages.append(
+                        Package(
+                            name=release.name,
+                            version=pkg_version,
+                            dependencies=self.get_dependencies(release),
+                            source=self,
+                        )
                     )
-                )
-                if recurse:
-                    queue.extend((child, self._get_specifier(child)) for child in release.children)
+                    if recurse:
+                        queue.extend((child, self._get_specifier(child)) for child in release.children)
+                except (subprocess.CalledProcessError, ValueError, JohnnyError) as error:
+                    log.warning(
+                        "Skipping %s==%s: could not resolve release metadata: %s", dist.name, raw_version, error
+                    )
         return packages
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
