@@ -45,6 +45,19 @@ class Settings(BaseSettings):
         default=False,
         description="""Audit packages for known vulnerabilities using Google OSV.""",
     )
+    check_maintenance: CliImplicitFlag[bool] = Field(
+        alias="check-maintenance",
+        default=False,
+        description="""Check maintenance status of GitHub-hosted packages.
+        Queries GitHub API for last commit date and flags stale packages.""",
+    )
+    stale_threshold: int = Field(
+        alias="stale-threshold",
+        default=365,
+        ge=0,
+        description="""Days since last commit to consider a package stale.
+        Default: 365 (1 year). Requires --check-maintenance.""",
+    )
     database: Path = Field(
         default=DEFAULT_DB_PATH,
         description="""Alternative path to load/store the database, or

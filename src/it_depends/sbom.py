@@ -1,10 +1,11 @@
 """Software Bill of Materials (SBOM) generation module."""
 
 from collections.abc import Iterable
+from dataclasses import asdict
 from typing import TypeVar
 
 from cyclonedx.builder.this import this_component as cdx_lib_component
-from cyclonedx.model import XsUri
+from cyclonedx.model import Property, XsUri
 from cyclonedx.model.bom import Bom
 from cyclonedx.model.component import Component, ComponentType
 from cyclonedx.model.contact import OrganizationalEntity
@@ -17,6 +18,24 @@ __all__ = "SBOM", "cyclonedx_to_json"
 
 
 S = TypeVar("S", bound="SBOM")
+
+
+def _add_maintenance_properties(component: Component, package: Package) -> None:
+    """Add maintenance information as properties to a CycloneDX component.
+
+    Args:
+        component: CycloneDX component to add properties to
+        package: Package with maintenance information
+
+    """
+    if package.maintenance_info is not None:
+        for name, value in asdict(package.maintenance_info).items():
+            if value is not None:
+                component.properties.add(
+                    Property(
+                        name=f"maintenance:{name}", value=str(value).lower() if isinstance(value, bool) else str(value)
+                    )
+                )
 
 
 class SBOM:
@@ -55,6 +74,7 @@ class SBOM:
                 version=str(root_package.version),
                 bom_ref=root_package.full_name,
             )
+            _add_maintenance_properties(root_component, root_package)
             bom.components.add(root_component)
             expanded[root_package] = root_component
 
@@ -79,7 +99,9 @@ class SBOM:
                     version=str(pkg.version),
                     bom_ref=f"{pkg.full_name}@{pkg.version!s}",
                 )
+                _add_maintenance_properties(component, pkg)
                 bom.components.add(component)
+                expanded[pkg] = component
             else:
                 component = expanded[pkg]
             if depends_on not in expanded:
@@ -89,7 +111,9 @@ class SBOM:
                     version=str(depends_on.version),
                     bom_ref=f"{depends_on.full_name}@{depends_on.version!s}",
                 )
+                _add_maintenance_properties(d_component, depends_on)
                 bom.components.add(d_component)
+                expanded[depends_on] = d_component
             else:
                 d_component = expanded[depends_on]
             bom.register_dependency(component, [d_component])

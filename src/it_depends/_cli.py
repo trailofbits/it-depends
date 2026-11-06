@@ -17,6 +17,7 @@ from .db import DBPackageCache
 from .dependencies import Dependency, SourceRepository, resolve, resolve_sbom, resolvers
 from .html import graph_to_html
 from .logger import setup_logger
+from .maintenance import check_maintenance_status
 from .sbom import cyclonedx_to_json
 
 if TYPE_CHECKING:
@@ -155,6 +156,14 @@ def _write_output(
         raise NotImplementedError(msg)
 
 
+def _enrich_packages(settings: Settings, packages: PackageRepository) -> PackageRepository:
+    if settings.audit:
+        packages = vulnerabilities(packages)
+    if settings.check_maintenance:
+        packages = check_maintenance_status(packages, stale_threshold_days=settings.stale_threshold)
+    return packages
+
+
 def main() -> None:
     settings = Settings()  # type: ignore[call-arg]
     setup_logger(settings.log_level)
@@ -192,9 +201,7 @@ def main() -> None:
             if not package_list:
                 logger.error("Try --list to check for available resolvers for %s", settings.target)
 
-            # TODO(@evandowning): Should the cache be updated instead???? # noqa: TD003, FIX002
-            if settings.audit:
-                package_list = vulnerabilities(package_list)
+            package_list = _enrich_packages(settings, package_list)
 
             _write_output(settings, cache, package_list, to_compare, output_write=output_write)
 

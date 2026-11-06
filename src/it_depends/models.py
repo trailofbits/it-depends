@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict, dataclass
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -76,6 +77,17 @@ class Vulnerability:
             msg = "Need a Vulnerability"
             raise TypeError(msg)
         return self.id < other.id
+
+
+@dataclass
+class MaintenanceInfo:
+    """GitHub commit activity; a null staleness value means the check failed."""
+
+    repository_url: str | None = None
+    last_commit_date: str | None = None
+    is_stale: bool | None = None
+    days_since_update: int | None = None
+    error: str | None = None
 
 
 class Dependency:
@@ -259,6 +271,7 @@ class Package:
         else:
             self.source = source
         self.vulnerabilities: frozenset[Vulnerability] = frozenset(vulnerabilities)
+        self.maintenance_info: MaintenanceInfo | None = None
 
     @property
     def full_name(self) -> str:
@@ -352,13 +365,16 @@ class Package:
 
     def to_obj(self) -> dict[str, Any]:
         """Convert package to dictionary representation."""
-        return {
+        obj: dict[str, Any] = {
             "source": self.source,
             "name": self.name,
             "version": str(self.version),
             "dependencies": {f"{dep.source}:{dep.package}": str(dep.semantic_version) for dep in self.dependencies},
             "vulnerabilities": [vuln.to_obj() for vuln in self.vulnerabilities],
         }
+        if self.maintenance_info:
+            obj["maintenance"] = asdict(self.maintenance_info)
+        return obj
 
     def dumps(self) -> str:
         """Serialize package to JSON string."""

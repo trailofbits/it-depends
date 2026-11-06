@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from dataclasses import asdict
 from sys import version_info
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if version_info < (3, 11):
     from typing_extensions import Self
@@ -146,11 +147,11 @@ class PackageCache(ABC):
                     graph.add_edge(package, p, dependency=dep)
         return graph
 
-    def to_obj(self) -> dict[str, dict[str, dict[str, str | bool | list[str] | dict[str, str]]]]:
+    def to_obj(self) -> dict[str, dict[str, dict[str, Any]]]:
         """Convert cache to object representation."""
 
-        def package_to_dict(package: Package) -> dict[str, str | bool | list[str] | dict[str, str]]:
-            ret: dict[str, str | bool | list[str] | dict[str, str]] = {
+        def package_to_dict(package: Package) -> dict[str, Any]:
+            ret: dict[str, Any] = {
                 "name": package.name,
                 "version": str(package.version),
                 "dependencies": {
@@ -159,6 +160,8 @@ class PackageCache(ABC):
                 "vulnerabilities": [v.to_compact_str() for v in package.vulnerabilities],
                 "source": package.source,
             }
+            if package.maintenance_info is not None:
+                ret["maintenance"] = asdict(package.maintenance_info)
             if isinstance(package, SourcePackage):
                 ret["is_source_package"] = True
             else:

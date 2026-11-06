@@ -39,6 +39,13 @@ it-depends --depth-limit 1 "pip:scikit-learn"           # Only direct dependenci
 it-depends --output-format dot --output-file file.dot . # Output as Graphviz/Dot
 ```
 
+### Checking package maintenance
+
+```shell
+it-depends pip:requests --check-maintenance
+it-depends npm:lodash --check-maintenance --stale-threshold 180
+```
+
 ## Development
 
 ```shell
