@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-from johnnydep import JohnnyDist
+from johnnydep import JohnnyDist, JohnnyError
 from johnnydep.logs import configure_logging
 
 from .dependencies import (
@@ -248,25 +248,40 @@ class PipResolver(DependencyResolver):
             version = SimpleSpec("*")
         queue = [(dist, version)]
         packages: list[Package] = []
+        visited: set[tuple[str, str, tuple[str, ...]]] = set()
         while queue:
             dist, sem_version = queue.pop()
-            none_default = Version.coerce(dist.version_installed) if dist.version_installed is not None else None
-            for pkg_version in sem_version.filter(
-                filter(
-                    lambda v: v is not None,
-                    (PipResolver.get_version(v_str, none_default=none_default) for v_str in dist.versions_available),
-                )
-            ):
-                package = Package(
-                    name=dist.name,
-                    version=pkg_version,
-                    dependencies=self.get_dependencies(dist),
-                    source=self,
-                )
-                packages.append(package)
-                if not recurse:
-                    break
-                queue.extend((child, self._get_specifier(child)) for child in dist.children)
+            none_default = self.get_version(dist.version_installed) if dist.version_installed is not None else None
+            for raw_version in dist.versions_available:
+                pkg_version = self.get_version(raw_version, none_default=none_default)
+                if pkg_version is None or not sem_version.match(pkg_version):
+                    continue
+                key = (dist.name, raw_version, tuple(dist.extras_requested))
+                if key in visited:
+                    continue
+                visited.add(key)
+                try:
+                    # A distribution's metadata describes one release, not every available version.
+                    # Reuse matching metadata (including local wheels); otherwise pin the original
+                    # PyPI version string, which may not survive conversion to semantic_version.
+                    release = dist
+                    if raw_version != "none" and raw_version != dist.metadata.get("version"):
+                        extras = f"[{','.join(dist.extras_requested)}]" if dist.extras_requested else ""
+                        release = JohnnyDist(f"{dist.name}{extras}=={raw_version}")
+                    packages.append(
+                        Package(
+                            name=release.name,
+                            version=pkg_version,
+                            dependencies=self.get_dependencies(release),
+                            source=self,
+                        )
+                    )
+                    if recurse:
+                        queue.extend((child, self._get_specifier(child)) for child in release.children)
+                except (subprocess.CalledProcessError, ValueError, JohnnyError) as error:
+                    log.warning(
+                        "Skipping %s==%s: could not resolve release metadata: %s", dist.name, raw_version, error
+                    )
         return packages
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
