@@ -4,10 +4,12 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
-from zipfile import ZipFile
+from urllib.error import HTTPError, URLError
+from zipfile import BadZipFile, ZipFile
 
 import pytest
 from johnnydep import JohnnyDist, JohnnyError, lib
+from packaging.markers import default_environment
 from packaging.requirements import Requirement
 
 from it_depends.dependencies import Dependency, SimpleSpec
@@ -94,22 +96,114 @@ def test_invalid_versions_are_skipped() -> None:
 
 
 @pytest.mark.usefixtures("registry")
-def test_local_wheel_metadata_is_preserved(tmp_path: Path) -> None:
-    wheel = tmp_path / "python_dateutil-2.8.1-py3-none-any.whl"
+@pytest.mark.parametrize("wheel_version", ["2.8.1", "1.0", "1.0.0", "1.0.0.post1"])
+def test_local_wheel_metadata_is_preserved(tmp_path: Path, wheel_version: str) -> None:
+    wheel = tmp_path / f"python_dateutil-{wheel_version}-py3-none-any.whl"
     with ZipFile(wheel, "w") as archive:
         archive.writestr("dateutil/__init__.py", "")
         archive.writestr(
-            "python_dateutil-2.8.1.dist-info/METADATA",
-            "Metadata-Version: 2.1\nName: python-dateutil\nVersion: 2.8.1\nRequires-Dist: tzdata\n",
+            f"python_dateutil-{wheel_version}.dist-info/METADATA",
+            f"Metadata-Version: 2.1\nName: python-dateutil\nVersion: {wheel_version}\nRequires-Dist: tzdata\n",
         )
     dist = JohnnyDist(str(wheel))
-    dist.versions_available = ["2.8.1"]
     _ = dist.children
-    with patch("johnnydep.lib._get_info", side_effect=AssertionError("unexpected registry lookup")):
+    with (
+        patch("johnnydep.lib._get_versions", return_value=[]),
+        patch("johnnydep.lib._get_info", side_effect=AssertionError("unexpected registry lookup")),
+    ):
         packages = list(PipResolver().resolve_dist(dist, recurse=False))
+    assert len(packages) == 1
     assert {d.package for d in packages[0].dependencies} == {"tzdata"}
     source = PipSourcePackage.from_dist(dist, tmp_path)
     assert {d.package for d in source.dependencies} == {"tzdata"}
+
+
+@pytest.mark.parametrize("recurse", [False, True])
+def test_pinned_releases_preserve_index_and_environment(
+    registry: dict[str, dict[str, list[str]]], *, recurse: bool
+) -> None:
+    registry["example"] = {
+        "1.0.0": ['six; sys_platform == "win32"'],
+        "2.0.0": ['tzdata; sys_platform == "win32"'],
+    }
+    index_urls = ("https://packages.example.invalid/simple",)
+    env = tuple(sorted({**default_environment(), "sys_platform": "win32"}.items()))
+    get_info = lib._get_info  # noqa: SLF001 -- mock only the registry lookup boundary.
+
+    def info(req: Requirement, indexes: tuple[str, ...], environment: object) -> SimpleNamespace:
+        assert indexes == index_urls
+        assert environment == env
+        return get_info(req, indexes, environment)
+
+    with patch("johnnydep.lib._get_info", side_effect=info):
+        dist = JohnnyDist("example", index_urls=index_urls, env=env)
+        packages = list(PipResolver().resolve_dist(dist, recurse=recurse))
+    assert {str(p.version): {d.package for d in p.dependencies} for p in packages if p.name == "example"} == {
+        "1.0.0": {"six"},
+        "2.0.0": {"tzdata"},
+    }
+    assert {p.name for p in packages} == ({"example", "six", "tzdata"} if recurse else {"example"})
+
+
+def test_equivalent_versions_are_deduplicated(registry: dict[str, dict[str, list[str]]]) -> None:
+    registry["example"] = {"1": [], "1.0": [], "1.0.0": [], "1.0.0.post1": [], "1.0.0.post2": []}
+    packages = list(PipResolver().resolve_dist(JohnnyDist("example"), recurse=False))
+    assert [str(p.version) for p in packages] == ["1.0.0", "1.0.0+post1", "1.0.0+post2"]
+
+
+def test_recursive_resolution_preserves_distinct_extras(registry: dict[str, dict[str, list[str]]]) -> None:
+    registry["root"] = {"1.0.0": ["example[compat]", "example[other]"]}
+    registry["example"] = {
+        "1.0.0": ['six; extra == "compat"', 'tzdata; extra == "other"'],
+    }
+    packages = list(PipResolver().resolve_dist(JohnnyDist("root")))
+    example_dependencies = [frozenset(d.package for d in p.dependencies) for p in packages if p.name == "example"]
+    expected = {frozenset({"six"}), frozenset({"tzdata"})}
+    assert len(example_dependencies) == len(expected)
+    assert set(example_dependencies) == expected
+    assert {p.name for p in packages} == {"root", "example", "six", "tzdata"}
+
+
+@pytest.mark.usefixtures("registry")
+@pytest.mark.parametrize("metadata_version", [None, "invalid"])
+def test_missing_or_invalid_metadata_version_is_refetched(metadata_version: str | None) -> None:
+    dist = JohnnyDist("python-dateutil")
+    dist.metadata["version"] = metadata_version
+    packages = list(PipResolver().resolve_dist(dist, recurse=False))
+    assert {str(p.version): {d.package for d in p.dependencies} for p in packages} == {
+        "2.8.1": {"six"},
+        "2.8.2": {"six"},
+        "3.0.0": {"tzdata"},
+    }
+
+
+@pytest.mark.usefixtures("registry")
+def test_invalid_python_version_does_not_discard_other_releases(caplog: pytest.LogCaptureFixture) -> None:
+    dist = JohnnyDist("python-dateutil")
+    dist.versions_available = ["2.8.1", "1.0.0-unknown", "2.8.2"]
+    packages = list(PipResolver().resolve_dist(dist, recurse=False))
+    assert [str(p.version) for p in packages] == ["2.8.1", "2.8.2"]
+    assert "python-dateutil==1.0.0-unknown" in caplog.text
+
+
+@pytest.mark.usefixtures("registry")
+@pytest.mark.parametrize("ignore_errors", [False, True])
+def test_release_metadata_errors_follow_supplied_policy(*, ignore_errors: bool) -> None:
+    get_info = lib._get_info  # noqa: SLF001 -- mock only the registry lookup boundary.
+
+    def info(req: Requirement, *args: object) -> SimpleNamespace:
+        if str(req.specifier) == "==2.8.1":
+            message = "release metadata unavailable"
+            raise ValueError(message)
+        return get_info(req, *args)
+
+    with patch("johnnydep.lib._get_info", side_effect=info):
+        dist = JohnnyDist("python-dateutil", ignore_errors=ignore_errors)
+        packages = list(PipResolver().resolve_dist(dist, recurse=False))
+    expected = {"2.8.2": {"six"}, "3.0.0": {"tzdata"}}
+    if ignore_errors:
+        expected["2.8.1"] = set()
+    assert {str(p.version): {d.package for d in p.dependencies} for p in packages} == expected
 
 
 @pytest.mark.usefixtures("registry")
@@ -126,7 +220,14 @@ def test_legacy_local_version(installed: str | None) -> None:
 @pytest.mark.usefixtures("registry")
 @pytest.mark.parametrize(
     "error",
-    [ValueError("invalid metadata"), subprocess.CalledProcessError(1, ["pip", "wheel"]), JohnnyError("no wheel")],
+    [
+        ValueError("invalid metadata"),
+        subprocess.CalledProcessError(1, ["pip", "wheel"]),
+        JohnnyError("no wheel"),
+        HTTPError("https://packages.example.invalid/release.whl", 404, "Not Found", None, None),
+        URLError("offline"),
+        BadZipFile("invalid wheel"),
+    ],
 )
 @pytest.mark.parametrize("failed_version", ["2.8.1", "2.8.2"])
 def test_public_resolver_retains_releases_after_metadata_failure(
