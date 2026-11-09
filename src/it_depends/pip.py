@@ -9,14 +9,17 @@ from logging import getLogger
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
+from zipfile import BadZipFile
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-from johnnydep import JohnnyDist
+from johnnydep import JohnnyDist, JohnnyError
 from johnnydep.logs import configure_logging
+from packaging.version import InvalidVersion
+from packaging.version import Version as PackagingVersion
 
-from .dependencies import (
+from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     DockerSetup,
@@ -226,6 +229,34 @@ class PipResolver(DependencyResolver):
             # TODO(@evandowning): Figure out a better way to handle invalid version strings  # noqa: TD003, FIX002
         return None
 
+    @staticmethod
+    def _release_dist(dist: JohnnyDist, raw_version: str, version: PackagingVersion | None) -> JohnnyDist:
+        """Reuse equivalent metadata or pin a release with the original settings."""
+        if version is None:
+            return dist
+        try:
+            metadata_version = PackagingVersion(dist.metadata.get("version") or "")
+        except InvalidVersion:
+            metadata_version = None
+        if version == metadata_version:
+            return dist
+        extras = f"[{','.join(dist.extras_requested)}]" if dist.extras_requested else ""
+        return JohnnyDist(
+            f"{dist.name}{extras}=={raw_version}",
+            index_urls=dist._index_urls,  # noqa: SLF001 -- JohnnyDist has no public settings accessors.
+            env=dist._env,  # noqa: SLF001 -- Preserve the supplied target environment.
+            ignore_errors=dist._ignore_errors,  # noqa: SLF001 -- Preserve the supplied error policy.
+        )
+
+    def _matching_versions(self, dist: JohnnyDist, version: SemanticVersion) -> Iterator[tuple[str, Version]]:
+        """Yield original release strings and versions matching the requested range."""
+        installed = dist.version_installed
+        none_default = self.get_version(installed) if installed is not None else None
+        for raw_version in dist.versions_available:
+            pkg_version = self.get_version(raw_version, none_default=none_default)
+            if pkg_version is not None and version.match(pkg_version):
+                yield raw_version, pkg_version
+
     def resolve_dist(
         self,
         dist: JohnnyDist,
@@ -248,25 +279,31 @@ class PipResolver(DependencyResolver):
             version = SimpleSpec("*")
         queue = [(dist, version)]
         packages: list[Package] = []
+        visited: set[tuple[str, PackagingVersion | None, tuple[str, ...]]] = set()
         while queue:
             dist, sem_version = queue.pop()
-            none_default = Version.coerce(dist.version_installed) if dist.version_installed is not None else None
-            for pkg_version in sem_version.filter(
-                filter(
-                    lambda v: v is not None,
-                    (PipResolver.get_version(v_str, none_default=none_default) for v_str in dist.versions_available),
-                )
-            ):
-                package = Package(
-                    name=dist.name,
-                    version=pkg_version,
-                    dependencies=self.get_dependencies(dist),
-                    source=self,
-                )
-                packages.append(package)
-                if not recurse:
-                    break
-                queue.extend((child, self._get_specifier(child)) for child in dist.children)
+            for raw_version, pkg_version in self._matching_versions(dist, sem_version):
+                try:
+                    release_version = None if raw_version == "none" else PackagingVersion(raw_version)
+                    key = (dist.name, release_version, tuple(dist.extras_requested))
+                    if key in visited:
+                        continue
+                    visited.add(key)
+                    release = self._release_dist(dist, raw_version, release_version)
+                    packages.append(
+                        Package(
+                            name=release.name,
+                            version=pkg_version,
+                            dependencies=self.get_dependencies(release),
+                            source=self,
+                        )
+                    )
+                    if recurse:
+                        queue.extend((child, self._get_specifier(child)) for child in release.children)
+                except (subprocess.CalledProcessError, ValueError, JohnnyError, OSError, BadZipFile) as error:
+                    log.warning(
+                        "Skipping %s==%s: could not resolve release metadata: %s", dist.name, raw_version, error
+                    )
         return packages
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
