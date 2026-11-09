@@ -21,7 +21,7 @@ from sqlalchemy import (
     distinct,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import DeclarativeBase, relationship, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from .dependencies import (
     Dependency,
@@ -176,7 +176,7 @@ class DBPackage(Base, Package):
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)  # type: ignore[assignment]
-    version_str = Column("version", String, nullable=False)
+    version_str: Mapped[str] = mapped_column("version", String, nullable=False)
     source = Column("source", String, nullable=False)  # type: ignore[assignment]
 
     __table_args__ = (UniqueConstraint("name", "version", "source", name="package_unique_constraint"),)
@@ -191,7 +191,7 @@ class DBPackage(Base, Package):
         """Initialize a database package from a package."""
         # We intentionally skip calling super().__init__()
         self.name = package.name  # type: ignore[assignment]
-        self.version_str = str(package.version)  # type: ignore[assignment]
+        self.version_str = str(package.version)
         self.source = package.source  # type: ignore[assignment]
 
     @property
@@ -236,7 +236,7 @@ class DBPackage(Base, Package):
     @version.setter
     def version(self, new_version: Version | str) -> None:
         """Set the version of the package."""
-        self.version_str = str(new_version)  # type: ignore[assignment]
+        self.version_str = str(new_version)
 
     @property
     def dependencies(self) -> DependencyMapping:  # type: ignore[override]
