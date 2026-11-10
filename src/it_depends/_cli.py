@@ -63,6 +63,10 @@ def _parse_targets(
         logger.error("The specified path does not exist: %s", repo.path)
         sys.exit(1)
 
+    if isinstance(to_compare, SourceRepository) and not to_compare.path.exists():
+        logger.error("The specified path does not exist: %s", to_compare.path)
+        sys.exit(1)
+
     return repo, to_compare
 
 
