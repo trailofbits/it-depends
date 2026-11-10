@@ -781,7 +781,7 @@ requires-dist = [
     { name = "johnnydep", specifier = ">=1.20.6" },
     { name = "mypy", marker = "extra == 'lint'", specifier = ">=1.19.1,<3.0" },
     { name = "networkx", specifier = ">=3.4.2" },
-    { name = "packaging", specifier = "==26.1" },
+    { name = "packaging", specifier = "==26.3" },
     { name = "parse-cmake", specifier = ">=0.4.1" },
     { name = "pdoc", marker = "extra == 'doc'" },
     { name = "pip", specifier = ">=23.0" },
@@ -1322,11 +1322,11 @@ wheels = [
 
 [[package]]
 name = "packaging"
-version = "26.1"
+version = "26.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/df/de/0d2b39fb4af88a0258f3bac87dfcbb48e73fbdea4a2ed0e2213f9a4c2f9a/packaging-26.1.tar.gz", hash = "sha256:f042152b681c4bfac5cae2742a55e103d27ab2ec0f3d88037136b6bfe7c9c5de", size = 215519, upload-time = "2026-04-14T21:12:49.362Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7d/fa/3944b40b07da9ce895c0e6303a5ab7d53da063554f534556b134a54d6093/packaging-26.3.tar.gz", hash = "sha256:94edc256424af38762eb31306eed28beb9f0efc50a8837492c9d6fd6004aed79", size = 313412, upload-time = "2026-08-04T18:15:28.737Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7a/c2/920ef838e2f0028c8262f16101ec09ebd5969864e5a64c4c05fad0617c56/packaging-26.1-py3-none-any.whl", hash = "sha256:5d9c0669c6285e491e0ced2eee587eaf67b670d94a19e94e3984a481aba6802f", size = 95831, upload-time = "2026-04-14T21:12:47.56Z" },
+    { url = "https://files.pythonhosted.org/packages/63/34/ba1c580383c9eada3711951fef0795c80b829a078d72188184bcab9dd527/packaging-26.3-py3-none-any.whl", hash = "sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c", size = 129956, upload-time = "2026-08-04T18:15:27.159Z" },
 ]
 
 [[package]]
@@ -1364,11 +1364,11 @@ wheels = [
 
 [[package]]
 name = "pip"
-version = "26.2.2"
+version = "26.3"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/fa/e8/0842d757e483e895e670f655084cfe8b8c72580c6769a76b30b2789a0608/pip-26.2.2.tar.gz", hash = "sha256:3a8e5c800492787f33a4114ef54444546c340df428974ebba17e0fd47e11af2f", size = 1863336, upload-time = "2026-10-20T16:36:29.008Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/c7/f8d9e2e0e7c1ed8a22a10eeb3b5bf7860bc07d8446c7a978a882c5c8214b/pip-26.3.tar.gz", hash = "sha256:6c36ae7da8695be67e3cd9f7d87919667ced53f57ce2ede75d89b5912ed2bc4c", size = 1934348, upload-time = "2026-11-02T20:34:27.738Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl", hash = "sha256:fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70", size = 1819850, upload-time = "2026-10-20T16:36:27.046Z" },
+    { url = "https://files.pythonhosted.org/packages/07/25/ee8c38ae72d66b844ce8eb9711ba905dba21ca1a8a0c960057c41cd23337/pip-26.3-py3-none-any.whl", hash = "sha256:f3b60b20ffaadd4415ed7957212a38ac63fa4c5fa375bd0f4a797777940fad13", size = 1950951, upload-time = "2026-11-02T20:34:25.728Z" },
 ]
 
 [[package]]
