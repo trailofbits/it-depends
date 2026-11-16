@@ -202,16 +202,21 @@ def test_store_and_new_directory_are_private(trust_file: Path) -> None:
     assert stat.S_IMODE(trust_file.parent.stat().st_mode) == _PRIVATE_DIRECTORY_MODE
 
 
+@pytest.mark.parametrize("columns", ["40", "80", "200"])
 def test_target_rendering_cannot_interpret_markup_or_controls(
-    tmp_path: Path, terminal: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    terminal: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    columns: str,
 ) -> None:
+    monkeypatch.setenv("COLUMNS", columns)
     directory = tmp_path / "[red]hidden\n\x1b[2J"
     directory.mkdir()
     with patch("builtins.input", return_value="n"), pytest.raises(TrustError):
         require_trust([(SourceRepository(directory), str(directory))])
     captured = terminal.readouterr()
     assert not captured.out
-    assert "[red]hidden\\n\\x1b[2J" in captured.err
+    assert "[red]hidden\\n\\x1b[2J" in captured.err.replace("\n", "")
     assert "\x1b[2J" not in captured.err
 
 
