@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import os
 import sys
+from enum import Enum
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 from rich.console import Console
-from rich.prompt import Confirm
+from rich.prompt import Prompt
 from rich.text import Text
 
 from it_depends.it_depends import APP_DIRS
@@ -29,6 +30,14 @@ _WARNING = (
 
 class TrustError(Exception):
     """An input lacks approval, or approval cannot be read or saved."""
+
+
+class _TrustDecision(Enum):
+    """The duration of approval, or a request to cancel analysis."""
+
+    PERMANENT = "permanent"
+    RUN = "run"
+    CANCEL = "cancel"
 
 
 class _TrustStore(BaseModel):
@@ -98,11 +107,11 @@ def _describe(target: SourceRepository | Dependency, specification: str) -> str:
     if specification == target.package_full_name:
         return f"Package {specification!r} (all versions, including future versions)"
     if str(target.semantic_version) == "*":
-        return f"Package {specification!r} (resolves all versions; remembers this specification only)"
+        return f"Package {specification!r} (resolves all versions; approval covers this specification only)"
     return f"Package {specification!r} (the supplied version constraint)"
 
 
-def _confirm(console: Console, target: SourceRepository | Dependency, specification: str) -> None:
+def _request_approval(console: Console, target: SourceRepository | Dependency, specification: str) -> _TrustDecision:
     console.print(Text(_describe(target, specification)))
     console.print(Text(_WARNING))
     if not all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr)):
@@ -111,14 +120,25 @@ def _confirm(console: Console, target: SourceRepository | Dependency, specificat
             "Rerun with --trust to approve the targets and their dependencies for this run only."
         )
         raise TrustError(msg)
+    console.print(
+        Text("  permanent: Trust permanently (save approval)\n  run: Trust for this run only\n  cancel: Cancel (exit)")
+    )
     try:
-        approved = Confirm.ask("Trust this target and remember the approval?", default=False, console=console)
+        choice = Prompt.ask(
+            "Choose an option",
+            choices=[decision.value for decision in _TrustDecision],
+            default=_TrustDecision.CANCEL.value,
+            case_sensitive=False,
+            console=console,
+        )
     except EOFError as error:
         msg = "Trust approval cancelled: no input was available. No analysis was started."
         raise TrustError(msg) from error
-    if not approved:
+    decision = _TrustDecision(choice)
+    if decision is _TrustDecision.CANCEL:
         msg = "Target was not approved. No analysis was started."
         raise TrustError(msg)
+    return decision
 
 
 def require_trust(targets: Sequence[tuple[SourceRepository | Dependency, str]], *, trust: bool = False) -> None:
@@ -140,12 +160,16 @@ def require_trust(targets: Sequence[tuple[SourceRepository | Dependency, str]], 
         return
     path = APP_DIRS.user_config_path / "trust.json"
     store = _load_store(path)
-    approved = False
+    approved_for_run = _TrustStore()
+    changed = False
     for target, specification in targets:
-        if store.approves(target, specification):
+        if store.approves(target, specification) or approved_for_run.approves(target, specification):
             continue
-        _confirm(console, target, specification)
-        store.remember(target, specification)
-        approved = True
-    if approved:
+        decision = _request_approval(console, target, specification)
+        if decision is _TrustDecision.PERMANENT:
+            store.remember(target, specification)
+            changed = True
+        else:
+            approved_for_run.remember(target, specification)
+    if changed:
         _save_store(path, store)

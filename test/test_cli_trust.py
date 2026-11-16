@@ -46,7 +46,7 @@ def test_denial_prevents_resolution_cache_deletion_and_output(
         "--output-file",
         str(output),
     )
-    with patch("builtins.input", return_value="n"), pytest.raises(SystemExit) as raised:
+    with patch("builtins.input", return_value="cancel"), pytest.raises(SystemExit) as raised:
         _cli.main()
     assert raised.value.code == 1
     resolution.assert_not_called()
@@ -54,14 +54,32 @@ def test_denial_prevents_resolution_cache_deletion_and_output(
     assert not output.exists()
 
 
+@pytest.mark.parametrize("first_decision", ["permanent", "run"])
 def test_unapproved_comparison_prevents_both_analyses(
-    trust_file: Path, monkeypatch: pytest.MonkeyPatch, resolution: Mock
+    trust_file: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    resolution: Mock,
+    first_decision: str,
 ) -> None:
     _arguments(monkeypatch, "pip:numpy", "--compare", "npm:lodash")
-    with patch("builtins.input", side_effect=["y", "n"]), pytest.raises(SystemExit) as raised:
+    with patch("builtins.input", side_effect=[first_decision, "cancel"]), pytest.raises(SystemExit) as raised:
         _cli.main()
     assert raised.value.code == 1
     resolution.assert_not_called()
+    assert not trust_file.exists()
+
+
+def test_interactive_run_only_approval_runs_without_saving(
+    trust_file: Path, monkeypatch: pytest.MonkeyPatch, resolution: Mock
+) -> None:
+    _arguments(monkeypatch, "pip:numpy", "--compare", "pip:numpy")
+    with patch("builtins.input", return_value="run") as prompt:
+        _cli.main()
+    prompt.assert_called_once()
+    assert [call.args[0].package_full_name for call in resolution.call_args_list] == [
+        "pip:numpy",
+        "pip:numpy",
+    ]
     assert not trust_file.exists()
 
 
@@ -70,7 +88,7 @@ def test_approved_comparison_runs_both_analyses(
     trust_file: Path, monkeypatch: pytest.MonkeyPatch, resolution: Mock, comparison: str
 ) -> None:
     _arguments(monkeypatch, "pip:numpy", "--compare", comparison)
-    with patch("builtins.input", return_value="y") as prompt:
+    with patch("builtins.input", return_value="permanent") as prompt:
         _cli.main()
     assert [call.args[0].package_full_name for call in resolution.call_args_list] == [
         "pip:numpy",
@@ -122,7 +140,7 @@ def test_canonical_paths_share_approval(
     link.symlink_to(directory, target_is_directory=True)
     monkeypatch.chdir(tmp_path)
     _arguments(monkeypatch, "./project", "--compare", str(link))
-    with patch("builtins.input", return_value="y") as prompt:
+    with patch("builtins.input", return_value="permanent") as prompt:
         _cli.main()
     prompt.assert_called_once()
     assert [call.args[0].path for call in resolution.call_args_list] == [
@@ -138,12 +156,12 @@ def test_moving_directory_requires_new_approval(
     directory = tmp_path / "project"
     directory.mkdir()
     _arguments(monkeypatch, str(directory))
-    with patch("builtins.input", return_value="y"):
+    with patch("builtins.input", return_value="permanent"):
         _cli.main()
     moved = directory.rename(tmp_path / "moved")
     resolution.reset_mock()
     _arguments(monkeypatch, str(moved))
-    with patch("builtins.input", return_value="n"), pytest.raises(SystemExit):
+    with patch("builtins.input", return_value="cancel"), pytest.raises(SystemExit):
         _cli.main()
     resolution.assert_not_called()
 
@@ -154,7 +172,7 @@ def test_clear_cache_preserves_trust(
     database = tmp_path / "dependencies.sqlite"
     database.touch()
     _arguments(monkeypatch, "pip:numpy", "--clear-cache", "--database", str(database))
-    with patch("builtins.input", return_value="y"):
+    with patch("builtins.input", return_value="permanent"):
         _cli.main()
     assert not database.exists()
     assert json.loads(trust_file.read_text())["packages"] == ["pip:numpy"]
