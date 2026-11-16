@@ -53,13 +53,15 @@ directory or registry package may execute code from that target and its dependen
 your user permissions. For example, CMake configuration, Autotools macros, and Python build
 hooks can execute commands during analysis, even when no full build is required. Internal
 Docker usage does not sandbox the entire analysis. Run untrusted inputs in an appropriately
-isolated environment.
+isolated environment. Malicious code can steal credentials, read, modify, or delete your
+files, and contact remote systems with your user permissions. Continue only if you fully
+trust the target and its dependencies.
 
 For each unfamiliar target, the CLI offers **Trust permanently**, **Trust for this run only**,
-and **Cancel (exit)**. Cancel is the default. Only permanent approvals are saved. When you
-use `--compare`, you must approve both targets before either analysis starts. Approval
-includes the target's dependency tree; it does not save independent approvals for those
-dependencies.
+and **Cancel (exit)**. Use the up and down arrow keys to select an option, then press Enter.
+Cancel is selected by default. Only permanent approvals are saved. When you use `--compare`,
+you must approve both targets before either analysis starts. Approval includes the target's
+dependency tree; it does not save independent approvals for those dependencies.
 
 Directory approval applies to the exact absolute path after resolving symlinks. It persists
 across content changes, but does not apply to parent directories, child directories, or a
@@ -71,8 +73,9 @@ constraint. Other version constraints need separate approval, even if they overl
 constraints retain their resolver's meaning: `pip:numpy@1.0` selects the 1.0.x range, while
 `pip:numpy@=1.0.0` pins one version.
 
-Interactive approval requires terminal input and output. For headless execution or redirected
-output, explicitly authorize the current run:
+Interactive approval requires stdin and stdout to be terminals. The warning and menu appear
+on stderr, or on stdout if stderr is redirected. For headless execution or redirected stdout,
+explicitly authorize the current run:
 
 ```shell
 it-depends --trust /path/to/project

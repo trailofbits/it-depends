@@ -4,14 +4,20 @@ from __future__ import annotations
 
 import os
 import sys
+from contextlib import closing
 from enum import Enum
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import TYPE_CHECKING
 
+from prompt_toolkit.application import create_app_session
+from prompt_toolkit.input import create_input
+from prompt_toolkit.key_binding import KeyBindings
+from prompt_toolkit.output import create_output
+from prompt_toolkit.shortcuts import choice
 from pydantic import BaseModel, ConfigDict, Field
 from rich.console import Console
-from rich.prompt import Prompt
+from rich.panel import Panel
 from rich.text import Text
 
 from it_depends.it_depends import APP_DIRS
@@ -20,11 +26,15 @@ from it_depends.repository import SourceRepository
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from prompt_toolkit.key_binding import KeyPressEvent
+
     from it_depends.models import Dependency
 
 _WARNING = (
-    "Analysis may execute code from this target and its dependencies with your user permissions. "
-    "Internal Docker usage does not sandbox the entire analysis."
+    "WARNING: Only continue if you fully trust this target and its dependencies.\n\n"
+    "Analysis can execute arbitrary code with your user permissions. Malicious code could steal "
+    "credentials, read, modify, or delete your files, and contact remote systems.\n\n"
+    "Internal Docker usage does not sandbox the entire analysis. Cancel if you are unsure."
 )
 
 
@@ -111,30 +121,49 @@ def _describe(target: SourceRepository | Dependency, specification: str) -> str:
     return f"Package {specification!r} (the supplied version constraint)"
 
 
+def _choose_approval(console: Console) -> str:
+    bindings = KeyBindings()
+
+    @bindings.add("escape")
+    @bindings.add("c-d")
+    def _cancel(event: KeyPressEvent) -> None:
+        event.app.exit(result=_TrustDecision.CANCEL.value)
+
+    output = sys.stderr if console.stderr else sys.stdout
+    with (
+        closing(create_input(stdin=sys.stdin)) as terminal_input,
+        create_app_session(input=terminal_input, output=create_output(stdout=output)),
+    ):
+        return choice(
+            "Do you trust this code? (Up/Down to select, Enter to confirm)",
+            options=[
+                (_TrustDecision.PERMANENT.value, "Trust permanently (save approval)"),
+                (_TrustDecision.RUN.value, "Trust for this run only"),
+                (_TrustDecision.CANCEL.value, "Cancel (exit)"),
+            ],
+            default=_TrustDecision.CANCEL.value,
+            key_bindings=bindings,
+        )
+
+
 def _request_approval(console: Console, target: SourceRepository | Dependency, specification: str) -> _TrustDecision:
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    if interactive and not sys.stderr.isatty():
+        console = Console(highlight=False)
     console.print(Text(_describe(target, specification)))
-    console.print(Text(_WARNING))
-    if not all(stream.isatty() for stream in (sys.stdin, sys.stdout, sys.stderr)):
+    console.print(Panel(Text(_WARNING), title="Code execution warning", border_style="bold red"))
+    if not interactive:
         msg = (
             "Target is not trusted. Interactive approval requires a terminal. "
             "Rerun with --trust to approve the targets and their dependencies for this run only."
         )
         raise TrustError(msg)
-    console.print(
-        Text("  permanent: Trust permanently (save approval)\n  run: Trust for this run only\n  cancel: Cancel (exit)")
-    )
     try:
-        choice = Prompt.ask(
-            "Choose an option",
-            choices=[decision.value for decision in _TrustDecision],
-            default=_TrustDecision.CANCEL.value,
-            case_sensitive=False,
-            console=console,
-        )
+        selected = _choose_approval(console)
     except EOFError as error:
         msg = "Trust approval cancelled: no input was available. No analysis was started."
         raise TrustError(msg) from error
-    decision = _TrustDecision(choice)
+    decision = _TrustDecision(selected)
     if decision is _TrustDecision.CANCEL:
         msg = "Target was not approved. No analysis was started."
         raise TrustError(msg)
