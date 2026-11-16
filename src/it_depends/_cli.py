@@ -11,6 +11,8 @@ from pathlib import Path
 from sqlite3 import OperationalError
 from typing import TYPE_CHECKING
 
+from it_depends.trust import TrustError, require_trust
+
 from .audit import vulnerabilities
 from .config import Settings
 from .db import DBPackageCache
@@ -59,11 +61,32 @@ def _parse_targets(
         logger.exception(msg)
         sys.exit(1)
 
-    if isinstance(repo, SourceRepository) and not repo.path.exists():
-        logger.error("The specified path does not exist: %s", repo.path)
-        sys.exit(1)
+    for target in (repo, to_compare):
+        if isinstance(target, SourceRepository):
+            if not target.path.is_dir():
+                logger.error("The specified path is not a directory: %r", str(target.path))
+                sys.exit(1)
+            target.path = target.path.resolve()
 
     return repo, to_compare
+
+
+def _approve_targets(
+    settings: Settings,
+    repo: SourceRepository | Dependency,
+    to_compare: SourceRepository | Dependency | None,
+) -> None:
+    targets = [(repo, settings.target)]
+    if to_compare is not None:
+        targets.append((to_compare, settings.compare))
+    try:
+        require_trust(targets, trust=settings.trust)
+    except TrustError as error:
+        sys.stderr.write(f"{error}\n")
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.stderr.write("\nTrust approval cancelled. No analysis was started.\n")
+        sys.exit(130)
 
 
 def _clear_cache(settings: Settings) -> None:
@@ -176,11 +199,13 @@ def main() -> None:
     logger.info("Starting it-depends with settings: %s", settings)
 
     repo, to_compare = _parse_targets(settings)
-    _clear_cache(settings)
 
     if settings.list:
         _list_resolvers(repo, settings.target)
         return
+
+    _approve_targets(settings, repo, to_compare)
+    _clear_cache(settings)
 
     try:
         output_write = _get_output_writer(settings)

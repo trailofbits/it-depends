@@ -138,6 +138,9 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
 ) -> PackageRepository:
     """Resolve the dependencies for a package, dependency, or source repository.
 
+    Only analyze inputs and dependencies you trust to execute with your user permissions.
+    Python API callers are responsible for approval; the CLI trust gate does not apply here.
+
     If depth_limit is negative (the default), recursively resolve all dependencies.
     If depth_limit is greater than zero, only recursively resolve dependencies to that depth.
     max_workers controls the number of spawned threads, if None cpu_count is used.

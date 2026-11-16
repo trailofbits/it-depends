@@ -26,6 +26,7 @@ dependencies = [
     "pip >= 23.0",
     "platformdirs >= 4.4.0",
     "pydantic-settings>=2.7.1,<2.16.0",
+    "rich==15.0.0",
     "semantic_version >= 2.10.0",
     "sqlalchemy >= 2.0.43",
     "tqdm >= 4.67.1",

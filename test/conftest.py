@@ -1,4 +1,24 @@
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
 import pytest
+
+from it_depends import trust
+
+
+@pytest.fixture
+def trust_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    directory = tmp_path / "config"
+    monkeypatch.setattr(trust, "APP_DIRS", SimpleNamespace(user_config_path=directory))
+    return directory / "trust.json"
+
+
+@pytest.fixture
+def terminal(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> pytest.CaptureFixture[str]:
+    for stream in (sys.stdin, sys.stdout, sys.stderr):
+        monkeypatch.setattr(type(stream), "isatty", lambda _stream: True)
+    return capsys
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

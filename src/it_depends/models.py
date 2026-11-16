@@ -142,8 +142,9 @@ class Dependency:
         """
         try:
             source, tail = description.split(":", 1)
-            package, *remainder = tail.split("@", 1)
-            version_string = "@".join(remainder)
+            separator = tail.find("@", 1 if tail.startswith("@") else 0)
+            package = tail if separator == -1 else tail[:separator]
+            version_string = "" if separator == -1 else tail[separator + 1 :]
             if version_string:
                 resolver = _resolver_by_name(source)
                 version = resolver.parse_spec(version_string)
