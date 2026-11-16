@@ -66,6 +66,12 @@ exclude-newer = "1 week"
 
 [tool.pytest.ini_options]
 norecursedirs = ["test/repos"]
+# These tests are synchronous; the unused AnyIO plugin imports a deprecated pytest API.
+addopts = ["-p", "no:anyio"]
+filterwarnings = [
+    # CycloneDX moved this helper in 11.6; the old import supports our >=5 requirement.
+    'ignore:Deprecated re-export location - see docstring of "this_component" for details\.:DeprecationWarning:it_depends.sbom',
+]
 
 [tool.coverage.run]
 # don't attempt code coverage for the CLI entrypoints or logging configuration
