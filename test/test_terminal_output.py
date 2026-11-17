@@ -9,6 +9,7 @@ import subprocess
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
+from pathlib import Path
 from time import monotonic
 
 import pytest
@@ -82,6 +83,15 @@ def remaining(descriptor: int) -> bytes:
     return bytes(result)
 
 
+def finish_process(process: subprocess.Popen[bytes], descriptor: int) -> tuple[int, bytes]:
+    output = bytearray()
+    deadline = monotonic() + 10
+    while process.poll() is None and monotonic() < deadline:
+        if select.select([descriptor], [], [], 0.1)[0]:
+            output.extend(read_available(descriptor))
+    return process.wait(timeout=1), bytes(output) + remaining(descriptor)
+
+
 @pytest.mark.parametrize("mode", ["success", "failure"])
 def test_cli_restores_cursor_and_keeps_stdout_clean(mode: str) -> None:
     with terminals() as ((_, stdin), (output, stdout), (diagnostics, stderr)):
@@ -149,6 +159,56 @@ def test_interrupt_exports_only_approved_partial_results(answer: bytes | None) -
                 assert b"exported partial results" in rendered
             else:
                 assert artifact == b""
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+
+
+def test_saved_explorer_restores_screen_and_leaves_stdout_empty(tmp_path: Path) -> None:
+    path = tmp_path / "saved.json"
+    path.write_text("{}")
+    with terminals() as ((input_master, stdin), (output, stdout), (diagnostics, stderr)):
+        process = subprocess.Popen(
+            [sys.executable, "-m", "it_depends", "--explore", str(path)],
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            env=os.environ | {"TERM": "xterm-256color", "NO_COLOR": "1"},
+        )
+        try:
+            rendered = read_until(diagnostics, b"saved components")
+            os.write(input_master, b"q")
+            status, final_output = finish_process(process, diagnostics)
+            assert status == 0
+            rendered += final_output
+            assert b"\x1b[?1049h" in rendered
+            assert b"\x1b[?1049l" in rendered
+            assert remaining(output) == b""
+            assert path.read_text() == "{}"
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+
+
+def test_headless_interruption_never_prompts_or_emits_partial_json() -> None:
+    with terminals() as ((_, stdin), (_, _stdout), (diagnostics, stderr)):
+        process = subprocess.Popen(
+            [sys.executable, "-c", "MODE = 'interrupt'\n" + _SCRIPT],
+            stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
+            env=os.environ | {"TERM": "xterm-256color"},
+        )
+        try:
+            rendered = read_until(diagnostics, b"Interruptible analysis")
+            process.send_signal(signal.SIGINT)
+            expected_status = 130
+            assert process.wait(timeout=5) == expected_status
+            rendered += remaining(diagnostics)
+            assert b"partial results?" not in rendered
+            assert process.stdout.read() == b""
         finally:
             if process.poll() is None:
                 process.kill()

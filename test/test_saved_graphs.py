@@ -181,3 +181,55 @@ def test_loading_does_not_execute_commands_or_access_network(
     assert load_saved(native_file).nodes
     assert load_saved(cyclone_file).nodes
     boundary.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("source", "constraint", "versions", "expected"),
+    [
+        ("npm", "^1.0.0", ["1.2.0", "2.0.0"], {"1.2.0"}),
+        ("cargo", "^1.0.0", ["1.2.0", "2.0.0"], {"1.2.0"}),
+        ("go", "v1.2.3", ["v1.2.3", "v2.0.0"], {"v1.2.3"}),
+        ("custom", "opaque", ["release-blue"], set()),
+    ],
+)
+def test_native_matching_uses_ecosystem_rules_without_resolving(
+    tmp_path: Path,
+    source: str,
+    constraint: str,
+    versions: list[str],
+    expected: set[str],
+) -> None:
+    target = f"{source}:library"
+    document = {
+        "pip:root": {
+            "1.0.0": {
+                "name": "root",
+                "version": "1.0.0",
+                "source": "pip",
+                "dependencies": {target: constraint},
+            }
+        },
+        target: {version: {"name": "library", "version": version, "source": source} for version in versions},
+    }
+    path = tmp_path / "native.json"
+    path.write_text(json.dumps(document))
+    graph = load_saved(path)
+    root = node_named(graph, "root")
+    assert {graph.nodes[key].version for key in root.edges[0].targets} == expected
+
+
+def test_nested_and_anonymous_cyclonedx_components_do_not_invent_edges(tmp_path: Path) -> None:
+    path = tmp_path / "nested.json"
+    path.write_text(
+        json.dumps(
+            {
+                "bomFormat": "CycloneDX",
+                "specVersion": "1.7",
+                "metadata": {"component": {"name": "root", "components": [{"name": "contained"}]}},
+            }
+        )
+    )
+    graph = load_saved(path)
+    assert {node.name for node in graph.nodes.values()} == {"root", "contained"}
+    assert all(not node.edges for node in graph.nodes.values())
+    assert node_named(graph, "root", "").root

@@ -96,7 +96,7 @@ def _native_matches(
         specification = {"npm": NpmSpec, "cargo": CargoSpec, "go": GoSpec}.get(source, SimpleSpec)(constraint)
         version_parser = GoVersion if source == "go" else Version
         matches = tuple(
-            json.dumps([group, version]) for version in packages if specification.match(version_parser(version))
+            json.dumps([group, version]) for version in packages if version_parser(version) in specification
         )
     except ValueError as error:
         return (), f"Cannot match saved constraint {constraint!r}: {error}"

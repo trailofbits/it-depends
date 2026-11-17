@@ -59,6 +59,30 @@ results; interrupted runs exit with status 130. A second Ctrl+C forces exit. In-
 calls may need to finish after the first interrupt. Python API calls propagate interruption
 without prompting.
 
+### Exploring saved results
+
+Save a result, then open it in the offline explorer:
+
+```shell
+it-depends --output-file dependencies.json pip:requests
+it-depends --explore dependencies.json
+```
+
+The explorer reads native it-depends JSON, including all candidate versions and dependency
+constraints, and the component/dependency relationships in CycloneDX JSON 1.2 through 1.7.
+It preserves saved component references and version text. Exploration uses only the saved data;
+missing components and constraints that cannot be matched remain visible.
+
+Use Up/Down to navigate, Right or Space to expand, Left to collapse, and Enter to follow a
+reference. Shared dependencies and cycles link to their package entries. Use `/` to search
+package names, versions, references, or package URLs, Enter to return to the tree, Tab to switch
+panes, and `q` or Escape to close the explorer. Details include incoming dependencies and any
+saved vulnerability or maintenance information.
+
+The explorer requires terminal stdin, stdout, and stderr. Analysis exits normally without opening
+it. When you explicitly export JSON or CycloneDX, the completion message includes a command to
+reopen that file. Stdout-only runs do not save an additional copy.
+
 ### Checking package maintenance
 
 ```shell

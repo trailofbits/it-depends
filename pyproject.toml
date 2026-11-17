@@ -39,7 +39,15 @@ version = { attr = "it_depends.__version__" }
 
 [project.optional-dependencies]
 doc = ["pdoc"]
-test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-rerunfailures", "pretend", "coverage[toml]"]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "pytest-rerunfailures",
+    "pretend",
+    "coverage[toml]",
+    "hypothesis==6.168.4",
+]
 lint = [
     # 0.16 resolves string literal bindings for S310, which the `urlopen` call in
     # go.py relies on to pass without a `noqa`.
@@ -67,7 +75,7 @@ Source = "https://github.com/trailofbits/it-depends"
 exclude-newer = "1 week"
 
 [tool.pytest.ini_options]
-norecursedirs = ["test/repos"]
+norecursedirs = ["test/repos", ".hypothesis"]
 # These tests are synchronous; the unused AnyIO plugin imports a deprecated pytest API.
 addopts = ["-p", "no:anyio"]
 filterwarnings = [
