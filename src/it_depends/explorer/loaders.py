@@ -130,7 +130,7 @@ def _native(document: object) -> SavedGraph:
                 maintenance=_properties(package.maintenance),
                 root=package.is_source_package,
             )
-    return saved_graph("Candidate-version universe", nodes)
+    return saved_graph("All candidate dependency versions", nodes)
 
 
 def _components(bom: _CycloneDX) -> dict[str, _Component]:

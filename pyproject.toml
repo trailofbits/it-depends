@@ -30,6 +30,7 @@ dependencies = [
     "rich==15.0.0",
     "semantic_version >= 2.10.0",
     "sqlalchemy >= 2.0.43",
+    "textual==8.2.8",
 ]
 requires-python = ">=3.10"
 

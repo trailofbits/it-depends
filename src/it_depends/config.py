@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     """Settings for it-depends."""
 
     target: CliPositionalArg[str] = Field(
-        description="""Directory or package name to analyze. If a package
+        description="""Directory or package name to analyze, or a saved JSON file with --explore. If a package
             name is provided, it must be in the form of
             RESOLVER_NAME:PACKAGE_NAME[@OPTIONAL_VERSION], where RESOLVER_NAME
             is a resolver listed in `it-depends --list`.
@@ -64,6 +64,11 @@ class Settings(BaseSettings):
         default=False,
         description="""For `--output-format html`, this option will emit all
         package versions that satisfy each dependency.""",
+    )
+    explore: CliImplicitFlag[bool] = Field(
+        default=False,
+        description="""Explore a saved native it-depends JSON or CycloneDX JSON file offline.
+        Requires interactive stdin, stdout, and stderr. Does not analyze or execute the target.""",
     )
     audit: CliImplicitFlag[bool] = Field(
         default=False,

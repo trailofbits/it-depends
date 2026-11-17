@@ -1,4 +1,5 @@
 import json
+import shlex
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
@@ -301,3 +302,43 @@ def test_failed_analysis_does_not_claim_an_existing_file_was_saved(
         _cli.main()
     assert output.read_text() == "original"
     assert "Output saved" not in terminal.readouterr().err
+
+
+def test_saved_json_prints_a_shell_quoted_reopening_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    resolution: Mock,
+    terminal: pytest.CaptureFixture[str],
+) -> None:
+    output = tmp_path / "report with 'quotes'.json"
+    _arguments(monkeypatch, "pip:demo", "--trust", "--output-file", str(output))
+    _cli.main()
+    captured = terminal.readouterr()
+    assert json.loads(output.read_text()) == resolution.return_value.to_obj()
+    assert captured.out == ""
+    assert shlex.join(["it-depends", "--explore", str(output)]) in captured.err
+
+
+def test_failed_sbom_generation_does_not_offer_a_stale_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    resolution: Mock,
+    terminal: pytest.CaptureFixture[str],
+) -> None:
+    output = tmp_path / "report.json"
+    output.write_text("original")
+    _arguments(
+        monkeypatch,
+        "pip:demo",
+        "--trust",
+        "--force",
+        "--output-file",
+        str(output),
+        "--output-format",
+        "cyclonedx",
+    )
+    with patch.object(_cli, "resolve_sbom", return_value=iter(())), pytest.raises(SystemExit):
+        _cli.main()
+    assert output.read_text() == "original"
+    assert "Explore this result" not in terminal.readouterr().err
+    resolution.assert_called_once()
