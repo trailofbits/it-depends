@@ -9,6 +9,7 @@ from semantic_version import Version
 from it_depends import _cli, trust
 from it_depends.cache import PackageRepository
 from it_depends.config import Settings
+from it_depends.it_depends import APP_DIRS
 from it_depends.models import Dependency, SourcePackage
 from it_depends.repository import SourceRepository
 from it_depends.resolution import resolve
@@ -193,7 +194,9 @@ def test_interrupted_prompt_exits_cleanly(
     resolution.assert_not_called()
 
 
-def test_help_does_not_access_store(trust_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_help_shows_revocation_without_accessing_store(
+    trust_file: Path, monkeypatch: pytest.MonkeyPatch, terminal: pytest.CaptureFixture[str]
+) -> None:
     _arguments(monkeypatch, "--help")
     with (
         patch.object(Path, "read_text", side_effect=AssertionError("must not read store")),
@@ -202,6 +205,14 @@ def test_help_does_not_access_store(trust_file: Path, monkeypatch: pytest.Monkey
         _cli.main()
     assert raised.value.code == 0
     assert not trust_file.exists()
+    help_text = "".join(terminal.readouterr().out.split())
+    for text in (
+        str(APP_DIRS.user_config_path / "trust.json"),
+        "To revoke an approval, remove its entry",
+        "delete the file to revoke all approvals",
+        "--clear-cache does not revoke approvals",
+    ):
+        assert "".join(text.split()) in help_text
 
 
 def test_listing_does_not_prompt_clear_cache_or_analyze(

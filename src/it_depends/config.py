@@ -16,6 +16,7 @@ from pydantic_settings import (
 )
 
 from it_depends.db import DEFAULT_DB_PATH
+from it_depends.it_depends import APP_DIRS
 
 if TYPE_CHECKING:
     from pydantic.fields import FieldInfo
@@ -70,8 +71,11 @@ class Settings(BaseSettings):
     )
     trust: CliImplicitFlag[bool] = Field(
         default=False,
-        description="""Trust both requested targets and their dependencies for this run only.
-        Analysis may execute their code with your user permissions. Does not save approval.""",
+        description=f"""Trust both requested targets and their dependencies for this run only.
+        Analysis may execute their code with your user permissions. Does not save approval.
+        Saved interactive approvals are in {APP_DIRS.user_config_path / "trust.json"}.
+        To revoke an approval, remove its entry from that file; delete the file to revoke all approvals.
+        --clear-cache does not revoke approvals.""",
     )
     check_maintenance: CliImplicitFlag[bool] = Field(
         alias="check-maintenance",

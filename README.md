@@ -46,62 +46,6 @@ it-depends pip:requests --check-maintenance
 it-depends npm:lodash --check-maintenance --stale-threshold 180
 ```
 
-### Trusting analysis targets
-
-It-Depends dynamically resolves dependencies by invoking ecosystem tools. Analyzing a
-directory or registry package may execute code from that target and its dependencies with
-your user permissions. For example, CMake configuration, Autotools macros, and Python build
-hooks can execute commands during analysis, even when no full build is required. Internal
-Docker usage does not sandbox the entire analysis. Run untrusted inputs in an appropriately
-isolated environment. Malicious code can steal credentials, read, modify, or delete your
-files, and contact remote systems with your user permissions. Continue only if you fully
-trust the target and its dependencies.
-
-For each unfamiliar target, the CLI offers **Trust permanently**, **Trust for this run only**,
-and **Cancel (exit)**. Use the up and down arrow keys to select an option, then press Enter.
-Cancel is selected by default. Only permanent approvals are saved. When you use `--compare`,
-you must approve both targets before either analysis starts. Approval includes the target's
-dependency tree; it does not save independent approvals for those dependencies.
-
-Directory approval applies to the exact absolute path after resolving symlinks. It persists
-across content changes, but does not apply to parent directories, child directories, or a
-checkout moved to a different path.
-
-Package approval includes the resolver and package name. Approving `pip:numpy` trusts all
-versions, including future releases. Approving `pip:numpy@=1.0.0` remembers only that supplied
-constraint. Other version constraints need separate approval, even if they overlap. Version
-constraints retain their resolver's meaning: `pip:numpy@1.0` selects the 1.0.x range, while
-`pip:numpy@=1.0.0` pins one version.
-
-Interactive approval requires stdin and stdout to be terminals. The warning and menu appear
-on stderr, or on stdout if stderr is redirected. For headless execution or redirected stdout,
-explicitly authorize the current run:
-
-```shell
-it-depends --trust /path/to/project
-it-depends --trust pip:numpy --compare npm:lodash
-```
-
-`--trust` approves both requested targets and their dependencies for that run only. It does
-not read or change remembered approvals, and environment variables cannot enable it.
-`--help` and `--list` do not require approval.
-
-Approvals are stored in `trust.json` under the per-user configuration directory returned by
-`it_depends.it_depends.APP_DIRS.user_config_path`, using platformdirs' operating system
-conventions. The store is separate from the dependency cache, so `--clear-cache` preserves
-approvals. To revoke approval, remove the corresponding entry, or delete the file to revoke
-all approvals. Its format is:
-
-```json
-{
-  "directories": ["/absolute/path/to/project"],
-  "packages": ["pip:numpy", "npm:@scope/pkg@1.0.0"]
-}
-```
-
-The Python API does not prompt or consult the CLI trust store. If you call `resolve()` or
-individual resolvers, you are responsible for trusting their inputs and dependencies.
-
 ## Development
 
 ```shell
