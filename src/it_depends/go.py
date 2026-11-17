@@ -247,6 +247,7 @@ class GoModule:
                 try:
                     run_command(
                         [git_path, "fetch", "--depth", "1", "origin", git_hash],
+                        failure_severity=Severity.DEBUG,
                         cwd=tempdir,
                         stderr=DEVNULL,
                         stdout=DEVNULL,

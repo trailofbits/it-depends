@@ -83,6 +83,7 @@ class CommandFinished:
     returncode: int
     tail: tuple[str, ...] = ()
     cancelled: bool = False
+    severity: Severity = Severity.ERROR
 
 
 Event = Diagnostic | Progress | ResolutionProgress | CommandStarted | CommandOutput | CommandFinished

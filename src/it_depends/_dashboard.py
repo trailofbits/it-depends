@@ -144,7 +144,7 @@ class RichReporter(PlainReporter):
                 return None
             if event.returncode:
                 return Diagnostic(
-                    Severity.ERROR,
+                    event.severity,
                     "it_depends.command",
                     f"{operation.label} exited with status {event.returncode}\n" + "\n".join(event.tail),
                 )

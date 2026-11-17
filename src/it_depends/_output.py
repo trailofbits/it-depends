@@ -77,7 +77,7 @@ class PlainReporter:
             message = f"Cancelled: {label}" if event.cancelled else f"{label} exited with status {event.returncode}"
             if event.returncode and not event.cancelled:
                 message += "\n" + "\n".join(event.tail)
-                self._diagnostic(Diagnostic(Severity.ERROR, "it_depends.command", message))
+                self._diagnostic(Diagnostic(event.severity, "it_depends.command", message))
                 return
         self._diagnostic(Diagnostic(Severity.INFO, "it_depends.command", message))
 

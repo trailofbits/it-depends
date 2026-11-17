@@ -1,5 +1,6 @@
 """Local subprocess behavior at the command reporting boundary."""
 
+import io
 import os
 import subprocess
 import sys
@@ -12,11 +13,13 @@ import pytest
 from docker.errors import DockerException
 
 from it_depends._commands import CommandSession, run_command
+from it_depends._output import PlainReporter
 from it_depends.docker import DockerContainer, InMemoryDockerfile
 from it_depends.reporting import (
     CommandFinished,
     CommandOutput,
     Event,
+    Severity,
     in_context,
     reporting_session,
 )
@@ -141,3 +144,15 @@ def test_docker_build_error_cannot_be_reported_as_success() -> None:
             container.rebuild()
     finished = [event for event in events if isinstance(event, CommandFinished)]
     assert finished[-1].returncode != 0
+
+
+def test_expected_probe_failure_is_not_an_error_diagnostic() -> None:
+    stream = io.StringIO()
+    with reporting_session(PlainReporter(stream=stream)):
+        result = run_command(
+            [sys.executable, "-c", "import sys; sys.exit(1)"],
+            check=False,
+            failure_severity=Severity.DEBUG,
+        )
+    assert result.returncode != 0
+    assert "ERROR" not in stream.getvalue()
