@@ -10,6 +10,7 @@ import subprocess
 import sys
 from sys import version_info
 
+from it_depends._commands import CommandCapture, run_command
 from it_depends.reporting import Severity, diagnostic
 
 if version_info < (3, 11):
@@ -292,7 +293,7 @@ class DockerContainer:
         if interactive:
             returncode = subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)
             return subprocess.CompletedProcess(cmd_args, returncode)
-        return subprocess.run(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
+        return run_command(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
 
     @property
     def name(self) -> str:
@@ -318,7 +319,7 @@ class DockerContainer:
         # However, that doesn't include progress bars. So call the `docker` command instead:
         name = f"{self.image_name}:{[self.tag, 'latest'][latest]}"
         try:
-            subprocess.check_call([self.docker_path, "pull", name])
+            run_command([self.docker_path, "pull", name])
             for image in self.client.images.list():
                 if name in image.tags:
                     return image
@@ -341,7 +342,10 @@ class DockerContainer:
         except DockerException as e:
             msg = f"Could not connect to socket: sock={sock} {e}"
             raise ValueError(msg) from e
-        with Task("Archiving the build directory").running() as t:
+        with (
+            Task("Archiving the build directory").running() as t,
+            CommandCapture(("docker", "build", self.name)).running() as build_output,
+        ):
             last_line = 0
             last_step = None
             for raw_line in cli.build(
@@ -381,4 +385,4 @@ class DockerContainer:
                                 if new_line is not None:
                                     t.advance(new_line - last_line)
                                     last_line = new_line
-                        diagnostic(Severity.INFO, __name__, parsed_line["stream"].strip())
+                        build_output.write(parsed_line["stream"])

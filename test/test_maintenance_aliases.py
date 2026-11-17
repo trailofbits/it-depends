@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from subprocess import CompletedProcess
 from typing import TYPE_CHECKING
 from unittest.mock import Mock, PropertyMock, patch
 
@@ -56,8 +57,8 @@ def test_resolved_alias_uses_registry_target() -> None:
     with (
         patch.object(NPMResolver, "tool_path", new_callable=PropertyMock, return_value="npm"),
         patch(
-            "it_depends.npm.subprocess.check_output",
-            return_value=b'{"name":"@babel/core","version":"8.1.0","dependencies":{}}',
+            "it_depends.npm.run_command",
+            return_value=CompletedProcess([], 0, stdout=b'{"name":"@babel/core","version":"8.1.0","dependencies":{}}'),
         ),
     ):
         package = next(NPMResolver().resolve(dependency))

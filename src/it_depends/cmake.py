@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import re
 import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from it_depends._commands import run_command as execute
 from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
@@ -440,7 +440,7 @@ class CMakeResolver(DependencyResolver):
                         cmake_lists.write(patched)
                         cmake_lists.flush()
                     cmake_lists.close()
-                    p = subprocess.run(
+                    p = execute(
                         [
                             cmake_path,
                             "-Wno-dev",

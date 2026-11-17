@@ -5,11 +5,11 @@ from __future__ import annotations
 import functools
 import itertools
 import re
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from it_depends._commands import run_command
 from it_depends._exec import resolve_executable
 from it_depends.dependencies import (
     Dependency,
@@ -208,11 +208,11 @@ class AutotoolsResolver(DependencyResolver):
         autoconf_path = self.autoconf_path
         with tempfile.NamedTemporaryFile() as tmp:
             # builds a temporary copy of configure.ac containing aclocal env
-            subprocess.check_output((aclocal_path, f"--output={tmp.name}"), cwd=repo.path)
+            run_command((aclocal_path, f"--output={tmp.name}"), cwd=repo.path, capture_stdout=True)
             with Path(tmp.name).open("ab") as tmp2, (repo.path / "configure.ac").open("rb") as conf:
                 tmp2.write(conf.read())
 
-            trace = subprocess.check_output(
+            trace = run_command(
                 (
                     autoconf_path,
                     "-t",
@@ -226,8 +226,9 @@ class AutotoolsResolver(DependencyResolver):
                     tmp.name,
                 ),
                 cwd=repo.path,
-            ).decode("utf8")
-            configure = subprocess.check_output([autoconf_path, tmp.name], cwd=repo.path).decode("utf8")
+                capture_stdout=True,
+            ).stdout.decode("utf8")
+            configure = run_command([autoconf_path, tmp.name], cwd=repo.path, capture_stdout=True).stdout.decode("utf8")
 
         file_to_package_cache: list[tuple[str, str]] = []
         deps = []

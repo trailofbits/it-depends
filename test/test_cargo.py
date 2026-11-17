@@ -1,4 +1,5 @@
 import json
+from subprocess import CompletedProcess
 
 import pytest
 
@@ -54,8 +55,8 @@ def test_get_dependencies_ignores_optional_deps(monkeypatch: pytest.MonkeyPatch,
         "workspace_members": ["myapp 0.1.0 (path+file:///tmp/myapp)"],
     }
     monkeypatch.setattr(
-        "it_depends.cargo.subprocess.check_output",
-        lambda *args, **kwargs: json.dumps(metadata).encode(),  # noqa: ARG005
+        "it_depends.cargo.run_command",
+        lambda *args, **kwargs: CompletedProcess([], 0, stdout=json.dumps(metadata).encode()),  # noqa: ARG005
     )
 
     packages = list(get_dependencies(SourceRepository(path=tmp_path), cargo_path="cargo"))

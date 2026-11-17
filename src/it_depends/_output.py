@@ -29,7 +29,7 @@ _default_loguru_sink: int | None = 0
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from typing import TextIO
+    from typing import IO
 
     from loguru import Message
 
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 class PlainReporter:
     """Write conventional diagnostics and task boundaries to stderr."""
 
-    def __init__(self, level: str = "info", *, stream: TextIO | None = None) -> None:
+    def __init__(self, level: str = "info", *, stream: IO[str] | None = None) -> None:
         try:
             self.level = Severity[level.upper()]
         except KeyError as error:
@@ -47,6 +47,12 @@ class PlainReporter:
         self.lock = RLock()
         self.tasks: set[int] = set()
         self.commands: dict[int, str] = {}
+
+    def start(self) -> None:
+        """Begin CLI presentation; plain diagnostics require no terminal setup."""
+
+    def stop(self) -> None:
+        """End CLI presentation; plain diagnostics remain immediately available."""
 
     def __call__(self, event: Event) -> None:
         """Render a diagnostic or task boundary without terminal controls."""

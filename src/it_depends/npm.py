@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from it_depends._commands import run_command
 from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
@@ -147,7 +148,7 @@ class NPMResolver(DependencyResolver):
             dependency_name = f"@{dependency_name}"
 
         try:
-            output = subprocess.check_output(
+            output = run_command(
                 [
                     self.tool_path,
                     "view",
@@ -156,8 +157,9 @@ class NPMResolver(DependencyResolver):
                     "name",
                     "version",
                     "dependencies",
-                ]
-            )
+                ],
+                capture_stdout=True,
+            ).stdout
         except subprocess.CalledProcessError as e:
             diagnostic(
                 Severity.WARNING,

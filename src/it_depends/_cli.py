@@ -10,6 +10,8 @@ from pathlib import Path
 from sqlite3 import OperationalError
 from typing import TYPE_CHECKING
 
+from it_depends._commands import CommandSession
+from it_depends._dashboard import make_reporter
 from it_depends._output import PlainReporter, third_party_reporting
 from it_depends.audit import vulnerabilities
 from it_depends.config import Settings
@@ -199,15 +201,21 @@ def _write_stdout(text: str) -> None:
 def main() -> None:
     settings = Settings()  # type: ignore[call-arg]
     try:
-        reporter = PlainReporter(settings.log_level)
+        reporter = make_reporter(settings.log_level)
     except ValueError as error:
         sys.stderr.write(f"{error}\n")
         sys.exit(2)
-    with reporting_session(reporter), third_party_reporting():
-        _run(settings)
+    with reporting_session(reporter), third_party_reporting(), CommandSession().running():
+        try:
+            _run(settings, reporter)
+        except KeyboardInterrupt:
+            diagnostic(Severity.WARNING, __name__, "Analysis interrupted")
+            sys.exit(130)
+        finally:
+            reporter.stop()
 
 
-def _run(settings: Settings) -> None:
+def _run(settings: Settings, reporter: PlainReporter) -> None:
     # If max_workers isn't provided, use the number of CPUs.
     # If that fails, use 1.
     if settings.max_workers == -1:
@@ -223,9 +231,14 @@ def _run(settings: Settings) -> None:
 
     _approve_targets(settings, repo, to_compare)
     _clear_cache(settings)
+    reporter.start()
 
     try:
         output_write = _get_output_writer(settings)
+
+        def write_result(text: str) -> object:
+            reporter.stop()
+            return output_write(text)
 
         with DBPackageCache(settings.database) as cache:
             try:
@@ -247,7 +260,7 @@ def _run(settings: Settings) -> None:
 
             package_list = _enrich_packages(settings, package_list)
 
-            _write_output(settings, cache, package_list, to_compare, output_write=output_write)
+            _write_output(settings, cache, package_list, to_compare, output_write=write_result)
 
     except OperationalError as e:
         msg = (

@@ -6,6 +6,7 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+from it_depends._commands import run_command
 from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
@@ -14,7 +15,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
-from subprocess import DEVNULL, CalledProcessError, check_call, check_output
+from subprocess import DEVNULL, CalledProcessError
 from tempfile import TemporaryDirectory
 from urllib import request
 from urllib.error import HTTPError, URLError
@@ -89,7 +90,9 @@ def git_commit(path: str | None = None) -> str | None:
     """Get the current git commit hash."""
     try:
         git_path = resolve_executable("git")
-        return check_output([git_path, "rev-parse", "HEAD"], cwd=path, stderr=DEVNULL).decode("utf-8")
+        return run_command(
+            [git_path, "rev-parse", "HEAD"], cwd=path, stderr=DEVNULL, capture_stdout=True
+        ).stdout.decode("utf-8")
     except (CalledProcessError, FileNotFoundError):
         return None
 
@@ -230,7 +233,7 @@ class GoModule:
                 # this will happen if we are resolving a wildcard, typically if the user called something like
                 # `it-depends go:github.com/ethereum/go-ethereum`
                 td = Path(tempdir)
-                check_call(
+                run_command(
                     [git_path, "clone", "--depth", "1", git_url, td.name],
                     cwd=td.parent,
                     stderr=DEVNULL,
@@ -238,16 +241,11 @@ class GoModule:
                     env=env,
                 )
             else:
-                check_call([git_path, "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
-                check_call(
-                    [git_path, "remote", "add", "origin", git_url],
-                    cwd=tempdir,
-                    stderr=DEVNULL,
-                    stdout=DEVNULL,
-                )
+                run_command([git_path, "init"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
+                run_command([git_path, "remote", "add", "origin", git_url], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL)
                 git_hash = GoModule.tag_to_git_hash(tag)
                 try:
-                    check_call(
+                    run_command(
                         [git_path, "fetch", "--depth", "1", "origin", git_hash],
                         cwd=tempdir,
                         stderr=DEVNULL,
@@ -257,25 +255,15 @@ class GoModule:
                 except CalledProcessError:
                     # not all git servers support `git fetch --depth 1` on a hash
                     try:
-                        check_call(
-                            [git_path, "fetch", "origin"],
-                            cwd=tempdir,
-                            stderr=DEVNULL,
-                            stdout=DEVNULL,
-                            env=env,
-                        )
+                        run_command([git_path, "fetch", "origin"], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env)
                     except CalledProcessError:
                         diagnostic(
                             Severity.ERROR, __name__, "Could not clone %s for %r", git_url, import_path, exception=True
                         )
                         return GoModule(import_path)
                     try:
-                        check_call(
-                            [git_path, "checkout", git_hash],
-                            cwd=tempdir,
-                            stderr=DEVNULL,
-                            stdout=DEVNULL,
-                            env=env,
+                        run_command(
+                            [git_path, "checkout", git_hash], cwd=tempdir, stderr=DEVNULL, stdout=DEVNULL, env=env
                         )
                     except CalledProcessError:
                         if tag.startswith("="):

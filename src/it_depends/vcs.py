@@ -17,6 +17,8 @@ from typing import TYPE_CHECKING, TypeVar, cast
 
 from typing_extensions import Self
 
+from it_depends._commands import run_command
+
 from ._exec import resolve_executable
 
 if TYPE_CHECKING:
@@ -91,7 +93,10 @@ class VCS:
             return None
         for scheme in self.scheme:
             cmd = [resolved_cmd] + [c.replace("{scheme}", scheme).replace("{repo}", repo) for c in self.ping_cmd]
-            if subprocess.call(cmd, stdout=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=env) == 0:
+            if (
+                run_command(cmd, stdout=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=env, check=False).returncode
+                == 0
+            ):
                 return scheme
         return None
 
