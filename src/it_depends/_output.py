@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shlex
 import sys
 import traceback
 from contextlib import contextmanager
@@ -12,7 +13,17 @@ from typing import TYPE_CHECKING
 
 from loguru import logger as dependency_logger
 
-from it_depends.reporting import Diagnostic, Event, Progress, Severity, emit, plain_text
+from it_depends.reporting import (
+    CommandFinished,
+    CommandOutput,
+    CommandStarted,
+    Diagnostic,
+    Event,
+    Progress,
+    Severity,
+    emit,
+    plain_text,
+)
 
 _default_loguru_sink: int | None = 0
 
@@ -35,6 +46,7 @@ class PlainReporter:
         self.stream = sys.stderr if stream is None else stream
         self.lock = RLock()
         self.tasks: set[int] = set()
+        self.commands: dict[int, str] = {}
 
     def __call__(self, event: Event) -> None:
         """Render a diagnostic or task boundary without terminal controls."""
@@ -43,6 +55,25 @@ class PlainReporter:
                 self._progress(event)
             elif isinstance(event, Diagnostic):
                 self._diagnostic(event)
+            elif isinstance(event, (CommandStarted, CommandOutput, CommandFinished)):
+                self._command(event)
+
+    def _command(self, event: CommandStarted | CommandOutput | CommandFinished) -> None:
+        if isinstance(event, CommandStarted):
+            label = shlex.join(event.argv)
+            self.commands[event.command_id] = label
+            message = f"Running: {label}"
+        elif isinstance(event, CommandOutput):
+            label = self.commands.get(event.command_id, "command")
+            message = f"{label} [{event.stream}]: {event.text}"
+        else:
+            label = self.commands.pop(event.command_id, "command")
+            message = f"{label} exited with status {event.returncode}"
+            if event.returncode:
+                message += "\n" + "\n".join(event.tail)
+                self._diagnostic(Diagnostic(Severity.ERROR, "it_depends.command", message))
+                return
+        self._diagnostic(Diagnostic(Severity.INFO, "it_depends.command", message))
 
     def _progress(self, event: Progress) -> None:
         if not event.finished and event.task_id in self.tasks:
