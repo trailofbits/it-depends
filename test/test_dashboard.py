@@ -91,10 +91,12 @@ def test_warning_and_summary_survive_display_cleanup(monkeypatch: pytest.MonkeyP
     reporter = RichReporter(console=console)
     reporter.start()
     reporter(ResolutionProgress(4, 20, 0, 0))
+    reporter(Diagnostic(Severity.INFO, "resolver", "Current metadata activity"))
     reporter(Diagnostic(Severity.WARNING, "resolver", "Could not resolve optional package"))
     reporter.stop()
     rendered = stream.getvalue()
     assert "Could not resolve optional package" in rendered
+    assert "INFO:" not in rendered
     assert "Discovered 4 package names and 20 versions" in rendered
     assert "\x1b[?25l" in rendered
     assert "\x1b[?25h" in rendered
