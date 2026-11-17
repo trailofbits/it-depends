@@ -2,11 +2,15 @@
 
 import io
 import os
+import signal
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event as ThreadEvent
+from threading import Timer
+from time import monotonic
+from types import FrameType
 from unittest.mock import Mock, patch
 
 import pytest
@@ -127,6 +131,46 @@ def test_cancellation_stops_descendants_that_ignore_termination() -> None:
         session.cancel()
         with pytest.raises(subprocess.CalledProcessError):
             future.result(timeout=5)
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Requires process groups and SIGUSR1")
+@pytest.mark.parametrize("stream", [1, 2], ids=["stdout", "stderr"])
+def test_interruption_stops_descendant_pipes_after_parent_exit(stream: int) -> None:
+    ready = ThreadEvent()
+    interrupted_at = 0.0
+    timer = Timer(0.2, os.kill, args=(os.getpid(), signal.SIGUSR1))
+
+    def interrupt(_signum: int, _frame: FrameType | None) -> None:
+        nonlocal interrupted_at
+        interrupted_at = monotonic()
+        raise KeyboardInterrupt
+
+    def observe(event: Event) -> None:
+        if isinstance(event, CommandOutput) and event.text == "parent exited":
+            timer.start()
+            ready.set()
+
+    script = (
+        "import os, signal, time\n"
+        "parent = os.getpid()\n"
+        "if os.fork(): os._exit(0)\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "while os.getppid() == parent: time.sleep(0.01)\n"
+        f"os.write({stream}, b'parent exited\\n')\n"
+        "time.sleep(3)\n"
+    )
+    previous_handler = signal.signal(signal.SIGUSR1, interrupt)
+    try:
+        with reporting_session(observe), pytest.raises(KeyboardInterrupt):
+            run_command([sys.executable, "-c", script])
+        assert ready.is_set()
+        maximum_cleanup_delay = 1.5
+        assert monotonic() - interrupted_at < maximum_cleanup_delay
+    finally:
+        timer.cancel()
+        if ready.is_set():
+            timer.join()
+        signal.signal(signal.SIGUSR1, previous_handler)
 
 
 def test_docker_build_error_cannot_be_reported_as_success() -> None:

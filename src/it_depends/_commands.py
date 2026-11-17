@@ -65,9 +65,10 @@ class CommandCapture:
             )
 
 
-def _stop(process: subprocess.Popen[bytes], *, force: bool = False) -> None:
+def _signal(process: subprocess.Popen[bytes], *, force: bool) -> bool:
+    """Signal an owned process group without waiting for termination."""
     if os.name != "posix" and process.poll() is not None:
-        return
+        return False
     try:
         if os.name == "posix":
             os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
@@ -75,17 +76,23 @@ def _stop(process: subprocess.Popen[bytes], *, force: bool = False) -> None:
             process.kill()
         else:
             process.terminate()
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def _stop(process: subprocess.Popen[bytes], *, force: bool = False, wait: bool = True) -> None:
+    signalled = _signal(process, force=force)
+    if not wait:
+        return
+    if signalled:
         try:
             process.wait(timeout=1)
         except subprocess.TimeoutExpired:
             force = True
-        if os.name == "posix":
-            os.killpg(process.pid, signal.SIGKILL)
-        elif force:
-            process.kill()
-        process.wait()
-    except ProcessLookupError:
-        process.wait()
+        if os.name == "posix" or force:
+            _signal(process, force=True)
+    process.wait()
 
 
 class CommandSession:
@@ -97,13 +104,19 @@ class CommandSession:
         self.cancelled = False
         self.lock = RLock()
 
-    def cancel(self, *, force: bool = False) -> None:
-        """Stop active subprocess groups and prevent subsequent commands."""
+    def cancel(self, *, force: bool = False, wait: bool = True) -> None:
+        """Stop active subprocess groups and prevent subsequent commands.
+
+        Args:
+            force: Kill processes immediately instead of requesting termination.
+            wait: Wait for termination and reap the child processes.
+
+        """
         with self.lock:
             self.cancelled = True
             processes = tuple(self.processes)
         for process in processes:
-            _stop(process, force=force)
+            _stop(process, force=force, wait=wait)
 
     @contextmanager
     def running(self) -> Iterator[CommandSession]:
@@ -193,10 +206,10 @@ def _collect(
                 readers[name] = pool.submit(function)
         try:
             returncode = process.wait()
+            output = {name: reader.result() for name, reader in readers.items()}
         except BaseException:
             _stop(process)
             raise
-        output = {name: reader.result() for name, reader in readers.items()}
     return subprocess.CompletedProcess(
         process.args,
         returncode,

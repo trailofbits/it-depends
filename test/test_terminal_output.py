@@ -8,8 +8,9 @@ import signal
 import subprocess
 import sys
 from collections.abc import Iterator
-from contextlib import contextmanager
-from time import monotonic
+from contextlib import contextmanager, suppress
+from pathlib import Path
+from time import monotonic, sleep
 
 import pytest
 
@@ -20,6 +21,7 @@ import sys
 import time
 from unittest.mock import MagicMock
 from it_depends import _cli
+from it_depends._commands import run_command
 from it_depends.models import Package
 from it_depends.reporting import Task, ResolutionProgress, emit
 
@@ -30,6 +32,10 @@ def resolve(*args, **kwargs):
         emit(ResolutionProgress(1, 1, 0, 0))
         if MODE == 'interrupt':
             time.sleep(60)
+        if MODE == 'command':
+            run_command([sys.executable, '-c',
+                "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);"
+                "time.sleep(0.2);print('child', 'ready', flush=True);time.sleep(60)"])
         if MODE == 'failure':
             raise ValueError('test resolution failed')
     return packages
@@ -122,17 +128,19 @@ def test_redirected_stdout_disables_all_cursor_controls() -> None:
 
 
 @pytest.mark.parametrize("answer", [b"y\n", b"n\n", None])
-def test_interrupt_exports_only_approved_partial_results(answer: bytes | None) -> None:
+@pytest.mark.parametrize("mode", ["interrupt", "command"])
+def test_interrupt_exports_only_approved_partial_results(answer: bytes | None, mode: str) -> None:
     with terminals() as ((input_master, stdin), (output, stdout), (diagnostics, stderr)):
         process = subprocess.Popen(
-            [sys.executable, "-c", "MODE = 'interrupt'\n" + _SCRIPT],
+            [sys.executable, "-c", f"MODE = {mode!r}\n" + _SCRIPT],
             stdin=stdin,
             stdout=stdout,
             stderr=stderr,
             env=os.environ | {"TERM": "xterm-256color"},
         )
         try:
-            rendered = read_until(diagnostics, b"Interruptible analysis")
+            ready = b"child ready" if mode == "command" else b"Interruptible analysis"
+            rendered = read_until(diagnostics, ready)
             process.send_signal(signal.SIGINT)
             rendered += read_until(diagnostics, b"partial results?")
             if answer is None:
@@ -151,5 +159,53 @@ def test_interrupt_exports_only_approved_partial_results(answer: bytes | None) -
                 assert artifact == b""
         finally:
             if process.poll() is None:
+                process.kill()
+                process.wait()
+
+
+_COMMAND_INTERRUPT_SCRIPT = """
+import sys
+from pathlib import Path
+from it_depends._commands import CommandSession, run_command
+from it_depends._interrupts import cli_interrupts
+from it_depends._output import PlainReporter
+
+child = (
+    "import os, signal, sys, time\\n"
+    "from pathlib import Path\\n"
+    "directory = Path(sys.argv[1])\\n"
+    "def terminate(*_args): (directory / 'terminated').touch()\\n"
+    "signal.signal(signal.SIGTERM, terminate)\\n"
+    "time.sleep(0.2)\\n"
+    "(directory / 'ready').write_text(str(os.getpid()))\\n"
+    "time.sleep(60)\\n"
+)
+with CommandSession().running() as commands, cli_interrupts(PlainReporter(), commands):
+    run_command([sys.executable, '-c', child, sys.argv[1]])
+"""
+
+
+def test_second_interrupt_forces_exit_during_command_cleanup(tmp_path: Path) -> None:
+    with subprocess.Popen(
+        [sys.executable, "-c", _COMMAND_INTERRUPT_SCRIPT, str(tmp_path)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    ) as process:
+        try:
+            for name in ("ready", "terminated"):
+                marker = tmp_path / name
+                deadline = monotonic() + 5
+                while not marker.exists() and monotonic() < deadline:
+                    sleep(0.01)
+                assert marker.exists()
+                process.send_signal(signal.SIGINT)
+            expected_status = 130
+            assert process.wait(timeout=3) == expected_status
+        finally:
+            if process.poll() is None:
+                ready = tmp_path / "ready"
+                if ready.exists():
+                    with suppress(ProcessLookupError):
+                        os.killpg(int(ready.read_text()), signal.SIGKILL)
                 process.kill()
                 process.wait()
