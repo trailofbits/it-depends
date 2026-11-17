@@ -231,12 +231,18 @@ class SavedExplorer(App[None]):
         lines.extend(f"  {self.graph.nodes[key].label}" for key in incoming)
         if not incoming:
             lines.append("  None recorded")
+        lines.extend(self._annotations(node))
+        return Text(plain_text("\n".join(lines)))
+
+    @staticmethod
+    def _annotations(node: SavedNode) -> list[str]:
+        lines: list[str] = []
         if node.vulnerabilities:
             lines.extend(["", "Vulnerabilities", *node.vulnerabilities])
         if node.maintenance:
             lines.extend(["", "Maintenance"])
             lines.extend(f"  {name.replace('_', ' ')}: {value}" for name, value in node.maintenance)
-        return Text(plain_text("\n".join(lines)))
+        return lines
 
     def on_tree_node_selected(self, event: Tree.NodeSelected[_Selection]) -> None:
         """Follow references to canonical nodes, keeping shared dependencies and cycles finite."""
