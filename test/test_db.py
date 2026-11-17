@@ -1,5 +1,6 @@
 import gc
 from collections.abc import Iterator
+from sqlite3 import ProgrammingError
 from unittest import TestCase
 
 import pytest
@@ -17,6 +18,18 @@ from it_depends.dependencies import (
     resolver_by_name,
     resolvers,
 )
+
+
+def test_closing_cache_releases_sqlite_connection() -> None:
+    cache = DBPackageCache()
+    cache.open()
+    connection = cache.session.connection().connection.driver_connection
+    cache.close()
+    try:
+        with pytest.raises(ProgrammingError, match="closed database"):
+            connection.execute("SELECT 1")
+    finally:
+        connection.close()
 
 
 class TestDB(TestCase):

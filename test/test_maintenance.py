@@ -214,7 +214,11 @@ def test_optional_json_and_cyclonedx_properties() -> None:
 @pytest.mark.parametrize("enabled", [False, True])
 def test_cli_maintenance_opt_in(*, enabled: bool) -> None:
     settings = Settings(
-        _cli_parse_args=["pip:demo", *(["--check-maintenance", "--stale-threshold", "12"] if enabled else [])]
+        _cli_parse_args=[
+            "pip:demo",
+            "--trust",
+            *(["--check-maintenance", "--stale-threshold", "12"] if enabled else []),
+        ]
     )
     repo = _repo(Package("demo", "1.0.0", "pip"))
     with (

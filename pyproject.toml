@@ -25,7 +25,9 @@ dependencies = [
     "parse_cmake >= 0.4.1",
     "pip >= 23.0",
     "platformdirs >= 4.4.0",
+    "prompt-toolkit==3.0.52",
     "pydantic-settings>=2.7.1,<2.16.0",
+    "rich==15.0.0",
     "semantic_version >= 2.10.0",
     "sqlalchemy >= 2.0.43",
     "tqdm >= 4.67.1",
@@ -66,6 +68,12 @@ exclude-newer = "1 week"
 
 [tool.pytest.ini_options]
 norecursedirs = ["test/repos"]
+# These tests are synchronous; the unused AnyIO plugin imports a deprecated pytest API.
+addopts = ["-p", "no:anyio"]
+filterwarnings = [
+    # CycloneDX moved this helper in 11.6; the old import supports our >=5 requirement.
+    'ignore:Deprecated re-export location - see docstring of "this_component" for details\.:DeprecationWarning:it_depends.sbom',
+]
 
 [tool.coverage.run]
 # don't attempt code coverage for the CLI entrypoints or logging configuration

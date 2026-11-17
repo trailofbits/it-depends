@@ -4,16 +4,40 @@ from __future__ import annotations
 
 from enum import Enum
 from pathlib import Path  # noqa: TC003
+from typing import TYPE_CHECKING, Any
 
 from pydantic import Field
 from pydantic_settings import (
     BaseSettings,
     CliImplicitFlag,
     CliPositionalArg,
+    PydanticBaseSettingsSource,
     SettingsConfigDict,
 )
 
-from .db import DEFAULT_DB_PATH
+from it_depends.db import DEFAULT_DB_PATH
+from it_depends.it_depends import APP_DIRS
+
+if TYPE_CHECKING:
+    from pydantic.fields import FieldInfo
+
+
+class _WithoutTrust(PydanticBaseSettingsSource):
+    """Preserve a settings source while excluding execution authorization."""
+
+    def __init__(self, source: PydanticBaseSettingsSource) -> None:
+        super().__init__(source.settings_cls)
+        self.source = source
+
+    def get_field_value(self, field: FieldInfo, field_name: str) -> tuple[Any, str, bool]:
+        """Delegate field lookup to the original source."""
+        return self.source.get_field_value(field, field_name)
+
+    def __call__(self) -> dict[str, Any]:
+        """Read normal settings without accepting a stored or inherited trust flag."""
+        values = self.source()
+        values.pop("trust", None)
+        return values
 
 
 class OutputFormat(str, Enum):
@@ -44,6 +68,14 @@ class Settings(BaseSettings):
     audit: CliImplicitFlag[bool] = Field(
         default=False,
         description="""Audit packages for known vulnerabilities using Google OSV.""",
+    )
+    trust: CliImplicitFlag[bool] = Field(
+        default=False,
+        description=f"""Trust both requested targets and their dependencies for this run only.
+        Analysis may execute their code with your user permissions. Does not save approval.
+        Saved interactive approvals are in {APP_DIRS.user_config_path / "trust.json"}.
+        To revoke an approval, remove its entry from that file; delete the file to revoke all approvals.
+        --clear-cache does not revoke approvals.""",
     )
     check_maintenance: CliImplicitFlag[bool] = Field(
         alias="check-maintenance",
@@ -133,3 +165,20 @@ class Settings(BaseSettings):
         cli_parse_args=True,
         nested_model_default_partial_update=True,
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],  # noqa: ARG003 - Required Pydantic hook parameter.
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Require CLI or explicit constructor authorization for the trust flag."""
+        return (
+            init_settings,
+            _WithoutTrust(env_settings),
+            _WithoutTrust(dotenv_settings),
+            _WithoutTrust(file_secret_settings),
+        )

@@ -1,0 +1,27 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: Check Python formatting
+        entry: uv run --no-sync ruff format --check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: ruff-check
+        name: Lint Python
+        entry: uv run --no-sync ruff check
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: mypy
+        name: Check Python types
+        entry: uv run --no-sync mypy
+        language: system
+        pass_filenames: false
+        always_run: true
+      - id: interrogate
+        name: Check docstring coverage
+        entry: uv run --no-sync interrogate -c pyproject.toml .
+        language: system
+        pass_filenames: false
+        always_run: true

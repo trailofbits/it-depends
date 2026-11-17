@@ -359,7 +359,9 @@ class DBPackageCache(PackageCache):
     def close(self) -> None:
         """Close the database connection."""
         if self._session is not None:
+            engine = self._session.get_bind()
             self._session.close()
+            engine.dispose()
         self._session = None
 
     @property
