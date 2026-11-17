@@ -74,8 +74,8 @@ class PlainReporter:
             message = f"{label} [{event.stream}]: {event.text}"
         else:
             label = self.commands.pop(event.command_id, "command")
-            message = f"{label} exited with status {event.returncode}"
-            if event.returncode:
+            message = f"Cancelled: {label}" if event.cancelled else f"{label} exited with status {event.returncode}"
+            if event.returncode and not event.cancelled:
                 message += "\n" + "\n".join(event.tail)
                 self._diagnostic(Diagnostic(Severity.ERROR, "it_depends.command", message))
                 return

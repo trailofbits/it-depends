@@ -10,10 +10,12 @@ from pathlib import Path
 from sqlite3 import OperationalError
 from typing import TYPE_CHECKING
 
-from it_depends._commands import CommandSession
-from it_depends._dashboard import make_reporter
+from it_depends._commands import CommandSession, cancel_commands
+from it_depends._dashboard import interactive_terminal, make_reporter
+from it_depends._interrupts import cli_interrupts
 from it_depends._output import PlainReporter, third_party_reporting
 from it_depends.audit import vulnerabilities
+from it_depends.cache import PackageRepository
 from it_depends.config import Settings
 from it_depends.db import DBPackageCache
 from it_depends.dependencies import Dependency, SourceRepository, resolve, resolve_sbom, resolvers
@@ -25,8 +27,6 @@ from it_depends.trust import TrustError, require_trust
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-
-    from it_depends.cache import PackageRepository
 
 
 def parse_path_or_package_name(
@@ -205,71 +205,108 @@ def main() -> None:
     except ValueError as error:
         sys.stderr.write(f"{error}\n")
         sys.exit(2)
-    with reporting_session(reporter), third_party_reporting(), CommandSession().running():
+    with (
+        reporting_session(reporter),
+        third_party_reporting(),
+        CommandSession().running() as commands,
+        cli_interrupts(reporter, commands),
+    ):
         try:
             _run(settings, reporter)
         except KeyboardInterrupt:
             diagnostic(Severity.WARNING, __name__, "Analysis interrupted")
             sys.exit(130)
+        except Exception as error:  # noqa: BLE001 - Report CLI failures and exit nonzero.
+            diagnostic(Severity.ERROR, __name__, str(error), exception=True)
+            sys.exit(1)
         finally:
             reporter.stop()
 
 
+def _approve_partial() -> bool:
+    if not interactive_terminal():
+        return False
+    while True:
+        sys.stderr.write("Output the partial results? [y/N] ")
+        sys.stderr.flush()
+        try:
+            choice = input().strip().lower()
+        except EOFError:
+            return False
+        if choice in {"y", "yes"}:
+            return True
+        if choice in {"", "n", "no"}:
+            return False
+
+
+def _analyze(
+    settings: Settings,
+    cache: DBPackageCache,
+    target: SourceRepository | Dependency,
+) -> tuple[PackageRepository, bool]:
+    packages = PackageRepository()
+    try:
+        packages = resolve(
+            target,
+            cache=cache,
+            depth_limit=settings.depth_limit,
+            max_workers=settings.max_workers,
+            repo=packages,
+        )
+        packages = _enrich_packages(settings, packages)
+    except KeyboardInterrupt:
+        cancel_commands()
+        if settings.compare or not _approve_partial():
+            raise
+        return packages, True
+    return packages, False
+
+
+def _database_error(settings: Settings, error: OperationalError) -> None:
+    diagnostic(
+        Severity.ERROR,
+        __name__,
+        f"Database error: {error!r}. Remove {settings.database} or rerun with "
+        "--clear-cache to rebuild an incompatible cache.",
+        exception=True,
+    )
+    sys.exit(1)
+
+
 def _run(settings: Settings, reporter: PlainReporter) -> None:
-    # If max_workers isn't provided, use the number of CPUs.
-    # If that fails, use 1.
     if settings.max_workers == -1:
         settings.max_workers = os.cpu_count() or 1
-
-    diagnostic(Severity.DEBUG, __name__, "Starting it-depends with settings: %s", settings)
-
     repo, to_compare = _parse_targets(settings)
-
     if settings.list:
         _list_resolvers(repo, settings.target)
         return
-
     _approve_targets(settings, repo, to_compare)
     _clear_cache(settings)
+    output_write = _get_output_writer(settings)
+
+    def write_result(text: str) -> object:
+        reporter.stop()
+        return output_write(text)
+
     reporter.start()
-
     try:
-        output_write = _get_output_writer(settings)
-
-        def write_result(text: str) -> object:
-            reporter.stop()
-            return output_write(text)
-
         with DBPackageCache(settings.database) as cache:
-            try:
-                package_list = resolve(
-                    repo,
-                    cache=cache,
-                    depth_limit=settings.depth_limit,
-                    max_workers=settings.max_workers,
-                )
-            except ValueError as e:
-                if not settings.clear_cache or settings.target.strip():
-                    msg = f"{e!s}"
-                    diagnostic(Severity.ERROR, __name__, msg, exception=True)
-                sys.exit(1)
+            package_list, partial = _analyze(settings, cache, repo)
             if not package_list:
                 diagnostic(
-                    Severity.ERROR, __name__, "Try --list to check for available resolvers for %s", settings.target
+                    Severity.ERROR,
+                    __name__,
+                    "Try --list to check for available resolvers for %s",
+                    settings.target,
                 )
-
-            package_list = _enrich_packages(settings, package_list)
-
             _write_output(settings, cache, package_list, to_compare, output_write=write_result)
-
-    except OperationalError as e:
-        msg = (
-            f"Database error: {e!r}\n\nThis can occur if your database was created with an older version "
-            f"of it-depends and was unable to be updated. If you remove {settings.database} or run "
-            "`it-depends --clear-cache` and try again, the database will automatically be rebuilt from "
-            "scratch."
-        )
-        diagnostic(Severity.ERROR, __name__, msg, exception=True)
+    except ValueError as error:
+        diagnostic(Severity.ERROR, __name__, str(error), exception=True)
         sys.exit(1)
+    except OperationalError as error:
+        _database_error(settings, error)
     if settings.output_file is not None and settings.output_file.exists():
         diagnostic(Severity.INFO, __name__, "Output saved to %s", settings.output_file.absolute())
+    if partial:
+        diagnostic(Severity.WARNING, __name__, "Analysis interrupted; exported partial results")
+        sys.exit(130)

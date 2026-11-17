@@ -36,6 +36,21 @@ from it_depends._exec import resolve_executable
 from it_depends.reporting import Task
 
 
+def _build_message(line: bytes, image: str) -> str:
+    try:
+        message = json.loads(line)
+    except json.decoder.JSONDecodeError:
+        return ""
+    if "error" in message:
+        error = f"Docker build failed for {image}: {message['error']}"
+        raise DockerException(error)
+    stream = message.get("stream", "")
+    if not isinstance(stream, str):
+        error = f"Docker returned invalid build output for {image}"
+        raise DockerException(error)
+    return stream
+
+
 def _discover_podman_socket() -> str | None:
     """Try to discover a Podman socket.
 
@@ -357,14 +372,11 @@ class DockerContainer:
             ):
                 t.set_label(f"Building {self.name}")
                 for line in raw_line.split(b"\n"):
-                    try:
-                        parsed_line = json.loads(line)
-                    except json.decoder.JSONDecodeError:
-                        continue
-                    if "stream" in parsed_line:
+                    stream = _build_message(line, self.name)
+                    if stream:
                         m = re.match(
                             r"^Step\s+(\d+)(/(\d+))?\s+:\s+(.+)$",
-                            parsed_line["stream"],
+                            stream,
                             re.MULTILINE,
                         )
                         if m:
@@ -385,4 +397,4 @@ class DockerContainer:
                                 if new_line is not None:
                                     t.advance(new_line - last_line)
                                     last_line = new_line
-                        build_output.write(parsed_line["stream"])
+                        build_output.write(stream)

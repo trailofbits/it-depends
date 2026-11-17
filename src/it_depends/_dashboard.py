@@ -140,6 +140,8 @@ class RichReporter(PlainReporter):
                 operation.lines.append(plain_text(event.text))
         else:
             operation = self.operations.pop(event.command_id, _CommandView("command"))
+            if event.cancelled:
+                return None
             if event.returncode:
                 return Diagnostic(
                     Severity.ERROR,

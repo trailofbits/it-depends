@@ -57,19 +57,23 @@ class CommandCapture:
             emit(CommandFinished(self.command_id, status, tuple(self.tail)))
 
 
-def _stop(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
+def _stop(process: subprocess.Popen[bytes], *, force: bool = False) -> None:
+    if os.name != "posix" and process.poll() is not None:
         return
     try:
         if os.name == "posix":
-            os.killpg(process.pid, signal.SIGTERM)
+            os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
+        elif force:
+            process.kill()
         else:
             process.terminate()
-        process.wait(timeout=1)
-    except subprocess.TimeoutExpired:
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            force = True
         if os.name == "posix":
             os.killpg(process.pid, signal.SIGKILL)
-        else:
+        elif force:
             process.kill()
         process.wait()
     except ProcessLookupError:
@@ -85,13 +89,13 @@ class CommandSession:
         self.cancelled = False
         self.lock = RLock()
 
-    def cancel(self) -> None:
+    def cancel(self, *, force: bool = False) -> None:
         """Stop active subprocess groups and prevent subsequent commands."""
         with self.lock:
             self.cancelled = True
             processes = tuple(self.processes)
         for process in processes:
-            _stop(process)
+            _stop(process, force=force)
 
     @contextmanager
     def running(self) -> Iterator[CommandSession]:
@@ -117,6 +121,13 @@ class CommandSession:
         finally:
             with self.lock:
                 self.processes.discard(process)
+
+
+def cancel_commands() -> None:
+    """Cancel subprocesses in the current analysis session, if one is active."""
+    session = _session.get()
+    if session is not None:
+        session.cancel()
 
 
 def _read(
@@ -245,4 +256,11 @@ def run_command(  # noqa: PLR0913 - Preserve explicit subprocess stream controls
                 result.check_returncode()
             return result
     finally:
-        emit(CommandFinished(capture.command_id, status, tuple(capture.tail)))
+        emit(
+            CommandFinished(
+                capture.command_id,
+                status,
+                tuple(capture.tail),
+                cancelled=session.cancelled,
+            )
+        )

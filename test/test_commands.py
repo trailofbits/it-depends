@@ -1,14 +1,18 @@
 """Local subprocess behavior at the command reporting boundary."""
 
+import os
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from threading import Event as ThreadEvent
+from unittest.mock import Mock, patch
 
 import pytest
+from docker.errors import DockerException
 
 from it_depends._commands import CommandSession, run_command
+from it_depends.docker import DockerContainer, InMemoryDockerfile
 from it_depends.reporting import (
     CommandFinished,
     CommandOutput,
@@ -96,3 +100,44 @@ def test_process_start_failure_is_reported(tmp_path: Path) -> None:
         run_command([str(tmp_path / "missing")])
     assert isinstance(events[-1], CommandFinished)
     assert events[-1].returncode != 0
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Requires process groups")
+def test_cancellation_stops_descendants_that_ignore_termination() -> None:
+    ready = ThreadEvent()
+
+    def observe(event: Event) -> None:
+        if isinstance(event, CommandOutput) and event.text == "ready":
+            ready.set()
+
+    script = (
+        "import os, signal, time\n"
+        "if os.fork() == 0:\n"
+        " signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        " print('ready', flush=True)\n"
+        "time.sleep(60)\n"
+    )
+    session = CommandSession()
+    with reporting_session(observe), ThreadPoolExecutor() as pool, session.running():
+        future = pool.submit(in_context(run_command, [sys.executable, "-c", script]))
+        assert ready.wait(timeout=5)
+        session.cancel()
+        with pytest.raises(subprocess.CalledProcessError):
+            future.result(timeout=5)
+
+
+def test_docker_build_error_cannot_be_reported_as_success() -> None:
+    client = Mock()
+    client.build.return_value = [b'{"error":"invalid build step"}\n']
+    events: list[Event] = []
+    with (
+        InMemoryDockerfile("FROM scratch\n") as dockerfile,
+        patch("it_depends.docker._discover_podman_socket", return_value="unix:///unused"),
+        patch("it_depends.docker.docker.APIClient", return_value=client),
+        reporting_session(events.append),
+    ):
+        container = DockerContainer("example/image", dockerfile)
+        with pytest.raises(DockerException, match="invalid build step"):
+            container.rebuild()
+    finished = [event for event in events if isinstance(event, CommandFinished)]
+    assert finished[-1].returncode != 0

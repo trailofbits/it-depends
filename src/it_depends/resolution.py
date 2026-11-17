@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from multiprocessing import cpu_count
 from typing import TYPE_CHECKING
@@ -366,19 +365,6 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                                 error_msg = f"Unexpected future result: {result!r}"
                                 raise NotImplementedError(error_msg)
 
-    except KeyboardInterrupt:
-        if sys.stderr.isatty() and sys.stdin.isatty():
-            try:
-                while True:
-                    sys.stderr.write("Would you like to output the partial results? [Yn] ")
-                    choice = input().lower()
-                    if choice in {"", "y"}:
-                        return repo
-                    if choice == "n":
-                        sys.exit(1)
-            except KeyboardInterrupt:
-                sys.exit(1)
-        raise
     finally:
         if pool is not None:
             pool.shutdown(wait=True, cancel_futures=True)

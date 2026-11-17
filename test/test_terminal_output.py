@@ -1,0 +1,155 @@
+"""Exercise real terminal streams and interruption without registry access."""
+
+import errno
+import json
+import os
+import select
+import signal
+import subprocess
+import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
+from time import monotonic
+
+import pytest
+
+pytestmark = pytest.mark.skipif(os.name != "posix", reason="Requires POSIX pseudo-terminals")
+
+_SCRIPT = """
+import sys
+import time
+from unittest.mock import MagicMock
+from it_depends import _cli
+from it_depends.models import Package
+from it_depends.reporting import Task, ResolutionProgress, emit
+
+def resolve(*args, **kwargs):
+    packages = kwargs['repo']
+    packages.add(Package('demo', '1.0.0', 'pip'))
+    with Task('Interruptible analysis').running():
+        emit(ResolutionProgress(1, 1, 0, 0))
+        if MODE == 'interrupt':
+            time.sleep(60)
+        if MODE == 'failure':
+            raise ValueError('test resolution failed')
+    return packages
+
+_cli.resolve = resolve
+_cli.DBPackageCache = MagicMock()
+sys.argv = ['it-depends', 'pip:demo', '--trust', '--database', ':memory:']
+_cli.main()
+"""
+
+
+@contextmanager
+def terminals() -> Iterator[tuple[tuple[int, int], ...]]:
+    """Create independent input, result, and diagnostic terminals."""
+    pairs = tuple(os.openpty() for _ in range(3))
+    try:
+        yield pairs
+    finally:
+        for pair in pairs:
+            for descriptor in pair:
+                os.close(descriptor)
+
+
+def read_available(descriptor: int) -> bytes:
+    try:
+        return os.read(descriptor, 65536)
+    except OSError as error:
+        if error.errno != errno.EIO:
+            raise
+        return b""
+
+
+def read_until(descriptor: int, expected: bytes) -> bytes:
+    result = bytearray()
+    deadline = monotonic() + 10
+    while expected not in result and monotonic() < deadline:
+        if select.select([descriptor], [], [], 0.1)[0]:
+            result.extend(read_available(descriptor))
+    assert expected in result, result.decode(errors="replace")
+    return bytes(result)
+
+
+def remaining(descriptor: int) -> bytes:
+    result = bytearray()
+    while select.select([descriptor], [], [], 0.1)[0]:
+        chunk = read_available(descriptor)
+        if not chunk:
+            break
+        result.extend(chunk)
+    return bytes(result)
+
+
+@pytest.mark.parametrize("mode", ["success", "failure"])
+def test_cli_restores_cursor_and_keeps_stdout_clean(mode: str) -> None:
+    with terminals() as ((_, stdin), (output, stdout), (diagnostics, stderr)):
+        result = subprocess.run(
+            [sys.executable, "-c", f"MODE = {mode!r}\n" + _SCRIPT],
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            env=os.environ | {"TERM": "xterm-256color", "NO_COLOR": "1"},
+            check=False,
+            timeout=10,
+        )
+        rendered = remaining(diagnostics)
+        assert b"\x1b[?25l" in rendered
+        assert b"\x1b[?25h" in rendered
+        if mode == "success":
+            assert result.returncode == 0
+            assert "pip:demo" in json.loads(remaining(output))
+        else:
+            assert result.returncode != 0
+            assert b"test resolution failed" in rendered
+            assert remaining(output) == b""
+
+
+def test_redirected_stdout_disables_all_cursor_controls() -> None:
+    with terminals() as ((_, stdin), (_, _stdout), (diagnostics, stderr)):
+        result = subprocess.run(
+            [sys.executable, "-c", "MODE = 'success'\n" + _SCRIPT],
+            stdin=stdin,
+            stdout=subprocess.PIPE,
+            stderr=stderr,
+            env=os.environ | {"TERM": "xterm-256color"},
+            check=True,
+            timeout=10,
+        )
+        assert "pip:demo" in json.loads(result.stdout)
+        assert b"\x1b" not in remaining(diagnostics)
+
+
+@pytest.mark.parametrize("answer", [b"y\n", b"n\n", None])
+def test_interrupt_exports_only_approved_partial_results(answer: bytes | None) -> None:
+    with terminals() as ((input_master, stdin), (output, stdout), (diagnostics, stderr)):
+        process = subprocess.Popen(
+            [sys.executable, "-c", "MODE = 'interrupt'\n" + _SCRIPT],
+            stdin=stdin,
+            stdout=stdout,
+            stderr=stderr,
+            env=os.environ | {"TERM": "xterm-256color"},
+        )
+        try:
+            rendered = read_until(diagnostics, b"Interruptible analysis")
+            process.send_signal(signal.SIGINT)
+            rendered += read_until(diagnostics, b"partial results?")
+            if answer is None:
+                process.send_signal(signal.SIGINT)
+            else:
+                os.write(input_master, answer)
+            expected_status = 130
+            assert process.wait(timeout=5) == expected_status
+            rendered += remaining(diagnostics)
+            assert b"\x1b[?25h" in rendered
+            artifact = remaining(output)
+            if answer == b"y\n":
+                assert "pip:demo" in json.loads(artifact)
+                assert b"exported partial results" in rendered
+            else:
+                assert artifact == b""
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.wait()

@@ -82,6 +82,7 @@ class CommandFinished:
     command_id: int
     returncode: int
     tail: tuple[str, ...] = ()
+    cancelled: bool = False
 
 
 Event = Diagnostic | Progress | ResolutionProgress | CommandStarted | CommandOutput | CommandFinished
@@ -139,7 +140,8 @@ def diagnostic(
     if exception:
         error = sys.exc_info()[1]
         if error is not None:
-            message = f"{message}: {error}"
+            if message != str(error):
+                message = f"{message}: {error}"
             detail = "".join(traceback.format_exception(type(error), error, error.__traceback__))
     emit(Diagnostic(severity, source, message, detail))
 
