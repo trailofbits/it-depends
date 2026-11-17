@@ -339,9 +339,9 @@ class DockerContainer:
         # use the low-level APIClient so we can get streaming build status
         try:
             sock = _discover_podman_socket()
-            cli = docker.APIClient(base_url=sock)
+            cli = docker.APIClient(base_url=sock) if sock is not None else self.client.api
         except DockerException as e:
-            msg = f"Could not connect to socket: sock={sock} {e}"
+            msg = f"Could not connect to container runtime: {e}"
             raise ValueError(msg) from e
         with tqdm(desc="Archiving the build directory", unit=" steps", leave=False) as t:
             last_line = 0
