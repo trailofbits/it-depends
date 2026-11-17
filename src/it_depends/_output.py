@@ -82,6 +82,10 @@ def _loguru_message(message: Message) -> None:
     emit(Diagnostic(severity, record["name"] or "johnnydep", record["message"], detail))
 
 
+def _stderr_message(message: Message) -> None:
+    sys.stderr.write(str(message))
+
+
 @contextmanager
 def _loguru_reporting() -> Iterator[None]:
     global _default_loguru_sink  # noqa: PLW0603 - Track only the default sink owned by Loguru.
@@ -103,7 +107,7 @@ def _loguru_reporting() -> Iterator[None]:
     finally:
         dependency_logger.remove(sink)
         if default_removed:
-            _default_loguru_sink = dependency_logger.add(sys.stderr)
+            _default_loguru_sink = dependency_logger.add(_stderr_message)
 
 
 @contextmanager
