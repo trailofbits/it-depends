@@ -126,6 +126,10 @@ class RichReporter(PlainReporter):
         if self.live is None:
             super()._diagnostic(event)
             return
+        if event.severity < Severity.WARNING and self.level > Severity.DEBUG:
+            with self.lock:
+                self.recent.append(plain_text(event.message))
+            return
         style = "red" if event.severity >= Severity.ERROR else "yellow" if event.severity == Severity.WARNING else ""
         self.console.print(Text(f"{event.severity.name}: {plain_text(event.message)}", style=style))
         if event.detail and self.level == Severity.DEBUG:
