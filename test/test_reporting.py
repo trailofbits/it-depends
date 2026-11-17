@@ -1,11 +1,13 @@
 """Behavior of scoped reporting and plain CLI output."""
 
 import io
+import logging
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
+from loguru import logger as dependency_logger
 
-from it_depends._output import PlainReporter
+from it_depends._output import PlainReporter, third_party_reporting
 from it_depends.reporting import (
     Diagnostic,
     Event,
@@ -101,3 +103,30 @@ def test_plain_task_updates_do_not_flood_logs() -> None:
 
 def test_control_removal_preserves_text() -> None:
     assert plain_text("\x1b]0;title\x07hello\rworld\x00\n") == "helloworld\n"
+
+
+def test_third_party_logging_preserves_root_and_restores_namespace_settings() -> None:
+    events: list[Event] = []
+    root_handlers = logging.getLogger().handlers[:]
+    logger = logging.getLogger("docker")
+    previous = (logger.level, logger.propagate, logger.handlers[:])
+    with reporting_session(events.append), third_party_reporting():
+        logger.warning("container unavailable")
+    assert logging.getLogger().handlers == root_handlers
+    assert (logger.level, logger.propagate, logger.handlers) == previous
+    assert any(isinstance(event, Diagnostic) and event.message == "container unavailable" for event in events)
+
+
+def test_repeated_cli_sessions_capture_johnnydep_without_duplicate_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    events: list[Event] = []
+    logger = dependency_logger.patch(lambda record: record.update(name="johnnydep.tests"))
+    for _ in range(2):
+        with reporting_session(events.append), third_party_reporting():
+            logger.warning("resolver diagnostic")
+    assert [event.message for event in events if isinstance(event, Diagnostic)] == [
+        "resolver diagnostic",
+        "resolver diagnostic",
+    ]
+    assert capsys.readouterr().err == ""

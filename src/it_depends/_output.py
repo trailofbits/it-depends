@@ -4,16 +4,23 @@ from __future__ import annotations
 
 import logging
 import sys
+import traceback
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from threading import RLock
 from typing import TYPE_CHECKING
 
+from loguru import logger as dependency_logger
+
 from it_depends.reporting import Diagnostic, Event, Progress, Severity, emit, plain_text
+
+_default_loguru_sink: int | None = 0
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import TextIO
+
+    from loguru import Message
 
 
 class PlainReporter:
@@ -34,7 +41,7 @@ class PlainReporter:
         with self.lock:
             if isinstance(event, Progress):
                 self._progress(event)
-            else:
+            elif isinstance(event, Diagnostic):
                 self._diagnostic(event)
 
     def _progress(self, event: Progress) -> None:
@@ -65,6 +72,40 @@ class _LoggingBridge(logging.Handler):
         emit(Diagnostic(severity, record.name, record.getMessage()))
 
 
+def _loguru_message(message: Message) -> None:
+    record = message.record
+    severity = min(Severity, key=lambda value: abs(value - record["level"].no))
+    error = record["exception"]
+    detail = ""
+    if error is not None:
+        detail = "".join(traceback.format_exception(error.type, error.value, error.traceback))
+    emit(Diagnostic(severity, record["name"] or "johnnydep", record["message"], detail))
+
+
+@contextmanager
+def _loguru_reporting() -> Iterator[None]:
+    global _default_loguru_sink  # noqa: PLW0603 - Track only the default sink owned by Loguru.
+    sink = dependency_logger.add(
+        _loguru_message,
+        level="DEBUG",
+        filter=lambda record: (record["name"] or "").startswith("johnnydep"),
+    )
+    default_removed = False
+    if _default_loguru_sink is not None:
+        try:
+            dependency_logger.remove(_default_loguru_sink)
+        except ValueError:
+            _default_loguru_sink = None
+        else:
+            default_removed = True
+    try:
+        yield
+    finally:
+        dependency_logger.remove(sink)
+        if default_removed:
+            _default_loguru_sink = dependency_logger.add(sys.stderr)
+
+
 @contextmanager
 def third_party_reporting() -> Iterator[None]:
     """Route dependency diagnostics for this CLI run without resetting root handlers."""
@@ -77,7 +118,8 @@ def third_party_reporting() -> Iterator[None]:
         logger.setLevel(logging.DEBUG)
         logger.propagate = False
     try:
-        yield
+        with _loguru_reporting():
+            yield
     finally:
         for logger, (level, propagate) in zip(loggers, previous, strict=True):
             logger.removeHandler(handler)

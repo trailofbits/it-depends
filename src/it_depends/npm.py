@@ -4,17 +4,18 @@ from __future__ import annotations
 
 import json
 import subprocess
-from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
 from semantic_version import NpmSpec, SimpleSpec, Version
 
-from ._exec import resolve_executable
-from .dependencies import (
+from it_depends._exec import resolve_executable
+from it_depends.dependencies import (
     AliasedDependency,
     Dependency,
     DependencyResolver,
@@ -25,8 +26,6 @@ from .dependencies import (
     SourcePackage,
     SourceRepository,
 )
-
-log = getLogger(__name__)
 
 
 class NPMResolver(DependencyResolver):
@@ -160,7 +159,9 @@ class NPMResolver(DependencyResolver):
                 ]
             )
         except subprocess.CalledProcessError as e:
-            log.warning(
+            diagnostic(
+                Severity.WARNING,
+                __name__,
                 "Error running `npm view --json %s@%s dependencies`: %s",
                 dependency_name,
                 dependency.semantic_version,
@@ -238,7 +239,7 @@ class NPMResolver(DependencyResolver):
         if no_whitespace != spec:
             return NPMResolver.parse_spec(no_whitespace)
         # If all parsing attempts fail, return a wildcard spec
-        log.warning("Could not parse version spec %r, falling back to wildcard *", spec)
+        diagnostic(Severity.WARNING, __name__, "Could not parse version spec %r, falling back to wildcard *", spec)
         return SimpleSpec("*")
 
     def docker_setup(self) -> DockerSetup:
@@ -287,7 +288,7 @@ def parse_package_lock(lock_file_path: Path) -> dict | None:
         with lock_file_path.open() as f:
             return dict(json.load(f))
     except (FileNotFoundError, json.JSONDecodeError, OSError) as e:
-        log.warning("Failed to parse package-lock.json at %s: %s", lock_file_path, e)
+        diagnostic(Severity.WARNING, __name__, "Failed to parse package-lock.json at %s: %s", lock_file_path, e)
         return None
 
 
@@ -364,7 +365,9 @@ def generate_dependency_from_information(
 
             semantic_version = NPMResolver.parse_spec(version)
             if semantic_version is None:
-                log.warning(
+                diagnostic(
+                    Severity.WARNING,
+                    __name__,
                     "Unable to compute the semantic version of %s (%s)",
                     package_name,
                     package_version,
@@ -386,7 +389,13 @@ def generate_dependency_from_information(
 
     semantic_version = NPMResolver.parse_spec(package_version)
     if semantic_version is None:
-        log.warning("Unable to compute the semantic version of %s (%s)", package_name, package_version)
+        diagnostic(
+            Severity.WARNING,
+            __name__,
+            "Unable to compute the semantic version of %s (%s)",
+            package_name,
+            package_version,
+        )
         semantic_version = SimpleSpec("*")
 
     return Dependency(

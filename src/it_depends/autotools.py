@@ -4,15 +4,14 @@ from __future__ import annotations
 
 import functools
 import itertools
-import logging
 import re
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ._exec import resolve_executable
-from .dependencies import (
+from it_depends._exec import resolve_executable
+from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     PackageCache,
@@ -22,22 +21,21 @@ from .dependencies import (
     SourceRepository,
     Version,
 )
+from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-    from .models import Package
+    from it_depends.models import Package
 
-from .ubuntu.apt import (
+from it_depends.ubuntu.apt import (
     cached_file_to_package as file_to_package,
 )
-from .ubuntu.apt import (
+from it_depends.ubuntu.apt import (
     make_autotools_include_query,
     make_library_query,
     make_pkg_config_query,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class AutotoolsResolver(DependencyResolver):
@@ -92,7 +90,7 @@ class AutotoolsResolver(DependencyResolver):
         Checks if the system header file header-file is compilable.
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Generic-Headers.html
         """
-        logger.info("AC_CHECK_HEADER %s", header_file)
+        diagnostic(Severity.INFO, __name__, "AC_CHECK_HEADER %s", header_file)
         query = make_autotools_include_query([header_file])
         package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
@@ -105,7 +103,7 @@ class AutotoolsResolver(DependencyResolver):
         https://www.gnu.org/software/autoconf/manual/autoconf-2.67/html_node/Libraries.html#Libraries
         """
         lib_file, _ = function.split(".")
-        logger.info("AC_CHECK_LIB %s", lib_file)
+        diagnostic(Severity.INFO, __name__, "AC_CHECK_LIB %s", lib_file)
         query = make_library_query([lib_file])
         package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec("*"), source="ubuntu")
@@ -122,7 +120,7 @@ class AutotoolsResolver(DependencyResolver):
         """
         if not version:
             version = "*"
-        logger.info("PKG_CHECK_MODULES %s.pc, %s", module_name, version)
+        diagnostic(Severity.INFO, __name__, "PKG_CHECK_MODULES %s.pc, %s", module_name, version)
         query = make_pkg_config_query([module_name])
         package_name = file_to_package(query, file_to_package_cache=file_to_package_cache)
         return Dependency(package=package_name, semantic_version=SimpleSpec(version), source="ubuntu")
@@ -136,7 +134,7 @@ class AutotoolsResolver(DependencyResolver):
         variable_list = re.findall(r"\$([a-zA-Z_0-9]+)|\${([_a-zA-Z0-9]+)}", token)
         variables = {var for var in itertools.chain(*variable_list) if var}  # remove dups and empty
         for var in variables:
-            logger.info("Trying to find bindings for %s in configure", var)
+            diagnostic(Severity.INFO, __name__, "Trying to find bindings for %s in configure", var)
 
             # This tries to find a single assign to the variable in question
             # ... var= "SOMETHING"
@@ -147,11 +145,11 @@ class AutotoolsResolver(DependencyResolver):
             solutions = re.findall(f'{var}=\\s*"([^"]*)"', configure)
             solutions += re.findall(f"{var}=\\s*'([^']*)'", configure)
             if len(solutions) > 1:
-                logger.warning("Found several solutions for %s: %s", var, solutions)
+                diagnostic(Severity.WARNING, __name__, "Found several solutions for %s: %s", var, solutions)
             if len(solutions) == 0:
-                logger.warning("No solution found for binding %s", var)
+                diagnostic(Severity.WARNING, __name__, "No solution found for binding %s", var)
                 continue
-            logger.info("Found a solution %s", solutions)
+            diagnostic(Severity.INFO, __name__, "Found a solution %s", solutions)
             sol = [*solutions, None][0]
             if sol is not None:
                 token = token.replace(f"${var}", sol).replace(f"${{{var}}}", sol)
@@ -185,9 +183,9 @@ class AutotoolsResolver(DependencyResolver):
                     version="".join(version),
                     file_to_package_cache=file_to_package_cache,
                 )
-            logger.error("Macro not supported %r", macro)
-        except Exception:
-            logger.exception("Error processing macro %s", macro)
+            diagnostic(Severity.ERROR, __name__, "Macro not supported %r", macro)
+        except Exception:  # noqa: BLE001 - Report resolver failures and retain other results.
+            diagnostic(Severity.ERROR, __name__, "Error processing macro %s", macro, exception=True)
         return None
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:  # noqa: ARG002
@@ -205,7 +203,7 @@ class AutotoolsResolver(DependencyResolver):
         """Resolve dependencies from source repository."""
         if not self.can_resolve_from_source(repo):
             return None
-        logger.info("Getting dependencies for autotool repo %s", repo.path.absolute())
+        diagnostic(Severity.INFO, __name__, "Getting dependencies for autotool repo %s", repo.path.absolute())
         aclocal_path = self.aclocal_path
         autoconf_path = self.autoconf_path
         with tempfile.NamedTemporaryFile() as tmp:
@@ -236,12 +234,12 @@ class AutotoolsResolver(DependencyResolver):
         for macro_line in trace.split("\n"):
             if not macro_line:
                 continue
-            logger.debug("Handling: %s", macro_line)
+            diagnostic(Severity.DEBUG, __name__, "Handling: %s", macro_line)
             macro, *arguments = macro_line.split(":")
             try:
                 arguments = tuple(self._replace_variables(arg, configure) for arg in arguments)
-            except Exception:
-                logger.exception("Error replacing variables")
+            except Exception:  # noqa: BLE001 - Report resolver failures and retain other results.
+                diagnostic(Severity.ERROR, __name__, "Error replacing variables", exception=True)
                 continue
             dep = self._process_macro(macro, arguments, file_to_package_cache)
             if dep is not None:
@@ -258,13 +256,13 @@ class AutotoolsResolver(DependencyResolver):
         try:
             package_name = self._replace_variables("$PACKAGE_NAME", configure)
         except ValueError:
-            logger.exception("Error getting package name")
+            diagnostic(Severity.ERROR, __name__, "Error getting package name", exception=True)
             package_name = repo.path.name
 
         try:
             package_version = self._replace_variables("$PACKAGE_VERSION", configure)
         except ValueError:
-            logger.exception("Error getting package version")
+            diagnostic(Severity.ERROR, __name__, "Error getting package version", exception=True)
             package_version = "0.0.0"
 
         return SourcePackage(

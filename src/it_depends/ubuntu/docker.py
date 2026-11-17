@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 import subprocess
 from functools import lru_cache
@@ -11,14 +10,13 @@ from re import Pattern
 from threading import Lock
 
 from it_depends.docker import DockerContainer, InMemoryDockerfile
+from it_depends.reporting import Severity, diagnostic
 
 _container: DockerContainer | None = None
 _UBUNTU_LOCK: Lock = Lock()
 
 _UBUNTU_NAME_MATCH: Pattern[str] = re.compile(r"^\s*name\s*=\s*\"ubuntu\"\s*$", flags=re.IGNORECASE)
 _VERSION_ID_MATCH: Pattern[str] = re.compile(r"^\s*version_id\s*=\s*\"([^\"]+)\"\s*$", flags=re.IGNORECASE)
-
-logger = logging.getLogger(__name__)
 
 
 @lru_cache(maxsize=4)
@@ -64,7 +62,7 @@ RUN apt-get update && apt-get install -y apt-file && apt-file update
             ) as dockerfile:
                 _container = DockerContainer("trailofbits/it-depends-apt", dockerfile=dockerfile)
                 _container.rebuild()
-    logger.debug("Running `%s` in Docker", " ".join(args))
+    diagnostic(Severity.DEBUG, __name__, "Running `%s` in Docker", " ".join(args))
     p = _container.run(
         *args,
         interactive=False,

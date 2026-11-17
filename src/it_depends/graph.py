@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import logging
-
-from .graphs import RootedDiGraph
-from .models import Dependency, Package, SourcePackage
-
-logger = logging.getLogger(__name__)
+from it_depends.graphs import RootedDiGraph
+from it_depends.models import Dependency, Package, SourcePackage
+from it_depends.reporting import Severity, diagnostic
 
 
 class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
@@ -66,7 +63,7 @@ class DependencyGraph(RootedDiGraph[Package, SourcePackage]):
                             f"repositories: {', '.join(map(str, source_repos))}. "
                             f"Collapsing to {source_repo}."
                         )
-                        logger.warning(msg)
+                        diagnostic(Severity.WARNING, __name__, msg)
 
                     pkg = SourcePackage(
                         name=package_name,

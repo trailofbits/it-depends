@@ -223,7 +223,6 @@ def test_cli_maintenance_opt_in(*, enabled: bool) -> None:
     repo = _repo(Package("demo", "1.0.0", "pip"))
     with (
         patch.object(_cli, "Settings", return_value=settings),
-        patch.object(_cli, "setup_logger"),
         patch.object(_cli, "DBPackageCache"),
         patch.object(_cli, "resolve", return_value=repo),
         patch.object(_cli, "_write_output"),

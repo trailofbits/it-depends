@@ -30,7 +30,6 @@ dependencies = [
     "rich==15.0.0",
     "semantic_version >= 2.10.0",
     "sqlalchemy >= 2.0.43",
-    "tqdm >= 4.67.1",
 ]
 requires-python = ">=3.10"
 
@@ -77,7 +76,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 # don't attempt code coverage for the CLI entrypoints or logging configuration
-omit = ["src/it_depends/_cli.py", "src/it_depends/logger.py", "src/it_depends/config.py"]
+omit = ["src/it_depends/_cli.py", "src/it_depends/config.py"]
 
 [tool.mypy]
 mypy_path = "src"

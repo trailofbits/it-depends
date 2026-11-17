@@ -39,6 +39,16 @@ it-depends --depth-limit 1 "pip:scikit-learn"           # Only direct dependenci
 it-depends --output-format dot --output-file file.dot . # Output as Graphviz/Dot
 ```
 
+### Output and diagnostics
+
+It-Depends writes the selected result to standard output and diagnostics to standard error.
+Use `--output-file report.json` to save the result instead. `--log-level` controls diagnostics
+without suppressing results; `--log-level debug` includes exception tracebacks.
+
+Python API calls do not configure global logging. To receive application events, use
+`it_depends.reporting.reporting_session(callback)` around your analysis call. The callback
+receives diagnostic and progress events, including events from resolver worker threads.
+
 ### Checking package maintenance
 
 ```shell

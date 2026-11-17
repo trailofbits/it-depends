@@ -48,7 +48,17 @@ class Progress:
     failed: bool = False
 
 
-Event = Diagnostic | Progress
+@dataclass(frozen=True)
+class ResolutionProgress:
+    """Discovery counts, without implying a known final graph size."""
+
+    packages: int
+    versions: int
+    active: int
+    queued: int
+
+
+Event = Diagnostic | Progress | ResolutionProgress
 Reporter = Callable[[Event], None]
 _reporter: ContextVar[Reporter | None] = ContextVar("it_depends_reporter", default=None)
 _task: ContextVar[int | None] = ContextVar("it_depends_task", default=None)

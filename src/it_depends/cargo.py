@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 import json
-import logging
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
 from semantic_version.base import Always, BaseSpec
 
-from ._exec import resolve_executable
-from .dependencies import (
+from it_depends._exec import resolve_executable
+from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     InMemoryPackageCache,
@@ -27,8 +28,6 @@ from .dependencies import (
     SourceRepository,
     Version,
 )
-
-logger = logging.getLogger(__name__)
 
 
 @BaseSpec.register_syntax
@@ -80,7 +79,7 @@ def _parse_workspace_member(member: str) -> str:
         # Extract the package name from the path component before the fragment.
         path_part = member[: member.rfind("#")]
         return path_part.rstrip("/").rsplit("/", 1)[-1]
-    logger.warning("Unrecognized workspace member format: %r", member)
+    diagnostic(Severity.WARNING, __name__, "Unrecognized workspace member format: %r", member)
     return member
 
 
@@ -99,7 +98,7 @@ def get_dependencies(
     except subprocess.CalledProcessError:
         # A single crate whose temp-project `cargo metadata` fails must not abort the whole
         # resolution; mirror pip.py's handling of johnnydep failures (see #125).
-        logger.exception("Error running `cargo metadata` in %s", repo.path)
+        diagnostic(Severity.ERROR, __name__, "Error running `cargo metadata` in %s", repo.path, exception=True)
         return
     metadata = json.loads(output)
 
@@ -227,7 +226,7 @@ class CargoResolver(DependencyResolver):
                     processed_version = "=" + processed_version
                 cargo_dep = f'{dependency.package} = "{processed_version}"'
 
-                logger.debug("Found %s for %s in crates.io", cargo_dep, dependency)
+                diagnostic(Severity.DEBUG, __name__, "Found %s for %s in crates.io", cargo_dep, dependency)
                 with tempfile.TemporaryDirectory() as tmpdir:
                     subprocess.check_output([cargo_path, "init"], cwd=tmpdir)
                     with Path(tmpdir).joinpath("Cargo.toml").open("a") as f:

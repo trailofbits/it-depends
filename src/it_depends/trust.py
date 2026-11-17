@@ -151,7 +151,10 @@ def _request_approval(console: Console, target: SourceRepository | Dependency, s
     if interactive and not sys.stderr.isatty():
         console = Console(highlight=False)
     console.print(Text(_describe(target, specification)))
-    console.print(Panel(Text(_WARNING), title="Code execution warning", border_style="bold red"))
+    if interactive and console.is_terminal and not console.is_dumb_terminal:
+        console.print(Panel(Text(_WARNING), title="Code execution warning", border_style="bold red"))
+    else:
+        console.print(Text(_WARNING))
     if not interactive:
         msg = (
             "Target is not trusted. Interactive approval requires a terminal. "

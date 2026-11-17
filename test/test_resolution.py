@@ -8,7 +8,6 @@ or skipped as duplicates).
 
 import gc
 import itertools
-import logging
 from collections.abc import Iterator
 from pathlib import Path
 from unittest import TestCase, mock
@@ -29,6 +28,7 @@ from it_depends.dependencies import (
     resolver_by_name,
     resolvers,
 )
+from it_depends.reporting import Diagnostic, Event, reporting_session
 from it_depends.resolution import resolve, resolve_sbom
 
 _FAKE_IDS = itertools.count()
@@ -227,12 +227,13 @@ class TestResolution(TestCase):
         self.resolver.updatable = {"root"}
         self.resolver.update_errors["root"] = ValueError("boom")
 
-        with self.assertLogs("it_depends.resolution", level=logging.WARNING) as logs:
+        events: list[Event] = []
+        with reporting_session(events.append):
             repo = resolve(root, max_workers=1)
 
         assert {p.name for p in repo} == {"root"}
         assert not next(p for p in repo if p.name == "root").dependencies
-        assert "boom" in "\n".join(logs.output)
+        assert "boom" in "\n".join(event.message for event in events if isinstance(event, Diagnostic))
 
     def test_unexpected_resolver_update_error_is_logged_and_does_not_abort(self) -> None:
         """A non-ValueError raised while updating is logged and resolution continues."""
@@ -241,11 +242,12 @@ class TestResolution(TestCase):
         self.resolver.updatable = {"child"}
         self.resolver.update_errors["child"] = RuntimeError("kaboom")
 
-        with self.assertLogs("it_depends.resolution", level=logging.ERROR) as logs:
+        events: list[Event] = []
+        with reporting_session(events.append):
             repo = resolve(root, max_workers=1)
 
         assert {p.name for p in repo} == {"root", "child"}
-        assert "kaboom" in "\n".join(logs.output)
+        assert "kaboom" in "\n".join(event.message for event in events if isinstance(event, Diagnostic))
 
     def test_root_already_recorded_as_updated_in_the_cache_is_not_updated_again(self) -> None:
         """A root package the cache already records as updated is added without re-updating it."""

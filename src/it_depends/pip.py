@@ -5,17 +5,17 @@ from __future__ import annotations
 import io
 import subprocess
 import sys
-from logging import getLogger
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 from zipfile import BadZipFile
 
+from it_depends.reporting import Severity, diagnostic
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
 from johnnydep import JohnnyDist, JohnnyError
-from johnnydep.logs import configure_logging
 from packaging.version import InvalidVersion
 from packaging.version import Version as PackagingVersion
 
@@ -31,9 +31,6 @@ from it_depends.dependencies import (
     SourceRepository,
     Version,
 )
-
-configure_logging(1)
-log = getLogger(__name__)
 
 
 class PipResolver(DependencyResolver):
@@ -85,7 +82,9 @@ class PipResolver(DependencyResolver):
         try:
             return SimpleSpec(dist_or_str)
         except ValueError:
-            log.warning("Could not parse version spec %r, falling back to wildcard *", dist_or_str)
+            diagnostic(
+                Severity.WARNING, __name__, "Could not parse version spec %r, falling back to wildcard *", dist_or_str
+            )
             return SimpleSpec("*")
 
     @staticmethod
@@ -301,8 +300,13 @@ class PipResolver(DependencyResolver):
                     if recurse:
                         queue.extend((child, self._get_specifier(child)) for child in release.children)
                 except (subprocess.CalledProcessError, ValueError, JohnnyError, OSError, BadZipFile) as error:
-                    log.warning(
-                        "Skipping %s==%s: could not resolve release metadata: %s", dist.name, raw_version, error
+                    diagnostic(
+                        Severity.WARNING,
+                        __name__,
+                        "Skipping %s==%s: could not resolve release metadata: %s",
+                        dist.name,
+                        raw_version,
+                        error,
                     )
         return packages
 
@@ -325,10 +329,12 @@ class PipResolver(DependencyResolver):
                 )
             )
         except subprocess.CalledProcessError:
-            log.exception("Error using JohnnyDep to resolve %s", dependency.package)
+            diagnostic(
+                Severity.ERROR, __name__, "Error using JohnnyDep to resolve %s", dependency.package, exception=True
+            )
             return iter(())
         except ValueError as e:
-            log.warning(str(e))
+            diagnostic(Severity.WARNING, __name__, str(e))
             return iter(())
 
 
@@ -410,7 +416,7 @@ class PipSourcePackage(SourcePackage):
                     version = PipResolver.get_version(f.read().strip())
             else:
                 version = PipResolver.get_version("0.0.0")
-                log.info("Could not detect %s version. Using: %s", repo.path, version)
+                diagnostic(Severity.INFO, __name__, "Could not detect %s version. Using: %s", repo.path, version)
             return PipSourcePackage(
                 name=name,
                 version=version,

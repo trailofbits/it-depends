@@ -6,12 +6,13 @@ import os
 import re
 from typing import TYPE_CHECKING
 
+from it_depends.reporting import Severity, diagnostic
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-from logging import getLogger
 from pathlib import Path
 from subprocess import DEVNULL, CalledProcessError, check_call, check_output
 from tempfile import TemporaryDirectory
@@ -25,9 +26,9 @@ else:
     from semantic_version import Version  # noqa: TC002
     from semantic_version.base import BaseSpec, Range, SimpleSpec
 
-from . import vcs
-from ._exec import resolve_executable
-from .dependencies import (
+from it_depends import vcs
+from it_depends._exec import resolve_executable
+from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     Package,
@@ -36,8 +37,6 @@ from .dependencies import (
     SourcePackage,
     SourceRepository,
 )
-
-log = getLogger(__name__)
 
 GITHUB_URL_MATCH = re.compile(r"\s*https?://(www\.)?github.com/([^/]+)/(.+?)(\.git)?\s*", re.IGNORECASE)
 REQUIRE_LINE_REGEX = r"\s*([^\s]+)\s+([^\s]+)\s*(//\s*indirect\s*)?"
@@ -70,7 +69,7 @@ class MetadataParser(HTMLParser):
 
     def error(self, message: str) -> None:
         """Handle parsing errors."""
-        log.warning("HTML parse error in Go metadata: %s", message)
+        diagnostic(Severity.WARNING, __name__, "HTML parse error in Go metadata: %s", message)
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         """Handle HTML start tags."""
@@ -220,7 +219,7 @@ class GoModule:
             m = GITHUB_URL_MATCH.fullmatch(git_url)
             if m:
                 return GoModule.from_github(m.group(2), m.group(3), tag)
-        log.info("Attempting to clone %s", git_url)
+        diagnostic(Severity.INFO, __name__, "Attempting to clone %s", git_url)
         git_path = resolve_executable("git")
         with TemporaryDirectory() as tempdir:
             env = {"GIT_TERMINAL_PROMPT": "0"}
@@ -266,7 +265,9 @@ class GoModule:
                             env=env,
                         )
                     except CalledProcessError:
-                        log.exception("Could not clone %s for %r", git_url, import_path)
+                        diagnostic(
+                            Severity.ERROR, __name__, "Could not clone %s for %r", git_url, import_path, exception=True
+                        )
                         return GoModule(import_path)
                     try:
                         check_call(
@@ -279,7 +280,9 @@ class GoModule:
                     except CalledProcessError:
                         if tag.startswith("="):
                             return GoModule.from_git(import_path, git_url, tag[1:])
-                        log.warning(
+                        diagnostic(
+                            Severity.WARNING,
+                            __name__,
                             "Could not checkout tag %s of %s for %r; reverting to the main branch",
                             tag,
                             git_url,
@@ -396,7 +399,7 @@ class GoModule:
         try:
             repo = GoModule.repo_root_for_import_path(import_path)
         except ValueError as e:
-            log.warning(str(e))
+            diagnostic(Severity.WARNING, __name__, str(e))
             return GoModule(import_path)
         if repo.vcs.name == "Git":
             return GoModule.from_git(import_path, repo.repo, tag)
