@@ -1,6 +1,7 @@
 """Regression tests for release-specific pip dependency metadata."""
 
 import subprocess
+from collections.abc import Iterator
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -14,6 +15,14 @@ from packaging.requirements import Requirement
 
 from it_depends.dependencies import Dependency, SimpleSpec
 from it_depends.pip import PipResolver, PipSourcePackage
+from it_depends.reporting import Diagnostic, Event, reporting_session
+
+
+@pytest.fixture
+def diagnostics() -> Iterator[list[Event]]:
+    events: list[Event] = []
+    with reporting_session(events.append):
+        yield events
 
 
 @pytest.fixture
@@ -178,12 +187,14 @@ def test_missing_or_invalid_metadata_version_is_refetched(metadata_version: str 
 
 
 @pytest.mark.usefixtures("registry")
-def test_invalid_python_version_does_not_discard_other_releases(caplog: pytest.LogCaptureFixture) -> None:
+def test_invalid_python_version_does_not_discard_other_releases(diagnostics: list[Event]) -> None:
     dist = JohnnyDist("python-dateutil")
     dist.versions_available = ["2.8.1", "1.0.0-unknown", "2.8.2"]
     packages = list(PipResolver().resolve_dist(dist, recurse=False))
     assert [str(p.version) for p in packages] == ["2.8.1", "2.8.2"]
-    assert "python-dateutil==1.0.0-unknown" in caplog.text
+    assert "python-dateutil==1.0.0-unknown" in "\n".join(
+        event.message for event in diagnostics if isinstance(event, Diagnostic)
+    )
 
 
 @pytest.mark.usefixtures("registry")
@@ -233,7 +244,7 @@ def test_legacy_local_version(installed: str | None) -> None:
 def test_public_resolver_retains_releases_after_metadata_failure(
     error: Exception,
     failed_version: str,
-    caplog: pytest.LogCaptureFixture,
+    diagnostics: list[Event],
 ) -> None:
     get_info = lib._get_info  # noqa: SLF001
 
@@ -247,13 +258,15 @@ def test_public_resolver_retains_releases_after_metadata_failure(
     expected = {"2.8.1": {"six"}, "2.8.2": {"six"}, "3.0.0": {"tzdata"}}
     del expected[failed_version]
     assert {str(p.version): {d.package for d in p.dependencies} for p in packages} == expected
-    assert f"python-dateutil=={failed_version}" in caplog.text
-    assert "Skipping" in caplog.text
+    assert f"python-dateutil=={failed_version}" in "\n".join(
+        event.message for event in diagnostics if isinstance(event, Diagnostic)
+    )
+    assert "Skipping" in "\n".join(event.message for event in diagnostics if isinstance(event, Diagnostic))
 
 
 @pytest.mark.usefixtures("registry")
 def test_public_resolver_retains_releases_after_dependency_metadata_failure(
-    caplog: pytest.LogCaptureFixture,
+    diagnostics: list[Event],
 ) -> None:
     get_dependencies = PipResolver.get_dependencies
 
@@ -266,13 +279,17 @@ def test_public_resolver_retains_releases_after_dependency_metadata_failure(
     with patch.object(PipResolver, "get_dependencies", side_effect=dependencies):
         packages = list(PipResolver().resolve(Dependency.from_string("pip:python-dateutil@*")))
     assert [str(p.version) for p in packages] == ["2.8.1", "3.0.0"]
-    assert "python-dateutil==2.8.2" in caplog.text
+    assert "python-dateutil==2.8.2" in "\n".join(
+        event.message for event in diagnostics if isinstance(event, Diagnostic)
+    )
 
 
 @pytest.mark.usefixtures("registry")
-def test_all_failed_releases_return_empty_with_diagnostics(caplog: pytest.LogCaptureFixture) -> None:
+def test_all_failed_releases_return_empty_with_diagnostics(diagnostics: list[Event]) -> None:
     with patch.object(PipResolver, "get_dependencies", side_effect=ValueError("metadata unavailable")):
         packages = list(PipResolver().resolve(Dependency.from_string("pip:python-dateutil@*")))
     assert packages == []
     for version in ("2.8.1", "2.8.2", "3.0.0"):
-        assert f"python-dateutil=={version}" in caplog.text
+        assert f"python-dateutil=={version}" in "\n".join(
+            event.message for event in diagnostics if isinstance(event, Diagnostic)
+        )
