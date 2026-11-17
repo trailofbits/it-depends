@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, TypeVar, cast
 from typing_extensions import Self
 
 from it_depends._commands import run_command
+from it_depends.reporting import Severity
 
 from ._exec import resolve_executable
 
@@ -94,7 +95,15 @@ class VCS:
         for scheme in self.scheme:
             cmd = [resolved_cmd] + [c.replace("{scheme}", scheme).replace("{repo}", repo) for c in self.ping_cmd]
             if (
-                run_command(cmd, stdout=subprocess.DEVNULL, stdin=subprocess.DEVNULL, env=env, check=False).returncode
+                run_command(
+                    cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                    env=env,
+                    check=False,
+                    failure_severity=Severity.DEBUG,
+                ).returncode
                 == 0
             ):
                 return scheme

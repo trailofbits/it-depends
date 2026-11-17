@@ -14,7 +14,7 @@ from itertools import count
 from threading import RLock
 from typing import TYPE_CHECKING
 
-from it_depends.reporting import CommandFinished, CommandOutput, CommandStarted, emit, in_context
+from it_depends.reporting import CommandFinished, CommandOutput, CommandStarted, Severity, emit, in_context
 
 if TYPE_CHECKING:
     from collections.abc import Iterator, Sequence
@@ -54,7 +54,15 @@ class CommandCapture:
             yield self
             status = 0
         finally:
-            emit(CommandFinished(self.command_id, status, tuple(self.tail)))
+            session = _session.get()
+            emit(
+                CommandFinished(
+                    self.command_id,
+                    status,
+                    tuple(self.tail),
+                    cancelled=session is not None and session.cancelled,
+                )
+            )
 
 
 def _stop(process: subprocess.Popen[bytes], *, force: bool = False) -> None:
@@ -208,6 +216,7 @@ def run_command(  # noqa: PLR0913 - Preserve explicit subprocess stream controls
     stdout: int | IO[bytes] | None = None,
     stderr: int | IO[bytes] | None = None,
     env: dict[str, str] | None = None,
+    failure_severity: Severity = Severity.ERROR,
 ) -> subprocess.CompletedProcess[bytes]:
     """Execute a command, preserving captured bytes and streaming only human diagnostics.
 
@@ -221,6 +230,7 @@ def run_command(  # noqa: PLR0913 - Preserve explicit subprocess stream controls
         stdout: Explicit output descriptor, preserved without interception.
         stderr: Explicit diagnostic descriptor, preserved without interception.
         env: Optional replacement environment.
+        failure_severity: Diagnostic importance of nonzero exits, including expected probes.
 
     Returns:
         The process result, including streams requested for capture.
@@ -262,5 +272,6 @@ def run_command(  # noqa: PLR0913 - Preserve explicit subprocess stream controls
                 status,
                 tuple(capture.tail),
                 cancelled=session.cancelled,
+                severity=failure_severity,
             )
         )

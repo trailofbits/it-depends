@@ -67,6 +67,8 @@ def test_failures_remain_visible_and_successful_commands_collapse() -> None:
     reporter(CommandStarted(2, ("cargo", "metadata")))
     reporter(CommandOutput(2, "stderr", "temporary progress"))
     reporter(CommandFinished(2, 0))
+    reporter(CommandStarted(3, ("git", "ls-remote", "unavailable-scheme")))
+    reporter(CommandFinished(3, 1, severity=Severity.DEBUG))
     reporter.console.print(reporter.render())
     rendered = stream.getvalue()
     assert "registry unavailable" in rendered
