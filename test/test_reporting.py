@@ -186,6 +186,40 @@ assert [message.strip() for message in messages] == ["during", "after"]
     subprocess.run([sys.executable, "-c", script], check=True, env=os.environ | {"LOGURU_AUTOINIT": "false"})
 
 
+def test_queued_loguru_default_preserves_host_output_and_scoped_diagnostics() -> None:
+    script = """
+from concurrent.futures import ThreadPoolExecutor
+from loguru import logger
+from it_depends._output import third_party_reporting
+from it_depends.reporting import reporting_session
+
+events = []
+johnnydep = logger.patch(lambda record: record.update(name="johnnydep.lib"))
+with reporting_session(events.append), third_party_reporting(), ThreadPoolExecutor() as pool:
+    johnnydep.warning("from resolver")
+    pool.submit(logger.warning, "from host").result()
+    pool.submit(johnnydep.warning, "from another analysis").result()
+assert [e.message for e in events] == ["from resolver"]
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        env=os.environ | {"LOGURU_AUTOINIT": "true", "LOGURU_ENQUEUE": "true"},
+        capture_output=True,
+        text=True,
+    )
+    assert "from resolver" not in result.stderr
+    assert result.stderr.count("from host") == 1
+    assert result.stderr.count("from another analysis") == 1
+
+
+@pytest.mark.parametrize(
+    ("level", "threshold"), [("WARN", Severity.WARNING), ("fatal", Severity.CRITICAL), ("NOTSET", Severity.DEBUG)]
+)
+def test_standard_log_level_aliases(level: str, threshold: Severity) -> None:
+    assert PlainReporter(level).level == threshold
+
+
 def test_cold_docker_pull_keeps_cli_stdout_parseable(
     capfd: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

@@ -28,7 +28,7 @@ from it_depends.dependencies import (
     resolver_by_name,
     resolvers,
 )
-from it_depends.reporting import Diagnostic, Event, ResolutionProgress, reporting_session
+from it_depends.reporting import Diagnostic, Event, Progress, ResolutionProgress, reporting_session
 from it_depends.resolution import resolve, resolve_sbom
 
 _FAKE_IDS = itertools.count()
@@ -162,6 +162,34 @@ class TestResolution(TestCase):
                 resolve(root, repo=repo, max_workers=workers)
             assert repo.name_scans <= 1
             assert repo.version_scans <= 1
+
+    def test_shared_cache_discoveries_are_included_in_progress(self) -> None:
+        repo = PackageRepository()
+        events: list[Event] = []
+        self.resolver.source_resolvable = True
+
+        def discover(source: SourceRepository, cache: PackageCache) -> SourcePackage:
+            cache.add(self._pkg("child"))
+            return SourcePackage("root", Version.coerce("1"), source, self.resolver)
+
+        with mock.patch.object(self.resolver, "resolve_from_source", discover), reporting_session(events.append):
+            resolve(SourceRepository(Path()), cache=repo, repo=repo, max_workers=1)
+        progress = [event for event in events if isinstance(event, ResolutionProgress)]
+        assert progress[0] == ResolutionProgress(1, 1, 0, 1)
+        assert progress[-1] == ResolutionProgress(2, 2, 0, 0)
+
+    def test_serial_completion_follows_resolver_work(self) -> None:
+        self.resolver.resolved["child"] = [self._pkg("child")]
+        self.resolver.updatable = {"child"}
+        progress = []
+
+        def observe(event: Event) -> None:
+            if isinstance(event, Progress) and not event.finished:
+                progress.append((event.completed, len(self.resolver.resolve_calls), len(self.resolver.update_calls)))
+
+        with reporting_session(observe):
+            resolve(self._dep("child"), max_workers=1)
+        assert progress == [(0, 0, 0), (1, 1, 0), (2, 1, 1)]
 
     def test_depth_limit_zero_returns_empty_repository(self) -> None:
         """`depth_limit=0` short-circuits before any resolver is consulted."""
