@@ -125,3 +125,39 @@ def test_missing_file_fails_before_starting_the_explorer(
     with patch.object(SavedExplorer, "run") as run, pytest.raises(SystemExit):
         _cli.main()
     run.assert_not_called()
+
+
+def test_component_details_display_saved_vulnerability_applicability(tmp_path: Path) -> None:
+    document = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.6",
+        "components": [{"type": "library", "name": "demo", "bom-ref": "demo", "version": "1.0"}],
+        "vulnerabilities": [
+            {
+                "id": "CVE-example",
+                "affects": [
+                    {
+                        "ref": "demo",
+                        "versions": [
+                            {"version": "1.0", "status": "unaffected"},
+                            {"range": "vers:npm/>=2|<3", "status": "unknown"},
+                            {"version": "4.0"},
+                        ],
+                    }
+                ],
+            },
+        ],
+    }
+    path = tmp_path / "applicability.json"
+    path.write_text(json.dumps(document))
+    app = SavedExplorer(load_saved(path), str(path))
+
+    async def scenario() -> None:
+        async with app.run_test() as pilot:
+            await pilot.press("/", "d", "enter", "right", "down")
+            detail = str(app.query_one("#details", Static).content)
+            assert "CVE-example\n  1.0 (unaffected)" in detail
+            assert "vers:npm/>=2|<3 (unknown)" in detail
+            assert "4.0 (affected)" in detail
+
+    asyncio.run(scenario())

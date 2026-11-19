@@ -7,7 +7,7 @@ from collections import deque
 from dataclasses import replace
 from typing import TYPE_CHECKING, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
 from semantic_version import SimpleSpec, Version
 
 from it_depends.cargo import CargoSpec
@@ -32,7 +32,7 @@ class _NativePackage(BaseModel):
 
 
 class _Property(BaseModel):
-    name: str
+    name: str = ""
     value: str | None = None
 
 
@@ -57,8 +57,19 @@ class _Metadata(BaseModel):
     component: _Component | None = None
 
 
+class _VersionStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    selector: str = Field(validation_alias=AliasChoices("version", "range"))
+    status: Literal["affected", "unaffected", "unknown"] = "affected"
+
+
 class _Affected(BaseModel):
     ref: str
+    versions: list[_VersionStatus] = Field(default_factory=list)
+
+    def describe(self, identifier: str) -> str:
+        return "\n".join([identifier, *(f"  {entry.selector} ({entry.status})" for entry in self.versions)])
 
 
 class _Vulnerability(BaseModel):
@@ -142,6 +153,11 @@ def _components(bom: _CycloneDX) -> dict[str, _Component]:
     anonymous = 0
     while pending:
         component = pending.popleft()
+        if bom.specVersion in {"1.6", "1.7"} and any(
+            "name" not in prop.model_fields_set for prop in component.properties
+        ):
+            msg = f"CycloneDX {bom.specVersion} requires a property name on component {component.name!r}"
+            raise ValueError(msg)
         key = json.dumps(["ref", component.bom_ref])
         if component.bom_ref is None:
             key = json.dumps(["anonymous", anonymous])
@@ -198,7 +214,7 @@ def _cyclonedx(document: object) -> SavedGraph:
             key = _reference(nodes, affected.ref)
             nodes[key] = replace(
                 nodes[key],
-                vulnerabilities=(*nodes[key].vulnerabilities, vulnerability.id),
+                vulnerabilities=(*nodes[key].vulnerabilities, affected.describe(vulnerability.id)),
             )
     return saved_graph(f"CycloneDX {bom.specVersion}", nodes)
 

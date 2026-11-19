@@ -305,3 +305,45 @@ def test_repeated_metadata_reference_preserves_root_and_its_contents(tmp_path: P
     path.write_text(json.dumps(document))
     graph = load_saved(path)
     assert sorted((node.name, node.root) for node in graph.nodes.values()) == [("child", False), ("demo", True)]
+
+
+@pytest.mark.parametrize("revision", ["1.3", "1.4", "1.5", "1.6", "1.7"])
+def test_unnamed_cyclonedx_property_respects_schema_revision(tmp_path: Path, revision: str) -> None:
+    document = {
+        "bomFormat": "CycloneDX",
+        "specVersion": revision,
+        "components": [
+            {
+                "type": "library",
+                "name": "demo",
+                "version": "1.0.0",
+                "bom-ref": "demo",
+                "properties": [{"value": "unused"}, {"name": "maintenance:status", "value": "active"}],
+            },
+            {"type": "library", "name": "child", "version": "1.0.0", "bom-ref": "child"},
+        ],
+        "dependencies": [{"ref": "demo", "dependsOn": ["child"]}],
+    }
+    path = tmp_path / "properties.json"
+    path.write_text(json.dumps(document))
+    if revision in {"1.6", "1.7"}:
+        with pytest.raises(ValueError, match="name"):
+            load_saved(path)
+        return
+    graph = load_saved(path)
+    demo = node_named(graph, "demo")
+    assert demo.maintenance == (("status", "active"),)
+    assert demo.edges[0].targets == (node_named(graph, "child").node_id,)
+
+
+@pytest.mark.parametrize("selector", [{}, {"version": "1", "range": "vers:npm/1"}, {"version": "1", "status": "other"}])
+def test_invalid_cyclonedx_applicability_is_actionable(tmp_path: Path, selector: dict[str, str]) -> None:
+    document = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.6",
+        "vulnerabilities": [{"id": "CVE-demo", "affects": [{"ref": "lib", "versions": [selector]}]}],
+    }
+    path = tmp_path / "invalid-applicability.json"
+    path.write_text(json.dumps(document))
+    with pytest.raises(ValueError, match="versions"):
+        load_saved(path)
