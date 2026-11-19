@@ -144,6 +144,21 @@ class CommandSession:
                 self.processes.discard(process)
 
 
+@contextmanager
+def resolution_commands() -> Iterator[None]:
+    """Bind worker commands to this resolution and cancel them before the pool joins."""
+    session = _session.get()
+    if session is None:
+        with CommandSession().running():
+            yield
+        return
+    try:
+        yield
+    except BaseException:
+        session.cancel()
+        raise
+
+
 def cancel_commands() -> None:
     """Cancel subprocesses in the current analysis session, if one is active."""
     session = _session.get()

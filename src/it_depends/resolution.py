@@ -6,6 +6,7 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from multiprocessing import cpu_count
 from typing import TYPE_CHECKING
 
+from it_depends._commands import resolution_commands
 from it_depends.cache import InMemoryPackageCache, PackageCache, PackageRepository
 from it_depends.models import Dependency, Package, SourcePackage
 from it_depends.reporting import ResolutionProgress, Severity, Task, diagnostic, emit, in_context
@@ -181,7 +182,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
 
     pool: ThreadPoolExecutor | None = None
     try:
-        with Task(f"Resolving {repo_or_spec!s}", unit="operations").running() as t:
+        with resolution_commands(), Task(f"Resolving {repo_or_spec!s}", unit="operations").running() as t:
             # Initialize variables
             unresolved_dependencies: list[tuple[Dependency, int]] = []
             unupdated_packages: list[tuple[Package, int]] = []
