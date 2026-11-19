@@ -3,8 +3,11 @@
 import io
 import json
 import logging
+import os
+import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -75,6 +78,19 @@ def test_plain_diagnostics_filter_and_sanitize_external_content() -> None:
     assert "\x1b" not in stream.getvalue()
 
 
+@pytest.mark.parametrize("on_finish", [False, True])
+def test_subscriber_failure_restores_parent_task(*, on_finish: bool) -> None:
+    def fail(event: Event) -> None:
+        if isinstance(event, Progress) and event.finished == on_finish:
+            msg = "output closed"
+            raise OSError(msg)
+
+    with Task("outer").running() as outer:
+        with reporting_session(fail), pytest.raises(OSError, match="output closed"), Task("inner").running():
+            pass
+        assert Task("sibling").parent_id == outer.task_id
+
+
 def test_exception_detail_is_available_to_subscribers() -> None:
     events: list[Event] = []
     error = ValueError("broken input")
@@ -140,6 +156,36 @@ def test_repeated_cli_sessions_capture_johnnydep_without_duplicate_stderr(
     assert capsys.readouterr().err == ""
 
 
+def test_logging_bridge_preserves_exception_traceback() -> None:
+    events: list[Event] = []
+    error = OSError("socket closed")
+    with reporting_session(events.append), third_party_reporting():
+        try:
+            raise error
+        except OSError:
+            logging.getLogger("docker").exception("connection failed")
+    (event,) = events
+    assert isinstance(event, Diagnostic)
+    assert event.message == "connection failed"
+    assert "Traceback (most recent call last)" in event.detail
+    assert "OSError: socket closed" in event.detail
+
+
+def test_cli_keeps_custom_loguru_sink_when_autoinit_is_disabled() -> None:
+    script = """
+from loguru import logger
+messages = []
+sink = logger.add(messages.append, format="{message}")
+from it_depends._output import third_party_reporting
+with third_party_reporting():
+    logger.warning("during")
+logger.warning("after")
+logger.remove(sink)
+assert [message.strip() for message in messages] == ["during", "after"]
+"""
+    subprocess.run([sys.executable, "-c", script], check=True, env=os.environ | {"LOGURU_AUTOINIT": "false"})
+
+
 def test_cold_docker_pull_keeps_cli_stdout_parseable(
     capfd: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -154,7 +200,8 @@ def test_cold_docker_pull_keeps_cli_stdout_parseable(
 
     def resolve(*_args: object, **_kwargs: object) -> PackageRepository:
         assert container.exists() is None
-        container.pull()
+        with redirect_stderr(io.StringIO()):
+            container.pull()
         repo = PackageRepository()
         repo.add(Package("example", "1.0.0", "pip"))
         return repo
