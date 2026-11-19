@@ -29,6 +29,32 @@ from it_depends.dependencies import (
 )
 
 
+def parse_npm_spec(spec: str) -> NpmSpec | SimpleSpec:
+    """Parse a supported npm dependency constraint.
+
+    Args:
+        spec: The declared or saved version constraint.
+
+    Returns:
+        The parsed constraint.
+
+    Raises:
+        ValueError: Neither supported parser recognizes the constraint.
+
+    """
+    try:
+        return NpmSpec(spec)
+    except ValueError:
+        pass
+    try:
+        return SimpleSpec(spec)
+    except ValueError:
+        compact = spec.replace(" ", "")
+        if compact == spec:
+            raise
+    return parse_npm_spec(compact)
+
+
 class NPMResolver(DependencyResolver):
     """Resolver for NPM packages."""
 
@@ -229,20 +255,10 @@ class NPMResolver(DependencyResolver):
 
         """
         try:
-            return NpmSpec(spec)
+            return parse_npm_spec(spec)
         except ValueError:
-            pass
-        try:
-            return SimpleSpec(spec)
-        except ValueError:
-            pass
-        # Sometimes NPM specs have whitespace, which trips up the parser
-        no_whitespace = "".join(c for c in spec if c != " ")
-        if no_whitespace != spec:
-            return NPMResolver.parse_spec(no_whitespace)
-        # If all parsing attempts fail, return a wildcard spec
-        diagnostic(Severity.WARNING, __name__, "Could not parse version spec %r, falling back to wildcard *", spec)
-        return SimpleSpec("*")
+            diagnostic(Severity.WARNING, __name__, "Could not parse version spec %r, falling back to wildcard *", spec)
+            return SimpleSpec("*")
 
     def docker_setup(self) -> DockerSetup:
         """Get Docker setup configuration for NPM resolver."""

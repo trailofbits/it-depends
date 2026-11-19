@@ -67,6 +67,47 @@ def test_native_round_trip_preserves_versions_constraints_cycles_and_metadata(na
     assert len(graph.groups["pip:lib"]) == expected_versions
 
 
+def test_npm_range_round_trip_follows_only_matching_versions(tmp_path: Path) -> None:
+    dependency = Dependency.from_string("npm:lib@>=1.0.0,<2.0.0")
+    root = Package("root", "1.0.0", "npm", dependencies=(dependency,))
+    repo = PackageRepository()
+    repo.extend([root, Package("lib", "1.5.0", "npm"), Package("lib", "2.0.0", "npm")])
+    saved = tmp_path / "npm.json"
+    saved.write_text(json.dumps(repo.to_obj()))
+    graph = load_saved(saved)
+    (edge,) = node_named(graph, "root").edges
+    assert edge.constraint == ">=1.0.0,<2.0.0"
+    assert edge.targets == (node_named(graph, "lib", "1.5.0").node_id,)
+
+
+@pytest.mark.parametrize("omit", ["value", "id"])
+def test_cyclonedx_optional_metadata_keeps_dependencies_browsable(tmp_path: Path, omit: str) -> None:
+    prop = {"name": "maintenance:status", "value": "active"}
+    vulnerability = {"affects": [{"ref": "child"}], "id": "CVE-example"}
+    if omit == "value":
+        del prop["value"]
+    else:
+        del vulnerability["id"]
+    document = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.6",
+        "components": [
+            {"type": "library", "name": "root", "bom-ref": "root"},
+            {"type": "library", "name": "child", "bom-ref": "child", "properties": [prop]},
+        ],
+        "dependencies": [{"ref": "root", "dependsOn": ["child"]}],
+        "vulnerabilities": [vulnerability],
+    }
+    saved = tmp_path / "optional.json"
+    saved.write_text(json.dumps(document))
+    graph = load_saved(saved)
+    root, child = node_named(graph, "root", ""), node_named(graph, "child", "")
+    assert root.edges[0].targets == (child.node_id,)
+    assert graph.incoming[child.node_id] == (root.node_id,)
+    assert child.maintenance == (() if omit == "value" else (("status", "active"),))
+    assert child.vulnerabilities == (("Unidentified vulnerability" if omit == "id" else "CVE-example"),)
+
+
 def test_cyclonedx_round_trip_preserves_root_and_explicit_relationships(cyclone_file: Path) -> None:
     graph = load_saved(cyclone_file)
     root = node_named(graph, "demo")
@@ -186,6 +227,8 @@ def test_loading_does_not_execute_commands_or_access_network(
 @pytest.mark.parametrize(
     ("source", "constraint", "versions", "expected"),
     [
+        ("npm", "invalid!", ["1.2.0"], set()),
+        ("npm", ">= 1.0.0, < 2.0.0", ["1.2.0", "2.0.0"], {"1.2.0"}),
         ("npm", "^1.0.0", ["1.2.0", "2.0.0"], {"1.2.0"}),
         ("cargo", "^1.0.0", ["1.2.0", "2.0.0"], {"1.2.0"}),
         ("go", "v1.2.3", ["v1.2.3", "v2.0.0"], {"v1.2.3"}),

@@ -8,11 +8,12 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
-from semantic_version import NpmSpec, SimpleSpec, Version
+from semantic_version import SimpleSpec, Version
 
 from it_depends.cargo import CargoSpec
 from it_depends.explorer.model import SavedEdge, SavedGraph, SavedNode, saved_graph
 from it_depends.go import GoSpec, GoVersion
+from it_depends.npm import parse_npm_spec
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -32,7 +33,7 @@ class _NativePackage(BaseModel):
 
 class _Property(BaseModel):
     name: str
-    value: str
+    value: str | None = None
 
 
 class _Component(BaseModel):
@@ -61,7 +62,7 @@ class _Affected(BaseModel):
 
 
 class _Vulnerability(BaseModel):
-    id: str
+    id: str = "Unidentified vulnerability"
     affects: list[_Affected] = Field(default_factory=list)
 
 
@@ -93,7 +94,7 @@ def _native_matches(
     if source not in _ECOSYSTEMS:
         return (), f"Version matching is unavailable for ecosystem {source!r}"
     try:
-        specification = {"npm": NpmSpec, "cargo": CargoSpec, "go": GoSpec}.get(source, SimpleSpec)(constraint)
+        specification = {"npm": parse_npm_spec, "cargo": CargoSpec, "go": GoSpec}.get(source, SimpleSpec)(constraint)
         version_parser = GoVersion if source == "go" else Version
         matches = tuple(
             json.dumps([group, version]) for version in packages if version_parser(version) in specification
@@ -160,7 +161,7 @@ def _component_node(key: str, component: _Component, root: _Component | None) ->
     maintenance = tuple(
         (prop.name.removeprefix("maintenance:"), prop.value)
         for prop in component.properties
-        if prop.name.startswith("maintenance:")
+        if prop.name.startswith("maintenance:") and prop.value is not None
     )
     return SavedNode(
         node_id=key,
