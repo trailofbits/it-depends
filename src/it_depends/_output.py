@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 from loguru import logger as dependency_logger
 from loguru._defaults import LOGURU_AUTOINIT
 
-from it_depends.reporting import Diagnostic, Event, Progress, Severity, emit, plain_text
+from it_depends.reporting import Diagnostic, Event, Progress, Severity, emit, has_reporter, plain_text
 
 _default_loguru_sink: int | None = 0 if LOGURU_AUTOINIT and sys.stderr is not None else None
 
@@ -28,9 +28,10 @@ class PlainReporter:
     """Write conventional diagnostics and task boundaries to stderr."""
 
     def __init__(self, level: str = "info", *, stream: TextIO | None = None) -> None:
+        numeric_level = logging.getLevelName(level.upper())
         try:
-            self.level = Severity[level.upper()]
-        except KeyError as error:
+            self.level = Severity(logging.DEBUG if numeric_level == logging.NOTSET else numeric_level)
+        except ValueError as error:
             msg = f"Unknown log level {level!r}; use debug, info, warning, error, or critical"
             raise ValueError(msg) from error
         self.stream = sys.stderr if stream is None else stream
@@ -88,27 +89,38 @@ def _stderr_message(message: loguru.Message) -> None:
     sys.stderr.write(str(message))
 
 
+def _reports_johnnydep(record: loguru.Record) -> bool:
+    return has_reporter() and (record["name"] or "").partition(".")[0] == "johnnydep"
+
+
+def _unreported_stderr(message: loguru.Message) -> None:
+    if not _reports_johnnydep(message.record):
+        _stderr_message(message)
+
+
 @contextmanager
 def _loguru_reporting() -> Iterator[None]:
     global _default_loguru_sink  # noqa: PLW0603 - Track only the default sink owned by Loguru.
     sink = dependency_logger.add(
         _loguru_message,
         level="DEBUG",
-        filter=lambda record: (record["name"] or "").startswith("johnnydep"),
+        filter=_reports_johnnydep,
+        enqueue=False,
     )
-    default_removed = False
+    fallback = None
     if _default_loguru_sink is not None:
         try:
             dependency_logger.remove(_default_loguru_sink)
         except ValueError:
             _default_loguru_sink = None
         else:
-            default_removed = True
+            fallback = dependency_logger.add(_unreported_stderr, enqueue=False)
     try:
         yield
     finally:
         dependency_logger.remove(sink)
-        if default_removed:
+        if fallback is not None:
+            dependency_logger.remove(fallback)
             _default_loguru_sink = dependency_logger.add(_stderr_message)
 
 
