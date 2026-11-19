@@ -142,16 +142,18 @@ def _components(bom: _CycloneDX) -> dict[str, _Component]:
     anonymous = 0
     while pending:
         component = pending.popleft()
-        pending.extend(component.components)
         key = json.dumps(["ref", component.bom_ref])
         if component.bom_ref is None:
             key = json.dumps(["anonymous", anonymous])
             anonymous += 1
         existing = components.get(key)
-        if existing is not None and existing != component:
-            msg = f"Conflicting components use bom-ref {component.bom_ref!r}"
-            raise ValueError(msg)
+        if existing is not None:
+            if existing != component:
+                msg = f"Conflicting components use bom-ref {component.bom_ref!r}"
+                raise ValueError(msg)
+            continue
         components[key] = component
+        pending.extend(component.components)
     return components
 
 
@@ -171,7 +173,7 @@ def _component_node(key: str, component: _Component, root: _Component | None) ->
         reference=component.bom_ref or "",
         purl=component.purl,
         maintenance=maintenance,
-        root=component == root,
+        root=component is root,
     )
 
 

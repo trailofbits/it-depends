@@ -276,3 +276,32 @@ def test_nested_and_anonymous_cyclonedx_components_do_not_invent_edges(tmp_path:
     assert {node.name for node in graph.nodes.values()} == {"root", "contained"}
     assert all(not node.edges for node in graph.nodes.values())
     assert node_named(graph, "root", "").root
+
+
+def test_anonymous_component_cannot_become_the_metadata_root(tmp_path: Path) -> None:
+    root = {"name": "demo", "type": "application"}
+    library = {"name": "demo", "type": "library"}
+    document = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.6",
+        "metadata": {"component": root},
+        "components": [library],
+    }
+    path = tmp_path / "anonymous-root.json"
+    path.write_text(json.dumps(document))
+    nodes = load_saved(path).nodes.values()
+    assert sorted(node.root for node in nodes) == [False, True]
+
+
+def test_repeated_metadata_reference_preserves_root_and_its_contents(tmp_path: Path) -> None:
+    root = {"name": "demo", "bom-ref": "app", "components": [{"name": "child"}]}
+    document = {
+        "bomFormat": "CycloneDX",
+        "specVersion": "1.6",
+        "metadata": {"component": root},
+        "components": [root],
+    }
+    path = tmp_path / "repeated-root.json"
+    path.write_text(json.dumps(document))
+    graph = load_saved(path)
+    assert sorted((node.name, node.root) for node in graph.nodes.values()) == [("child", False), ("demo", True)]
