@@ -1,9 +1,17 @@
 """Tests for the CMake resolver's argument parsing and availability checks."""
 
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 from unittest import TestCase
 from unittest.mock import patch
 
+import pytest
+
 from it_depends.cmake import CMakeResolver
+from it_depends.repository import SourceRepository
 
 
 class TestGetNames(TestCase):
@@ -100,3 +108,44 @@ class TestToolPath(TestCase):
             assert first.tool_path == "/usr/bin/cmake"
             assert second.tool_path == "/usr/bin/cmake"
         assert mock.call_count == 1
+
+
+@pytest.mark.skipif(shutil.which("cmake") is None, reason="Requires CMake")
+def test_trace_keeps_source_intact_and_reads_relative_project_files(tmp_path: Path) -> None:
+    source = tmp_path / "project"
+    source.mkdir()
+    script = tmp_path / "original"
+    script.write_text(
+        'cmake_minimum_required(VERSION 3.16)\nmessage(FATAL_ERROR "before project")\n'
+        'project(sample NONE)\nmessage(FATAL_ERROR "after project")\ninclude(version.cmake)\n'
+    )
+    (source / "CMakeLists.txt").symlink_to(script)
+    (source / "version.cmake").write_text("set(sample_VERSION 1.2.3)\n")
+    modified_ns = script.stat().st_mtime_ns
+    result = CMakeResolver().resolve_from_source(SourceRepository(source))
+    assert result is not None
+    assert result.name == "sample"
+    assert str(result.version) == "1.2.3"
+    assert script.stat().st_mtime_ns == modified_ns
+
+
+@pytest.mark.skipif(shutil.which("cmake") is None, reason="Requires CMake")
+def test_abrupt_exit_during_configure_preserves_cmake_input(tmp_path: Path) -> None:
+    source = tmp_path / "CMakeLists.txt"
+    source.write_text("project(original NONE)\n")
+    code = """
+import os, sys
+from pathlib import Path
+from it_depends import cmake
+from it_depends.repository import SourceRepository
+cmake.execute = lambda *args, **kwargs: os._exit(130)
+cmake.CMakeResolver().resolve_from_source(SourceRepository(Path(sys.argv[1])))
+"""
+    scratch = tmp_path / "temp"
+    scratch.mkdir()
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(tmp_path)], env=os.environ | {"TMPDIR": str(scratch)}, check=False
+    )
+    expected_status = 130
+    assert result.returncode == expected_status
+    assert source.read_text() == "project(original NONE)\n"

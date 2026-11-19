@@ -199,7 +199,6 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
     if cache is None:
         cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
 
-    results = _ResolutionResults(repo)
     pool: ThreadPoolExecutor | None = None
     try:
         with resolution_commands(), Task(f"Resolving {repo_or_spec!s}", unit="operations").running() as t:
@@ -236,6 +235,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 error_msg = "repo_or_spec must be either a Package, Dependency, or SourceRepository"
                 raise TypeError(error_msg)
 
+            results = _ResolutionResults(repo)
             futures: set[Future[_DependencyResult | _PackageResult]] = set()
             queued: set[Dependency] = {d for d, _ in unresolved_dependencies}
             if max_workers > 1:
@@ -327,7 +327,6 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 if pool is None:
                     # don't use concurrency
                     if unupdated_packages:
-                        t.advance(1)
                         pkg_result = _update_package(*unupdated_packages[0])
                         unupdated_packages = unupdated_packages[1:]
                         process_updated_package(
@@ -336,11 +335,12 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                             pkg_result.updated_in_resolvers,
                             pkg_result.was_updated,
                         )
-                    if unresolved_dependencies:
                         t.advance(1)
+                    if unresolved_dependencies:
                         dep_result = _process_dep(*unresolved_dependencies[0])
                         unresolved_dependencies = unresolved_dependencies[1:]
                         process_resolution(dep_result.dep, dep_result.packages, dep_result.depth)
+                        t.advance(1)
                 else:
                     # new_jobs is the number of new concurrent resolutions we can start without exceeding max_workers
                     new_jobs = max_workers - len(futures)
@@ -361,7 +361,6 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                     if futures:
                         done, futures = wait(futures, return_when=FIRST_COMPLETED)
                         for finished in done:
-                            t.advance(1)
                             result = finished.result()
                             if isinstance(result, _PackageResult):
                                 process_updated_package(
@@ -375,6 +374,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                             else:
                                 error_msg = f"Unexpected future result: {result!r}"
                                 raise NotImplementedError(error_msg)
+                            t.advance(1)
 
     finally:
         if pool is not None:

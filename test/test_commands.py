@@ -6,14 +6,13 @@ import signal
 import subprocess
 import sys
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import nullcontext
 from pathlib import Path
 from threading import Event as ThreadEvent
-from threading import Timer
+from threading import Timer, current_thread, main_thread
 from time import monotonic
 from types import FrameType
-from typing import NoReturn
 from unittest.mock import Mock, patch
 
 import pytest
@@ -26,6 +25,7 @@ from it_depends.models import Dependency, Package
 from it_depends.reporting import (
     CommandFinished,
     CommandOutput,
+    CommandStarted,
     Event,
     Severity,
     in_context,
@@ -41,6 +41,49 @@ def test_machine_stdout_is_preserved_and_stderr_is_streamed() -> None:
         result = run_command([sys.executable, "-c", script], capture_stdout=True)
     assert result.stdout == b'\x00\xff{"value":1}'
     assert [event.text for event in events if isinstance(event, CommandOutput)] == ["progress", "next"]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Requires POSIX signals")
+def test_interrupt_after_child_launch_reaps_the_process() -> None:
+    children: list[subprocess.Popen[bytes]] = []
+
+    def signal_after_launch(child: subprocess.Popen[bytes]) -> subprocess.Popen[bytes]:
+        children.append(child)
+        os.kill(os.getpid(), signal.SIGINT)
+        return child
+
+    try:
+        with patch.object(subprocess.Popen, "__enter__", signal_after_launch), pytest.raises(KeyboardInterrupt):
+            run_command([sys.executable, "-c", "import time; time.sleep(10)"])
+        (child,) = children
+        assert child.poll() is not None
+    finally:
+        for child in children:
+            if child.poll() is None:
+                child.kill()
+                child.wait()
+
+
+@pytest.mark.parametrize("status", [0, 1])
+def test_command_credentials_remain_private_in_reports(tmp_path: Path, status: int) -> None:
+    child = tmp_path / "child.py"
+    child.write_text(
+        "import sys\nprint(sys.argv[1:])\nprint(sys.argv[1:], file=sys.stderr)\nsys.exit(int(sys.argv[-1]))"
+    )
+    args = ["https://user:sample-password@host/repo", "-e", "TOKEN=sample-value", str(status)]
+    events: list[Event] = []
+    with reporting_session(events.append):
+        result = run_command([sys.executable, str(child), *args], capture_stdout=True, check=False)
+    assert all(arg in result.stdout.decode() for arg in args)
+    started = [event for event in events if isinstance(event, CommandStarted)]
+    assert len(started) == 1
+    assert "sample-password" not in repr(events)
+    assert "sample-value" not in repr(events)
+    if status:
+        with pytest.raises(subprocess.CalledProcessError) as raised:
+            result.check_returncode()
+        assert "sample-password" not in str(raised.value)
+        assert "sample-value" not in str(raised.value)
 
 
 def test_both_streams_are_drained_without_deadlock() -> None:
@@ -73,9 +116,11 @@ def test_interrupt_during_reader_startup_terminates_child(tmp_path: Path) -> Non
     script = "from pathlib import Path; import sys,time; time.sleep(2); Path(sys.argv[1]).touch()"
     submit = ThreadPoolExecutor.submit
 
-    def interrupt_after_submit(executor: ThreadPoolExecutor, reader: Callable[[], bytes]) -> NoReturn:
-        submit(executor, reader)
-        raise KeyboardInterrupt
+    def interrupt_after_submit(executor: ThreadPoolExecutor, reader: Callable[[], bytes]) -> Future[bytes]:
+        future = submit(executor, reader)
+        if current_thread() is not main_thread():
+            raise KeyboardInterrupt
+        return future
 
     with patch.object(ThreadPoolExecutor, "submit", interrupt_after_submit), pytest.raises(KeyboardInterrupt):
         run_command([sys.executable, "-c", script, str(completed)])

@@ -4,20 +4,21 @@ from __future__ import annotations
 
 import codecs
 import os
+import re
 import signal
 import subprocess
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from contextvars import ContextVar
 from itertools import count
-from threading import RLock
+from threading import Lock, RLock, current_thread, main_thread
 from typing import TYPE_CHECKING
 
 from it_depends.reporting import CommandFinished, CommandOutput, CommandStarted, Severity, emit, in_context
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator, Sequence
+    from collections.abc import Callable, Iterator, Sequence
     from io import BufferedReader
     from pathlib import Path
     from typing import IO
@@ -27,20 +28,49 @@ _session: ContextVar[CommandSession | None] = ContextVar("it_depends_commands", 
 _LINE_LIMIT = 8192
 
 
+_URL_USERINFO = re.compile(r"([a-z][a-z0-9+.-]*://)([^/@?#\s]+)@", re.IGNORECASE)
+
+
+def _reporting_arguments(argv: Sequence[str]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    display: list[str] = []
+    secrets: set[str] = set()
+    previous = ""
+    for arg in argv:
+        label = _URL_USERINFO.sub(r"\1<redacted>@", arg)
+        for _, userinfo in _URL_USERINFO.findall(arg):
+            secrets.add(userinfo)
+            _, _, password = userinfo.partition(":")
+            if password:
+                secrets.add(password)
+        if previous in {"-e", "--env"} or arg.startswith("--env="):
+            _, _, value = arg.removeprefix("--env=").partition("=")
+            if value:
+                secrets.add(value)
+                label = arg[: -len(value)] + "<redacted>"
+        display.append(label)
+        previous = arg
+    return tuple(display), tuple(sorted(secrets, key=len, reverse=True))
+
+
 class CommandCapture:
     """Report command output while keeping only a bounded diagnostic tail."""
 
     def __init__(self, argv: Sequence[str]) -> None:
         """Assign an operation identifier and retain its command line."""
         self.command_id = next(_ids)
-        self.argv = tuple(argv)
+        self.argv, self._secrets = _reporting_arguments(argv)
         self.tail: deque[str] = deque(maxlen=20)
         self.lock = RLock()
+
+    def _redact(self, text: str) -> str:
+        for secret in self._secrets:
+            text = text.replace(secret, "<redacted>")
+        return text
 
     def write(self, text: str, stream: str = "stdout") -> None:
         """Report literal diagnostic text with bounded line lengths."""
         with self.lock:
-            for part in text.replace("\r", "\n").splitlines():
+            for part in self._redact(text).replace("\r", "\n").splitlines():
                 line = part[-_LINE_LIMIT:]
                 self.tail.append(line)
                 emit(CommandOutput(self.command_id, stream, line))
@@ -103,6 +133,7 @@ class CommandSession:
         self.processes: set[subprocess.Popen[bytes]] = set()
         self.cancelled = False
         self.lock = RLock()
+        self._cleanup_lock = Lock()
 
     def cancel(self, *, force: bool = False, wait: bool = True) -> None:
         """Stop active subprocess groups and prevent subsequent commands.
@@ -112,11 +143,15 @@ class CommandSession:
             wait: Wait for termination and reap the child processes.
 
         """
-        with self.lock:
-            self.cancelled = True
-            processes = tuple(self.processes)
-        for process in processes:
-            _stop(process, force=force, wait=wait)
+        with self._cleanup_lock if wait else nullcontext():
+            with self.lock:
+                self.cancelled = True
+                processes = tuple(self.processes)
+            for process in processes:
+                _stop(process, force=force, wait=wait)
+                if wait:
+                    with self.lock:
+                        self.processes.discard(process)
 
     @contextmanager
     def running(self) -> Iterator[CommandSession]:
@@ -129,16 +164,16 @@ class CommandSession:
             _session.reset(token)
 
     @contextmanager
-    def track(self, process: subprocess.Popen[bytes]) -> Iterator[None]:
-        """Register a subprocess until its streams have been drained."""
+    def launch(self, start: Callable[[], subprocess.Popen[bytes]]) -> Iterator[subprocess.Popen[bytes]]:
+        """Start and register a child atomically with respect to cancellation."""
         with self.lock:
-            self.processes.add(process)
-            cancelled = self.cancelled
-        try:
-            if cancelled:
-                _stop(process)
+            if self.cancelled:
                 raise KeyboardInterrupt
-            yield
+            process = start()
+            self.processes.add(process)
+        try:
+            with process:
+                yield process
         finally:
             with self.lock:
                 self.processes.discard(process)
@@ -226,7 +261,7 @@ def _collect(
             _stop(process)
             raise
     return subprocess.CompletedProcess(
-        process.args,
+        capture.argv,
         returncode,
         output.get("stdout"),
         output.get("stderr"),
@@ -269,30 +304,42 @@ def run_command(  # noqa: PLR0913 - Preserve explicit subprocess stream controls
         raise KeyboardInterrupt
     capture = CommandCapture(argv)
     emit(CommandStarted(capture.command_id, capture.argv))
-    status = 1
-    try:
-        with (
-            subprocess.Popen(
-                argv,
-                cwd=cwd,
-                stdin=stdin,
-                stdout=subprocess.PIPE if stdout is None else stdout,
-                stderr=subprocess.PIPE if stderr is None else stderr,
-                env=env,
-                start_new_session=os.name == "posix",
-            ) as process,
-            session.track(process),
-        ):
-            result = _collect(
+
+    def start() -> subprocess.Popen[bytes]:
+        return subprocess.Popen(
+            argv,
+            cwd=cwd,
+            stdin=stdin,
+            stdout=subprocess.PIPE if stdout is None else stdout,
+            stderr=subprocess.PIPE if stderr is None else stderr,
+            env=env,
+            start_new_session=os.name == "posix",
+        )
+
+    def execute() -> subprocess.CompletedProcess[bytes]:
+        with session.launch(start) as process:
+            return _collect(
                 process,
                 capture,
                 capture_stdout=capture_stdout or capture_output or stdout == subprocess.PIPE,
                 capture_stderr=capture_output or stderr == subprocess.PIPE,
             )
-            status = result.returncode
-            if check:
-                result.check_returncode()
-            return result
+
+    status = 1
+    try:
+        if current_thread() is main_thread():
+            with ThreadPoolExecutor(max_workers=1, thread_name_prefix="it-depends-command") as pool:
+                try:
+                    result = pool.submit(in_context(execute)).result()
+                except KeyboardInterrupt:
+                    session.cancel()
+                    raise
+        else:
+            result = execute()
+        status = result.returncode
+        if check:
+            result.check_returncode()
+        return result
     finally:
         emit(
             CommandFinished(
