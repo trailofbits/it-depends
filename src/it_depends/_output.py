@@ -12,6 +12,7 @@ from threading import RLock
 from typing import TYPE_CHECKING
 
 from loguru import logger as dependency_logger
+from loguru._defaults import LOGURU_AUTOINIT
 
 from it_depends.reporting import (
     CommandFinished,
@@ -25,13 +26,13 @@ from it_depends.reporting import (
     plain_text,
 )
 
-_default_loguru_sink: int | None = 0
+_default_loguru_sink: int | None = 0 if LOGURU_AUTOINIT and sys.stderr is not None else None
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
     from typing import IO
 
-    from loguru import Message
+    import loguru
 
 
 class PlainReporter:
@@ -106,10 +107,11 @@ class PlainReporter:
 class _LoggingBridge(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         severity = min(Severity, key=lambda value: abs(value - record.levelno))
-        emit(Diagnostic(severity, record.name, record.getMessage()))
+        detail = "".join(traceback.format_exception(*record.exc_info)) if record.exc_info else ""
+        emit(Diagnostic(severity, record.name, record.getMessage(), detail))
 
 
-def _loguru_message(message: Message) -> None:
+def _loguru_message(message: loguru.Message) -> None:
     record = message.record
     severity = min(Severity, key=lambda value: abs(value - record["level"].no))
     error = record["exception"]
@@ -119,7 +121,7 @@ def _loguru_message(message: Message) -> None:
     emit(Diagnostic(severity, record["name"] or "johnnydep", record["message"], detail))
 
 
-def _stderr_message(message: Message) -> None:
+def _stderr_message(message: loguru.Message) -> None:
     sys.stderr.write(str(message))
 
 

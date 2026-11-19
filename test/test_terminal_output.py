@@ -222,6 +222,58 @@ def test_headless_interruption_never_prompts_or_emits_partial_json() -> None:
                 process.wait()
 
 
+_REFRESH_INTERRUPT_SCRIPT = """
+import os
+import signal
+import sys
+from threading import Event, current_thread, main_thread
+from unittest.mock import MagicMock
+from rich.console import Console
+from it_depends import _cli
+from it_depends._dashboard import RichReporter
+
+locked, refreshing = Event(), Event()
+class ObservedReporter(RichReporter):
+    def render(self):
+        if locked.is_set() and current_thread() is not main_thread():
+            refreshing.set()
+        return super().render()
+
+reporter = ObservedReporter(console=Console(stderr=True, force_terminal=True, force_interactive=True))
+def resolve(*args, **kwargs):
+    if REPEAT:
+        try:
+            os.kill(os.getpid(), signal.SIGINT)
+        except KeyboardInterrupt:
+            pass
+    with reporter.lock:
+        locked.set()
+        assert refreshing.wait(2)
+        os.kill(os.getpid(), signal.SIGINT)
+
+_cli.make_reporter = lambda level: reporter
+_cli.resolve = resolve
+_cli.DBPackageCache = MagicMock()
+sys.argv = ['it-depends', 'pip:demo', '--trust']
+_cli.main()
+"""
+
+
+@pytest.mark.parametrize("repeat", [False, True])
+def test_interrupt_while_dashboard_refresh_waits_for_reporter(*, repeat: bool) -> None:
+    result = subprocess.run(
+        [sys.executable, "-c", f"REPEAT = {repeat!r}\n" + _REFRESH_INTERRUPT_SCRIPT],
+        capture_output=True,
+        env=os.environ | {"TERM": "xterm-256color"},
+        check=False,
+        timeout=5,
+    )
+    expected_status = 130
+    assert result.returncode == expected_status, result.stderr
+    assert b"\x1b[?25h" in result.stderr
+    assert result.stdout == b""
+
+
 _COMMAND_INTERRUPT_SCRIPT = """
 import sys
 from pathlib import Path

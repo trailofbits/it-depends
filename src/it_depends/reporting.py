@@ -196,11 +196,13 @@ class Task:
     def running(self) -> Iterator[Task]:
         """Report this task's start and finish, including failure or interruption."""
         token = _task.set(self.task_id)
-        emit(self.snapshot())
-        failed = True
         try:
-            yield self
-            failed = False
+            emit(self.snapshot())
+            failed = True
+            try:
+                yield self
+                failed = False
+            finally:
+                emit(self.snapshot(finished=True, failed=failed))
         finally:
-            emit(self.snapshot(finished=True, failed=failed))
             _task.reset(token)

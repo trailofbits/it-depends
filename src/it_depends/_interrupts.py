@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import os
 import signal
-import sys
 from contextlib import contextmanager
 from threading import Event as ThreadEvent
 from threading import Thread
 from typing import TYPE_CHECKING
+
+from it_depends._dashboard import RichReporter
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -33,14 +34,16 @@ def cli_interrupts(reporter: PlainReporter, commands: CommandSession) -> Iterato
 
     def interrupt(_signum: int, _frame: FrameType | None) -> None:
         nonlocal interrupted
-        reporter.stop()
         if interrupted:
-            commands.cancel(force=True, wait=False)
-            sys.stderr.write("\nForced exit after interruption.\n")
-            sys.stderr.flush()
-            os._exit(130)
+            try:
+                commands.cancel(force=True, wait=False)
+                notice = b"\nForced exit after interruption.\n"
+                if isinstance(reporter, RichReporter) and reporter.live is not None:
+                    notice = b"\x1b[?25h" + notice
+                os.write(2, notice)
+            finally:
+                os._exit(130)
         interrupted = True
-        commands.cancel(wait=False)
         requested.set()
         raise KeyboardInterrupt
 

@@ -203,23 +203,23 @@ def _collect(
     capture_stderr: bool,
 ) -> subprocess.CompletedProcess[bytes]:
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix="it-depends-output") as pool:
-        readers = {}
-        for name, pipe, retain in (
-            ("stdout", process.stdout, capture_stdout),
-            ("stderr", process.stderr, capture_stderr),
-        ):
-            if pipe is not None:
-                function = in_context(
-                    lambda p=pipe, n=name, r=retain: _read(
-                        p,
-                        capture,
-                        n,
-                        display=n == "stderr" or not capture_stdout,
-                        retain=r,
-                    )
-                )
-                readers[name] = pool.submit(function)
         try:
+            readers = {}
+            for name, pipe, retain in (
+                ("stdout", process.stdout, capture_stdout),
+                ("stderr", process.stderr, capture_stderr),
+            ):
+                if pipe is not None:
+                    function = in_context(
+                        lambda p=pipe, n=name, r=retain: _read(
+                            p,
+                            capture,
+                            n,
+                            display=n == "stderr" or not capture_stdout,
+                            retain=r,
+                        )
+                    )
+                    readers[name] = pool.submit(function)
             returncode = process.wait()
             output = {name: reader.result() for name, reader in readers.items()}
         except BaseException:
