@@ -21,6 +21,7 @@ import sys
 import time
 from unittest.mock import MagicMock
 from it_depends import _cli
+from it_depends._commands import run_command
 from it_depends.models import Package
 from it_depends.reporting import Task, ResolutionProgress, emit
 
@@ -31,6 +32,10 @@ def resolve(*args, **kwargs):
         emit(ResolutionProgress(1, 1, 0, 0))
         if MODE == 'interrupt':
             time.sleep(60)
+        if MODE == 'command':
+            run_command([sys.executable, '-c',
+                "import signal,time;signal.signal(signal.SIGTERM,signal.SIG_IGN);"
+                "time.sleep(0.2);print('child', 'ready', flush=True);time.sleep(60)"])
         if MODE == 'failure':
             raise ValueError('test resolution failed')
     return packages
@@ -132,17 +137,19 @@ def test_redirected_stdout_disables_all_cursor_controls() -> None:
 
 
 @pytest.mark.parametrize("answer", [b"y\n", b"n\n", None])
-def test_interrupt_exports_only_approved_partial_results(answer: bytes | None) -> None:
+@pytest.mark.parametrize("mode", ["interrupt", "command"])
+def test_interrupt_exports_only_approved_partial_results(answer: bytes | None, mode: str) -> None:
     with terminals() as ((input_master, stdin), (output, stdout), (diagnostics, stderr)):
         process = subprocess.Popen(
-            [sys.executable, "-c", "MODE = 'interrupt'\n" + _SCRIPT],
+            [sys.executable, "-c", f"MODE = {mode!r}\n" + _SCRIPT],
             stdin=stdin,
             stdout=stdout,
             stderr=stderr,
             env=os.environ | {"TERM": "xterm-256color"},
         )
         try:
-            rendered = read_until(diagnostics, b"Interruptible analysis")
+            ready = b"child ready" if mode == "command" else b"Interruptible analysis"
+            rendered = read_until(diagnostics, ready)
             process.send_signal(signal.SIGINT)
             rendered += read_until(diagnostics, b"partial results?")
             if answer is None:
