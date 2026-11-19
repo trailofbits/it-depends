@@ -310,10 +310,10 @@ class DockerContainer:
 
     def exists(self) -> Image | None:
         """Check if container image exists."""
-        for image in self.client.images.list():
-            if self.name in image.tags:
-                return image
-        return None
+        try:
+            return self.client.images.get(self.name)
+        except ImageNotFound:
+            return None
 
     def pull(self, *, latest: bool = False) -> Image:
         """Pull container image."""
