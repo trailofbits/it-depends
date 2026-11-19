@@ -75,6 +75,11 @@ def plain_text(value: str) -> str:
     return _CONTROL.sub("", value)
 
 
+def has_reporter() -> bool:
+    """Return whether the current context subscribes to reporting events."""
+    return _reporter.get() is not None
+
+
 def emit(event: Event) -> None:
     """Deliver an event to the current subscriber, if one is installed."""
     reporter = _reporter.get()
