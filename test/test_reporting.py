@@ -1,13 +1,21 @@
 """Behavior of scoped reporting and plain CLI output."""
 
 import io
+import json
 import logging
+import sys
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from loguru import logger as dependency_logger
 
+from it_depends import _cli
 from it_depends._output import PlainReporter, third_party_reporting
+from it_depends.cache import PackageRepository
+from it_depends.docker import DockerContainer
+from it_depends.models import Package
 from it_depends.reporting import (
     Diagnostic,
     Event,
@@ -130,3 +138,31 @@ def test_repeated_cli_sessions_capture_johnnydep_without_duplicate_stderr(
         "resolver diagnostic",
     ]
     assert capsys.readouterr().err == ""
+
+
+def test_cold_docker_pull_keeps_cli_stdout_parseable(
+    capfd: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    docker_cli = tmp_path / "docker"
+    docker_cli.write_text("#!/bin/sh\necho pulling-image\n")
+    docker_cli.chmod(0o755)
+    container = DockerContainer("example", tag="v1")
+    client = MagicMock()
+    client.images.list.side_effect = [[], [MagicMock(tags=[container.name])]]
+    monkeypatch.setattr("it_depends.docker.docker.from_env", lambda: client)
+    monkeypatch.setattr("it_depends.docker.resolve_executable", lambda _tool: str(docker_cli))
+
+    def resolve(*_args: object, **_kwargs: object) -> PackageRepository:
+        assert container.exists() is None
+        container.pull()
+        repo = PackageRepository()
+        repo.add(Package("example", "1.0.0", "pip"))
+        return repo
+
+    monkeypatch.setattr(_cli, "resolve", resolve)
+    monkeypatch.setattr(_cli, "DBPackageCache", MagicMock())
+    monkeypatch.setattr(sys, "argv", ["it-depends", "--trust", "--log-level", "info", "pip:example"])
+    _cli.main()
+    stdout, stderr = capfd.readouterr()
+    assert "pip:example" in json.loads(stdout)
+    assert "pulling-image" in stderr

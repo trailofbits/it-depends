@@ -28,7 +28,7 @@ from it_depends.dependencies import (
     resolver_by_name,
     resolvers,
 )
-from it_depends.reporting import Diagnostic, Event, reporting_session
+from it_depends.reporting import Diagnostic, Event, ResolutionProgress, reporting_session
 from it_depends.resolution import resolve, resolve_sbom
 
 _FAKE_IDS = itertools.count()
@@ -122,6 +122,46 @@ class TestResolution(TestCase):
             source=self.resolver,
             dependencies=dependencies,
         )
+
+    def test_progress_counts_distinct_packages_and_versions(self) -> None:
+        child = self._pkg("child")
+        other_version = self._pkg("child", "2.0.0")
+        root = self._pkg("root", dependencies=(self._dep("child"),))
+        self.resolver.resolved["child"] = [child, child, other_version]
+        for workers in (1, 2):
+            for shared_cache in (False, True):
+                repo = PackageRepository()
+                repo.extend([child, self._pkg("other")])
+                events: list[Event] = []
+                with reporting_session(events.append):
+                    resolve(root, cache=repo if shared_cache else None, repo=repo, max_workers=workers)
+                updates = [event for event in events if isinstance(event, ResolutionProgress)]
+                assert updates[0] == ResolutionProgress(2, 2, 0, 1)
+                assert updates[-1] == ResolutionProgress(3, 4, 0, 0)
+
+    def test_progress_scans_at_most_once_per_subscribed_resolution(self) -> None:
+        class CountScans(PackageRepository):
+            name_scans = 0
+            version_scans = 0
+
+            def package_full_names(self) -> frozenset[str]:
+                self.name_scans += 1
+                return super().package_full_names()
+
+            def __len__(self) -> int:
+                self.version_scans += 1
+                return super().__len__()
+
+        for workers in (1, 2):
+            repo = CountScans()
+            root = self._pkg("root", dependencies=(self._dep("child"),))
+            self.resolver.resolved["child"] = [self._pkg("child")]
+            resolve(root, repo=repo, max_workers=workers)
+            assert (repo.name_scans, repo.version_scans) == (0, 0)
+            with reporting_session([].append):
+                resolve(root, repo=repo, max_workers=workers)
+            assert repo.name_scans <= 1
+            assert repo.version_scans <= 1
 
     def test_depth_limit_zero_returns_empty_repository(self) -> None:
         """`depth_limit=0` short-circuits before any resolver is consulted."""
