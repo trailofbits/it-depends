@@ -108,6 +108,21 @@ def test_cyclonedx_optional_metadata_keeps_dependencies_browsable(tmp_path: Path
     assert child.vulnerabilities == (("Unidentified vulnerability" if omit == "id" else "CVE-example"),)
 
 
+def test_old_npm_wildcard_reports_ambiguous_prerelease(tmp_path: Path) -> None:
+    versions = ("1.0.0", "1.1.0-beta.1")
+    document = {
+        "npm:app": {"1.0.0": {"name": "app", "source": "npm", "version": "1.0.0", "dependencies": {"npm:lib": "*"}}},
+        "npm:lib": {v: {"name": "lib", "source": "npm", "version": v} for v in versions},
+    }
+    saved = tmp_path / "original-format.json"
+    saved.write_text(json.dumps(document))
+    graph = load_saved(saved)
+    (edge,) = node_named(graph, "app").edges
+    assert edge.targets == (node_named(graph, "lib").node_id,)
+    assert "1.1.0-beta.1" in edge.note
+    assert "parser" in edge.note
+
+
 def test_cyclonedx_round_trip_preserves_root_and_explicit_relationships(cyclone_file: Path) -> None:
     graph = load_saved(cyclone_file)
     root = node_named(graph, "demo")

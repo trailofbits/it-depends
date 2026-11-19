@@ -8,7 +8,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter, ValidationError
-from semantic_version import SimpleSpec, Version
+from semantic_version import NpmSpec, SimpleSpec, Version
 
 from it_depends.cargo import CargoSpec
 from it_depends.explorer.model import SavedEdge, SavedGraph, SavedNode, saved_graph
@@ -85,6 +85,20 @@ def _properties(values: dict[str, JsonValue]) -> tuple[tuple[str, str], ...]:
     return tuple((name, str(value)) for name, value in values.items() if value is not None)
 
 
+def _npm_matches(constraint: str, packages: dict[str, _NativePackage]) -> tuple[set[str], set[str]]:
+    specification = parse_npm_spec(constraint)
+    versions = {text: Version(text) for text in packages}
+    matches = {text for text, version in versions.items() if version in specification}
+    if isinstance(specification, NpmSpec):
+        try:
+            alternate = SimpleSpec(str(specification))
+        except ValueError:
+            return matches, set()
+        alternate_matches = {text for text, version in versions.items() if version in alternate}
+        return matches & alternate_matches, matches ^ alternate_matches
+    return matches, set()
+
+
 def _native_matches(
     group: str,
     constraint: str,
@@ -94,14 +108,21 @@ def _native_matches(
     if source not in _ECOSYSTEMS:
         return (), f"Version matching is unavailable for ecosystem {source!r}"
     try:
-        specification = {"npm": parse_npm_spec, "cargo": CargoSpec, "go": GoSpec}.get(source, SimpleSpec)(constraint)
-        version_parser = GoVersion if source == "go" else Version
-        matches = tuple(
-            json.dumps([group, version]) for version in packages if version_parser(version) in specification
-        )
+        ambiguous: set[str] = set()
+        if source == "npm":
+            matches, ambiguous = _npm_matches(constraint, packages)
+        else:
+            specification = {"cargo": CargoSpec, "go": GoSpec}.get(source, SimpleSpec)(constraint)
+            version_parser = GoVersion if source == "go" else Version
+            matches = {text for text in packages if version_parser(text) in specification}
     except ValueError as error:
         return (), f"Cannot match saved constraint {constraint!r}: {error}"
-    return matches, "" if matches else "No matching version is present in this document"
+    targets = tuple(json.dumps([group, text]) for text in packages if text in matches)
+    if ambiguous:
+        return targets, "The saved file omits the npm parser. Possible additional matches: " + ", ".join(
+            sorted(ambiguous)
+        )
+    return targets, "" if targets else "No matching version is present in this document"
 
 
 def _native(document: object) -> SavedGraph:
