@@ -175,9 +175,9 @@ def _write_output(
                 # TODO(@evandowning): Provide a means for enumerating all valid SBOMs # noqa: TD003, FIX002
                 break
         if sbom is None:
-            diagnostic(Severity.ERROR, __name__, "No SBOM found for %s", settings.target)
-        else:
-            output_write(cyclonedx_to_json(sbom.to_cyclonedx()))
+            message = f"No SBOM found for {settings.target}"
+            raise ValueError(message)
+        output_write(cyclonedx_to_json(sbom.to_cyclonedx()))
     else:
         msg = f"TODO: Implement output format {settings.output_format}"
         raise NotImplementedError(msg)
@@ -243,6 +243,7 @@ def _analyze(
     settings: Settings,
     cache: DBPackageCache,
     target: SourceRepository | Dependency,
+    reporter: PlainReporter,
 ) -> tuple[PackageRepository, bool]:
     packages = PackageRepository()
     try:
@@ -255,6 +256,7 @@ def _analyze(
         )
         packages = _enrich_packages(settings, packages)
     except KeyboardInterrupt:
+        reporter.stop()
         cancel_commands()
         if settings.compare or not _approve_partial():
             raise
@@ -288,10 +290,11 @@ def _run(settings: Settings, reporter: PlainReporter) -> None:
         reporter.stop()
         return output_write(text)
 
+    partial = False
     reporter.start()
     try:
         with DBPackageCache(settings.database) as cache:
-            package_list, partial = _analyze(settings, cache, repo)
+            package_list, partial = _analyze(settings, cache, repo, reporter)
             if not package_list:
                 diagnostic(
                     Severity.ERROR,
@@ -302,7 +305,7 @@ def _run(settings: Settings, reporter: PlainReporter) -> None:
             _write_output(settings, cache, package_list, to_compare, output_write=write_result)
     except ValueError as error:
         diagnostic(Severity.ERROR, __name__, str(error), exception=True)
-        sys.exit(1)
+        sys.exit(130 if partial else 1)
     except OperationalError as error:
         _database_error(settings, error)
     if settings.output_file is not None and settings.output_file.exists():

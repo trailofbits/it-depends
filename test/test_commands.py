@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 import sys
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from pathlib import Path
@@ -12,6 +13,7 @@ from threading import Event as ThreadEvent
 from threading import Timer
 from time import monotonic
 from types import FrameType
+from typing import NoReturn
 from unittest.mock import Mock, patch
 
 import pytest
@@ -64,6 +66,20 @@ def test_output_is_available_before_command_exits() -> None:
         session.cancel()
         with pytest.raises(subprocess.CalledProcessError):
             future.result(timeout=5)
+
+
+def test_interrupt_during_reader_startup_terminates_child(tmp_path: Path) -> None:
+    completed = tmp_path / "completed"
+    script = "from pathlib import Path; import sys,time; time.sleep(2); Path(sys.argv[1]).touch()"
+    submit = ThreadPoolExecutor.submit
+
+    def interrupt_after_submit(executor: ThreadPoolExecutor, reader: Callable[[], bytes]) -> NoReturn:
+        submit(executor, reader)
+        raise KeyboardInterrupt
+
+    with patch.object(ThreadPoolExecutor, "submit", interrupt_after_submit), pytest.raises(KeyboardInterrupt):
+        run_command([sys.executable, "-c", script, str(completed)])
+    assert not completed.exists()
 
 
 def test_failure_retains_useful_tail_and_exit_status() -> None:
