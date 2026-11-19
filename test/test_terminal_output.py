@@ -8,9 +8,9 @@ import signal
 import subprocess
 import sys
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
-from time import monotonic
+from time import monotonic, sleep
 
 import pytest
 
@@ -211,5 +211,53 @@ def test_headless_interruption_never_prompts_or_emits_partial_json() -> None:
             assert process.stdout.read() == b""
         finally:
             if process.poll() is None:
+                process.kill()
+                process.wait()
+
+
+_COMMAND_INTERRUPT_SCRIPT = """
+import sys
+from pathlib import Path
+from it_depends._commands import CommandSession, run_command
+from it_depends._interrupts import cli_interrupts
+from it_depends._output import PlainReporter
+
+child = (
+    "import os, signal, sys, time\\n"
+    "from pathlib import Path\\n"
+    "directory = Path(sys.argv[1])\\n"
+    "def terminate(*_args): (directory / 'terminated').touch()\\n"
+    "signal.signal(signal.SIGTERM, terminate)\\n"
+    "time.sleep(0.2)\\n"
+    "(directory / 'ready').write_text(str(os.getpid()))\\n"
+    "time.sleep(60)\\n"
+)
+with CommandSession().running() as commands, cli_interrupts(PlainReporter(), commands):
+    run_command([sys.executable, '-c', child, sys.argv[1]])
+"""
+
+
+def test_second_interrupt_forces_exit_during_command_cleanup(tmp_path: Path) -> None:
+    with subprocess.Popen(
+        [sys.executable, "-c", _COMMAND_INTERRUPT_SCRIPT, str(tmp_path)],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    ) as process:
+        try:
+            for name in ("ready", "terminated"):
+                marker = tmp_path / name
+                deadline = monotonic() + 5
+                while not marker.exists() and monotonic() < deadline:
+                    sleep(0.01)
+                assert marker.exists()
+                process.send_signal(signal.SIGINT)
+            expected_status = 130
+            assert process.wait(timeout=3) == expected_status
+        finally:
+            if process.poll() is None:
+                ready = tmp_path / "ready"
+                if ready.exists():
+                    with suppress(ProcessLookupError):
+                        os.killpg(int(ready.read_text()), signal.SIGKILL)
                 process.kill()
                 process.wait()

@@ -2,11 +2,16 @@
 
 import io
 import os
+import signal
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from pathlib import Path
 from threading import Event as ThreadEvent
+from threading import Timer
+from time import monotonic
+from types import FrameType
 from unittest.mock import Mock, patch
 
 import pytest
@@ -15,6 +20,7 @@ from docker.errors import DockerException
 from it_depends._commands import CommandSession, run_command
 from it_depends._output import PlainReporter
 from it_depends.docker import DockerContainer, InMemoryDockerfile
+from it_depends.models import Dependency, Package
 from it_depends.reporting import (
     CommandFinished,
     CommandOutput,
@@ -23,6 +29,7 @@ from it_depends.reporting import (
     in_context,
     reporting_session,
 )
+from it_depends.resolution import resolve
 
 
 def test_machine_stdout_is_preserved_and_stderr_is_streamed() -> None:
@@ -129,6 +136,46 @@ def test_cancellation_stops_descendants_that_ignore_termination() -> None:
             future.result(timeout=5)
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Requires process groups and SIGUSR1")
+@pytest.mark.parametrize("stream", [1, 2], ids=["stdout", "stderr"])
+def test_interruption_stops_descendant_pipes_after_parent_exit(stream: int) -> None:
+    ready = ThreadEvent()
+    interrupted_at = 0.0
+    timer = Timer(0.2, os.kill, args=(os.getpid(), signal.SIGUSR1))
+
+    def interrupt(_signum: int, _frame: FrameType | None) -> None:
+        nonlocal interrupted_at
+        interrupted_at = monotonic()
+        raise KeyboardInterrupt
+
+    def observe(event: Event) -> None:
+        if isinstance(event, CommandOutput) and event.text == "parent exited":
+            timer.start()
+            ready.set()
+
+    script = (
+        "import os, signal, time\n"
+        "parent = os.getpid()\n"
+        "if os.fork(): os._exit(0)\n"
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+        "while os.getppid() == parent: time.sleep(0.01)\n"
+        f"os.write({stream}, b'parent exited\\n')\n"
+        "time.sleep(3)\n"
+    )
+    previous_handler = signal.signal(signal.SIGUSR1, interrupt)
+    try:
+        with reporting_session(observe), pytest.raises(KeyboardInterrupt):
+            run_command([sys.executable, "-c", script])
+        assert ready.is_set()
+        maximum_cleanup_delay = 1.5
+        assert monotonic() - interrupted_at < maximum_cleanup_delay
+    finally:
+        timer.cancel()
+        if ready.is_set():
+            timer.join()
+        signal.signal(signal.SIGUSR1, previous_handler)
+
+
 def test_docker_build_error_cannot_be_reported_as_success() -> None:
     client = Mock()
     client.build.return_value = [b'{"error":"invalid build step"}\n']
@@ -156,3 +203,39 @@ def test_expected_probe_failure_is_not_an_error_diagnostic() -> None:
         )
     assert result.returncode != 0
     assert "ERROR" not in stream.getvalue()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Requires POSIX signals")
+@pytest.mark.parametrize("existing_session", [False, True])
+def test_api_interrupt_cancels_resolution_worker(tmp_path: Path, *, existing_session: bool) -> None:
+    completed = tmp_path / "completed"
+    script = (
+        "import os, pathlib, sys, time; print(os.getpid(), flush=True); "
+        "time.sleep(4); pathlib.Path(sys.argv[1]).touch()"
+    )
+    child_pids: list[int] = []
+
+    def observe(event: Event) -> None:
+        if isinstance(event, CommandOutput):
+            child_pids.append(int(event.text))
+            os.kill(os.getpid(), signal.SIGINT)
+
+    def resolve_dependency(_dep: Dependency) -> list[Package]:
+        run_command([sys.executable, "-c", script, str(completed)])
+        return []
+
+    session = CommandSession()
+    dep = Dependency.from_string("pip:example")
+    with (
+        patch.object(dep.resolver, "resolve", resolve_dependency),
+        reporting_session(observe),
+        session.running() if existing_session else nullcontext(),
+    ):
+        with pytest.raises(KeyboardInterrupt):
+            resolve(dep, max_workers=2)
+        if existing_session:
+            assert session.cancelled
+    assert len(child_pids) == 1
+    assert not completed.exists()
+    with pytest.raises(ProcessLookupError):
+        os.kill(child_pids[0], 0)

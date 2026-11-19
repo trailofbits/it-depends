@@ -91,7 +91,11 @@ def git_commit(path: str | None = None) -> str | None:
     try:
         git_path = resolve_executable("git")
         return run_command(
-            [git_path, "rev-parse", "HEAD"], cwd=path, stderr=DEVNULL, capture_stdout=True
+            [git_path, "rev-parse", "HEAD"],
+            cwd=path,
+            stderr=DEVNULL,
+            capture_stdout=True,
+            failure_severity=Severity.DEBUG,
         ).stdout.decode("utf-8")
     except (CalledProcessError, FileNotFoundError):
         return None

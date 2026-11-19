@@ -6,15 +6,35 @@ from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from multiprocessing import cpu_count
 from typing import TYPE_CHECKING
 
+from it_depends._commands import resolution_commands
 from it_depends.cache import InMemoryPackageCache, PackageCache, PackageRepository
 from it_depends.models import Dependency, Package, SourcePackage
-from it_depends.reporting import ResolutionProgress, Severity, Task, diagnostic, emit, in_context
+from it_depends.reporting import ResolutionProgress, Severity, Task, diagnostic, emit, has_reporter, in_context
 from it_depends.repository import SourceRepository
 from it_depends.resolver import PartialResolution, resolvers
 from it_depends.sbom import SBOM
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
+
+
+class _ResolutionResults:
+    """Record results and maintain discovery counts for a subscribed analysis."""
+
+    def __init__(self, repo: PackageRepository) -> None:
+        self.repo = repo
+        self.names = set(repo.package_full_names()) if has_reporter() else None
+        self.versions = len(repo) if self.names is not None else 0
+
+    def add(self, package: Package) -> None:
+        if self.names is not None and package not in self.repo:
+            self.names.add(package.full_name)
+            self.versions += 1
+        self.repo.add(package)
+
+    def report(self, active: int, queued: int) -> None:
+        if self.names is not None:
+            emit(ResolutionProgress(len(self.names), self.versions, active, queued))
 
 
 class _DependencyResult:
@@ -179,9 +199,10 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
     if cache is None:
         cache = InMemoryPackageCache()  # Some resolvers may use it to save temporary results
 
+    results = _ResolutionResults(repo)
     pool: ThreadPoolExecutor | None = None
     try:
-        with Task(f"Resolving {repo_or_spec!s}", unit="operations").running() as t:
+        with resolution_commands(), Task(f"Resolving {repo_or_spec!s}", unit="operations").running() as t:
             # Initialize variables
             unresolved_dependencies: list[tuple[Dependency, int]] = []
             unupdated_packages: list[tuple[Package, int]] = []
@@ -226,7 +247,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 updated_in_resolvers: set[str],
                 was_updated: bool = True,  # noqa: FBT001, FBT002
             ) -> None:
-                repo.add(updated_package)
+                results.add(updated_package)
                 if not isinstance(updated_package, SourcePackage) and updated_package is not repo_or_spec:
                     if was_updated:
                         cache.add(updated_package)
@@ -250,18 +271,15 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 packages = list(packages)
                 if not already_cached and cache is not None and dep is not repo_or_spec:
                     cache.set_resolved(dep)
-                    cache.extend(packages)
+                    if cache is repo:
+                        for package in packages:
+                            results.add(package)
+                    else:
+                        cache.extend(packages)
                 unupdated_packages.extend((p, at_depth) for p in packages)
 
             while unresolved_dependencies or unupdated_packages or futures:
-                emit(
-                    ResolutionProgress(
-                        len(repo.package_full_names()),
-                        len(repo),
-                        len(futures),
-                        len(unresolved_dependencies) + len(unupdated_packages),
-                    )
-                )
+                results.report(len(futures), len(unresolved_dependencies) + len(unupdated_packages))
                 # while there are more unresolved dependencies, unupdated packages,
                 # or concurrent jobs that are still running:
 
@@ -339,14 +357,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                         for dep, depth in unresolved_dependencies[:new_jobs]
                     }
                     unresolved_dependencies = unresolved_dependencies[new_jobs:]
-                    emit(
-                        ResolutionProgress(
-                            len(repo.package_full_names()),
-                            len(repo),
-                            len(futures),
-                            len(unresolved_dependencies) + len(unupdated_packages),
-                        )
-                    )
+                    results.report(len(futures), len(unresolved_dependencies) + len(unupdated_packages))
                     if futures:
                         done, futures = wait(futures, return_when=FIRST_COMPLETED)
                         for finished in done:
@@ -368,5 +379,5 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
     finally:
         if pool is not None:
             pool.shutdown(wait=True, cancel_futures=True)
-    emit(ResolutionProgress(len(repo.package_full_names()), len(repo), 0, 0))
+    results.report(0, 0)
     return repo
