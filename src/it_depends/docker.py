@@ -318,7 +318,7 @@ class DockerContainer:
         # However, that doesn't include progress bars. So call the `docker` command instead:
         name = f"{self.image_name}:{[self.tag, 'latest'][latest]}"
         try:
-            subprocess.check_call([self.docker_path, "pull", name], stdout=sys.stderr)
+            subprocess.check_call([self.docker_path, "pull", name], stdout=2)
             for image in self.client.images.list():
                 if name in image.tags:
                     return image
