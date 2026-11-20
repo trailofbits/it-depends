@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 import shutil
 import subprocess
@@ -10,16 +9,18 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from it_depends.reporting import Severity, diagnostic
+
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-    from .models import Package
+    from it_depends.models import Package
 from os import chdir
 
-from .ubuntu.apt import (
+from it_depends.ubuntu.apt import (
     cached_file_to_package as file_to_package,
 )
-from .ubuntu.apt import (
+from it_depends.ubuntu.apt import (
     make_cmake_config_query,
     make_cmake_include_query,
     make_library_query,
@@ -35,8 +36,8 @@ try:
 except ImportError:
     cmake_parsing = None
 
-from ._exec import resolve_executable
-from .dependencies import (
+from it_depends._exec import resolve_executable
+from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     PackageCache,
@@ -46,9 +47,7 @@ from .dependencies import (
     SourceRepository,
     Version,
 )
-from .ubuntu.docker import run_command
-
-logger = logging.getLogger(__name__)
+from it_depends.ubuntu.docker import run_command
 
 
 class CMakeResolver(DependencyResolver):
@@ -184,7 +183,7 @@ class CMakeResolver(DependencyResolver):
                         continue
                     package_i, filename_i = line.split(": ")
                     file_to_package_cache.append((package_i, filename_i))
-                    logger.debug("Found package: %s %s", package_i, filename_i)
+                    diagnostic(Severity.DEBUG, __name__, "Found package: %s %s", package_i, filename_i)
 
             yield found_package, version
 
@@ -396,7 +395,7 @@ class CMakeResolver(DependencyResolver):
                 )
                 break
             except Exception as e:  # noqa: BLE001
-                logger.debug(e)
+                diagnostic(Severity.DEBUG, __name__, e)
 
     def resolve(self, dependency: Dependency) -> Iterator[Package]:  # noqa: ARG002
         """Resolve a dependency to packages.
@@ -415,12 +414,12 @@ class CMakeResolver(DependencyResolver):
         cmake_path = self.tool_path
 
         path = repo.path
-        logger.info("Getting dependencies for cmake repo %s", path)
+        diagnostic(Severity.INFO, __name__, "Getting dependencies for cmake repo %s", path)
         apath = str(path.absolute())
         orig_dir = Path.cwd()
         try:
             with tempfile.TemporaryDirectory() as tmpdirname:
-                logger.debug("Created temporary directory %s", tmpdirname)
+                diagnostic(Severity.DEBUG, __name__, "Created temporary directory %s", tmpdirname)
                 # This is a hack to modify the original cmake language temporarily
                 # TODO(@evandowning): Think a better way that does not modify the original repo  # noqa: FIX002
                 # Maybe use newer cmake feature:
@@ -455,7 +454,13 @@ class CMakeResolver(DependencyResolver):
                         cwd=build_dir,
                     )
                     if p.returncode != 0:
-                        logger.error("Error running cmake:\n%s\n%s", p.stdout.decode("utf-8"), p.stderr.decode("utf-8"))
+                        diagnostic(
+                            Severity.ERROR,
+                            __name__,
+                            "Error running cmake:\n%s\n%s",
+                            p.stdout.decode("utf-8"),
+                            p.stderr.decode("utf-8"),
+                        )
                     with output.open() as outfd:
                         trace = outfd.read()
                 finally:
@@ -480,7 +485,7 @@ class CMakeResolver(DependencyResolver):
                 try:
                     parsed = cmake_parsing.parse(stripped_line)
                 except Exception as e:  # noqa: BLE001
-                    logger.debug("Parsing error: %s", e)
+                    diagnostic(Severity.DEBUG, __name__, "Parsing error: %s", e)
                     # ignore parsing exceptions for now
 
                 for token in parsed:
@@ -506,7 +511,7 @@ class CMakeResolver(DependencyResolver):
                             body: list[str] = [item for x in token.body for item in x.contents.split(";")]
 
                             if command not in ("set", "project"):
-                                logger.info("Processing CMAKE command %s %s", command, body)
+                                diagnostic(Severity.INFO, __name__, "Processing CMAKE command %s %s", command, body)
 
                             package_iter: Iterator[tuple[str, str | None]] = iter(())
 
@@ -550,13 +555,13 @@ class CMakeResolver(DependencyResolver):
                                     *body, file_to_package_cache=file_to_package_cache
                                 )
                             else:
-                                logger.warning("Not handled %s %s", token.name, body)
+                                diagnostic(Severity.WARNING, __name__, "Not handled %s %s", token.name, body)
                             new_packages = tuple(package_iter)
                             deps.extend(new_packages)
                     except Exception as e:  # noqa: BLE001
-                        logger.debug(e)
+                        diagnostic(Severity.DEBUG, __name__, e)
         except Exception as e:
-            logger.debug(e)
+            diagnostic(Severity.DEBUG, __name__, e)
             raise
 
         # remove "-dev"? and duplicates
@@ -566,14 +571,23 @@ class CMakeResolver(DependencyResolver):
                 depsd[name] = version
             elif version is not None and version != depsd[name]:
                 # conflict
-                logger.info("Found a conflict in versions for %s (%s vs. %s). Setting '*'", name, version, depsd[name])
+                diagnostic(
+                    Severity.INFO,
+                    __name__,
+                    "Found a conflict in versions for %s (%s vs. %s). Setting '*'",
+                    name,
+                    version,
+                    depsd[name],
+                )
                 depsd[name] = "*"
 
         if package_version is None:
             package_version = "0.0.0"
         if package_name is None:
             package_name = path.name
-            logger.warning("Unable to determine package name for %s. Using %s", path, package_name)
+            diagnostic(
+                Severity.WARNING, __name__, "Unable to determine package name for %s. Using %s", path, package_name
+            )
 
         return SourcePackage(
             name=package_name,

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
 import re
 import shutil
 import subprocess
 import sys
 from sys import version_info
+
+from it_depends.reporting import Severity, diagnostic
 
 if version_info < (3, 11):
     from typing_extensions import Self
@@ -29,12 +30,9 @@ from docker.errors import NotFound as ImageNotFound
 
 if TYPE_CHECKING:
     from docker.models.images import Image
-from tqdm import tqdm
-
-from . import __version__ as it_depends_version
-from ._exec import resolve_executable
-
-logger = logging.getLogger(__name__)
+from it_depends import __version__ as it_depends_version
+from it_depends._exec import resolve_executable
+from it_depends.reporting import Task
 
 
 def _discover_podman_socket() -> str | None:
@@ -320,12 +318,12 @@ class DockerContainer:
         # However, that doesn't include progress bars. So call the `docker` command instead:
         name = f"{self.image_name}:{[self.tag, 'latest'][latest]}"
         try:
-            subprocess.check_call([self.docker_path, "pull", name])
+            subprocess.check_call([self.docker_path, "pull", name], stdout=2)
             for image in self.client.images.list():
                 if name in image.tags:
                     return image
         except subprocess.CalledProcessError:
-            logger.warning("Failed to pull Docker image %s", name)
+            diagnostic(Severity.WARNING, __name__, "Failed to pull Docker image %s", name)
         raise ImageNotFound(name)
 
     def rebuild(self, *, nocache: bool = False) -> None:  # noqa: C901
@@ -343,7 +341,7 @@ class DockerContainer:
         except DockerException as e:
             msg = f"Could not connect to container runtime: {e}"
             raise ValueError(msg) from e
-        with tqdm(desc="Archiving the build directory", unit=" steps", leave=False) as t:
+        with Task("Archiving the build directory").running() as t:
             last_line = 0
             last_step = None
             for raw_line in cli.build(
@@ -353,7 +351,7 @@ class DockerContainer:
                 nocache=nocache,
                 forcerm=True,
             ):
-                t.desc = f"Building {self.name}"
+                t.set_label(f"Building {self.name}")
                 for line in raw_line.split(b"\n"):
                     try:
                         parsed_line = json.loads(line)
@@ -371,16 +369,16 @@ class DockerContainer:
                                 total_steps = int(m.group(3))
                                 current_step = int(m.group(1))
                                 if last_step is None:
-                                    t.total = total_steps
+                                    t.set_total(total_steps)
                                     last_step = 0
-                                t.update(current_step - last_step)
+                                t.advance(current_step - last_step)
                                 last_step = current_step
                             else:
                                 # Docker didn't tell us the total number of steps, so infer it from our line
                                 # number in the Dockerfile
-                                t.total = len(self.dockerfile)
+                                t.set_total(len(self.dockerfile))
                                 new_line = self.dockerfile.get_line(m.group(4), starting_line=last_line)
                                 if new_line is not None:
-                                    t.update(new_line - last_line)
+                                    t.advance(new_line - last_line)
                                     last_line = new_line
-                        t.write(parsed_line["stream"].replace("\n", "").strip())
+                        diagnostic(Severity.INFO, __name__, parsed_line["stream"].strip())

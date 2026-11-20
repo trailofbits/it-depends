@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 import re
 import subprocess
 from functools import lru_cache
@@ -21,14 +20,13 @@ from it_depends.dependencies import (
     Version,
 )
 from it_depends.native import get_native_dependencies
-
-from .apt import file_to_packages
-from .docker import run_command
+from it_depends.reporting import Severity, diagnostic
+from it_depends.ubuntu.apt import file_to_packages
+from it_depends.ubuntu.docker import run_command
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-logger = logging.getLogger(__name__)
 
 # Constants
 APT_RETURN_CODE_PACKAGE_NOT_FOUND = 100
@@ -89,7 +87,7 @@ class UbuntuResolver(DependencyResolver):
     def ubuntu_packages(package_name: str) -> Iterable[Package]:
         """Iterate over all of the package versions available for a package name."""
         # Parses the dependencies of dependency.package out of the `apt show` command
-        logger.debug("Running `apt show -a %s`", package_name)
+        diagnostic(Severity.DEBUG, __name__, "Running `apt show -a %s`", package_name)
         try:
             contents = run_command("apt", "show", "-a", package_name).decode("utf8")
         except subprocess.CalledProcessError as e:
@@ -100,7 +98,7 @@ class UbuntuResolver(DependencyResolver):
 
         # Possibly means that the package does not appear ubuntu with the exact name
         if not contents:
-            logger.warning("Package %s not found in ubuntu installed apt sources", package_name)
+            diagnostic(Severity.WARNING, __name__, "Package %s not found in ubuntu installed apt sources", package_name)
             return ()
 
         # Example depends line:
@@ -141,7 +139,7 @@ class UbuntuResolver(DependencyResolver):
             #       library does not like. So hack a fix by simply dropping everything after the tilde:
             raw_version = _sanitize_version(matched.group("version").split("~", maxsplit=1)[0])
             return Version.coerce(raw_version)
-        logger.warning("Failed to parse package %s %s", package_name, line)
+        diagnostic(Severity.WARNING, __name__, "Failed to parse package %s %s", package_name, line)
         return None
 
     @staticmethod
@@ -162,7 +160,9 @@ class UbuntuResolver(DependencyResolver):
                 try:
                     SimpleSpec(dep_version)
                 except ValueError:
-                    logger.warning(
+                    diagnostic(
+                        Severity.WARNING,
+                        __name__,
                         "Unparseable dependency version %r for %s, defaulting to *",
                         matched.group("version"),
                         dep_package,
@@ -203,7 +203,9 @@ class UbuntuResolver(DependencyResolver):
                         dependencies=deps,
                     )
             except (ValueError, subprocess.CalledProcessError):
-                logger.warning("Failed to resolve native dependencies for %s", dependency.package)
+                diagnostic(
+                    Severity.WARNING, __name__, "Failed to resolve native dependencies for %s", dependency.package
+                )
         else:
             for package in UbuntuResolver.ubuntu_packages(dependency.package):
                 if package.version in dependency.semantic_version:

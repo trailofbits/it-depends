@@ -24,7 +24,6 @@ def resolution(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Mock:
     mock = Mock(return_value=packages)
     monkeypatch.setattr(_cli, "resolve", mock)
     monkeypatch.setattr(_cli, "DBPackageCache", MagicMock())
-    monkeypatch.setattr(_cli, "setup_logger", Mock())
     return mock
 
 
@@ -272,3 +271,33 @@ def test_scoped_package_identity_is_preserved(specification: str, package: str, 
 def test_python_api_does_not_require_cli_approval(tmp_path: Path) -> None:
     with patch.object(trust, "require_trust", side_effect=AssertionError("CLI gate only")):
         assert not resolve(SourceRepository(tmp_path), depth_limit=0)
+
+
+@pytest.mark.parametrize("level", ["debug", "info", "warning", "error", "critical"])
+def test_stdout_is_raw_json_at_every_log_level(
+    monkeypatch: pytest.MonkeyPatch,
+    resolution: Mock,
+    terminal: pytest.CaptureFixture[str],
+    level: str,
+) -> None:
+    _arguments(monkeypatch, "pip:demo", "--trust", "--log-level", level)
+    _cli.main()
+    captured = terminal.readouterr()
+    assert json.loads(captured.out) == resolution.return_value.to_obj()
+    assert "WARNING" in captured.err
+
+
+def test_failed_analysis_does_not_claim_an_existing_file_was_saved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    resolution: Mock,
+    terminal: pytest.CaptureFixture[str],
+) -> None:
+    output = tmp_path / "report.json"
+    output.write_text("original")
+    resolution.side_effect = ValueError("resolver failed")
+    _arguments(monkeypatch, "pip:demo", "--trust", "--force", "--output-file", str(output))
+    with pytest.raises(SystemExit):
+        _cli.main()
+    assert output.read_text() == "original"
+    assert "Output saved" not in terminal.readouterr().err
