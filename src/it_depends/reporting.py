@@ -58,7 +58,35 @@ class ResolutionProgress:
     queued: int
 
 
-Event = Diagnostic | Progress | ResolutionProgress
+@dataclass(frozen=True)
+class CommandStarted:
+    """An external operation has started."""
+
+    command_id: int
+    argv: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CommandOutput:
+    """A line of human-readable output from an external operation."""
+
+    command_id: int
+    stream: str
+    text: str
+
+
+@dataclass(frozen=True)
+class CommandFinished:
+    """An external operation has finished, retaining a bounded diagnostic tail."""
+
+    command_id: int
+    returncode: int
+    tail: tuple[str, ...] = ()
+    cancelled: bool = False
+    severity: Severity = Severity.ERROR
+
+
+Event = Diagnostic | Progress | ResolutionProgress | CommandStarted | CommandOutput | CommandFinished
 Reporter = Callable[[Event], None]
 _reporter: ContextVar[Reporter | None] = ContextVar("it_depends_reporter", default=None)
 _task: ContextVar[int | None] = ContextVar("it_depends_task", default=None)
@@ -118,7 +146,8 @@ def diagnostic(
     if exception:
         error = sys.exc_info()[1]
         if error is not None:
-            message = f"{message}: {error}"
+            if message != str(error):
+                message = f"{message}: {error}"
             detail = "".join(traceback.format_exception(type(error), error, error.__traceback__))
     emit(Diagnostic(severity, source, message, detail))
 

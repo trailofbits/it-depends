@@ -1,8 +1,14 @@
+import io
+from pathlib import Path
 from unittest import TestCase
 
 import pytest
 
-from it_depends.go import GoModule, GoSpec, GoVersion
+from it_depends._commands import run_command
+from it_depends._exec import resolve_executable
+from it_depends._output import PlainReporter
+from it_depends.go import GoModule, GoSpec, GoVersion, git_commit
+from it_depends.reporting import reporting_session
 
 EXAMPLE_MOD = """
 module github.com/btcsuite/btcd
@@ -44,3 +50,13 @@ class TestGo(TestCase):
         for _, version in GoModule.parse_mod(EXAMPLE_MOD).dependencies:
             assert str(GoVersion(version)) == version
             assert str(GoSpec(version)) == version
+
+
+@pytest.mark.parametrize("initialize", [False, True], ids=["not-a-repository", "no-commit"])
+def test_missing_git_commit_is_not_an_error(tmp_path: Path, *, initialize: bool) -> None:
+    if initialize:
+        run_command([resolve_executable("git"), "init", "--initial-branch=main", str(tmp_path)])
+    output = io.StringIO()
+    with reporting_session(PlainReporter(stream=output)):
+        assert git_commit(str(tmp_path)) is None
+    assert "ERROR" not in output.getvalue()

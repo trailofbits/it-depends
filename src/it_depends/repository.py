@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import atexit
-import subprocess
 from pathlib import Path
 from shutil import rmtree
 from tempfile import mkdtemp
+
+from it_depends._commands import run_command
 
 from ._exec import resolve_executable
 
@@ -38,7 +39,7 @@ class SourceRepository:
         atexit.register(cleanup)
 
         git_path = resolve_executable("git")
-        subprocess.check_call([git_path, "clone", git_url], cwd=tmpdir)
+        run_command([git_path, "clone", git_url], cwd=tmpdir)
         for file in Path(tmpdir).iterdir():
             if file.is_dir():
                 return SourceRepository(file)

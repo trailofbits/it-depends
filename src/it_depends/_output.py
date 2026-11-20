@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import shlex
 import sys
 import traceback
 from contextlib import contextmanager
@@ -13,13 +14,24 @@ from typing import TYPE_CHECKING
 from loguru import logger as dependency_logger
 from loguru._defaults import LOGURU_AUTOINIT
 
-from it_depends.reporting import Diagnostic, Event, Progress, Severity, emit, has_reporter, plain_text
+from it_depends.reporting import (
+    CommandFinished,
+    CommandOutput,
+    CommandStarted,
+    Diagnostic,
+    Event,
+    Progress,
+    Severity,
+    emit,
+    has_reporter,
+    plain_text,
+)
 
 _default_loguru_sink: int | None = 0 if LOGURU_AUTOINIT and sys.stderr is not None else None
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
-    from typing import TextIO
+    from typing import IO
 
     import loguru
 
@@ -27,7 +39,7 @@ if TYPE_CHECKING:
 class PlainReporter:
     """Write conventional diagnostics and task boundaries to stderr."""
 
-    def __init__(self, level: str = "info", *, stream: TextIO | None = None) -> None:
+    def __init__(self, level: str = "info", *, stream: IO[str] | None = None) -> None:
         numeric_level = logging.getLevelName(level.upper())
         try:
             self.level = Severity(logging.DEBUG if numeric_level == logging.NOTSET else numeric_level)
@@ -37,6 +49,13 @@ class PlainReporter:
         self.stream = sys.stderr if stream is None else stream
         self.lock = RLock()
         self.tasks: set[int] = set()
+        self.commands: dict[int, str] = {}
+
+    def start(self) -> None:
+        """Begin CLI presentation; plain diagnostics require no terminal setup."""
+
+    def stop(self) -> None:
+        """End CLI presentation; plain diagnostics remain immediately available."""
 
     def __call__(self, event: Event) -> None:
         """Render a diagnostic or task boundary without terminal controls."""
@@ -45,6 +64,25 @@ class PlainReporter:
                 self._progress(event)
             elif isinstance(event, Diagnostic):
                 self._diagnostic(event)
+            elif isinstance(event, (CommandStarted, CommandOutput, CommandFinished)):
+                self._command(event)
+
+    def _command(self, event: CommandStarted | CommandOutput | CommandFinished) -> None:
+        if isinstance(event, CommandStarted):
+            label = shlex.join(event.argv)
+            self.commands[event.command_id] = label
+            message = f"Running: {label}"
+        elif isinstance(event, CommandOutput):
+            label = self.commands.get(event.command_id, "command")
+            message = f"{label} [{event.stream}]: {event.text}"
+        else:
+            label = self.commands.pop(event.command_id, "command")
+            message = f"Cancelled: {label}" if event.cancelled else f"{label} exited with status {event.returncode}"
+            if event.returncode and not event.cancelled:
+                message += "\n" + "\n".join(event.tail)
+                self._diagnostic(Diagnostic(event.severity, "it_depends.command", message))
+                return
+        self._diagnostic(Diagnostic(Severity.INFO, "it_depends.command", message))
 
     def _progress(self, event: Progress) -> None:
         if not event.finished and event.task_id in self.tasks:

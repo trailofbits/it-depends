@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import io
 import subprocess
 import sys
 from pathlib import Path
@@ -10,6 +9,7 @@ from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING
 from zipfile import BadZipFile
 
+from it_depends._commands import run_command
 from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
@@ -376,12 +376,7 @@ class PipSourcePackage(SourcePackage):
         """
         if (repo.path / "setup.py").exists() or (repo.path / "pyproject.toml").exists():
             with TemporaryDirectory() as tmp_dir:
-                try:
-                    _ = sys.stderr.fileno()
-                    stderr = sys.stderr
-                except io.UnsupportedOperation:
-                    stderr = None
-                subprocess.check_call(
+                run_command(
                     [
                         sys.executable,
                         "-m",
@@ -391,8 +386,7 @@ class PipSourcePackage(SourcePackage):
                         "-w",
                         tmp_dir,
                         str(repo.path.absolute()),
-                    ],
-                    stdout=stderr,
+                    ]
                 )
                 wheel = None
                 for whl in Path(tmp_dir).glob("*.whl"):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from subprocess import CompletedProcess
 from unittest.mock import Mock, patch
 
 import pytest
@@ -18,7 +19,7 @@ def test_scoped_cli_package_maintenance() -> None:
     metadata = {"name": "@babel/core", "version": "8.1.0"}
     with (
         patch("it_depends.npm.resolve_executable", return_value="npm"),
-        patch("it_depends.npm.subprocess.check_output", return_value=json.dumps(metadata).encode()),
+        patch("it_depends.npm.run_command", return_value=CompletedProcess([], 0, stdout=json.dumps(metadata).encode())),
     ):
         package = next(NPMResolver().resolve(dependency))
     repo = PackageRepository()
