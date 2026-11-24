@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import functools
-import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
@@ -12,16 +11,15 @@ from typing import TYPE_CHECKING
 from semantic_version import SimpleSpec, Version
 from semantic_version.base import AllOf, BaseSpec
 
-from .models import Dependency
+from it_depends.models import Dependency
+from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-    from .cache import PackageCache
-    from .models import Package, SourcePackage
-    from .repository import SourceRepository
-
-logger = logging.getLogger(__name__)
+    from it_depends.cache import PackageCache
+    from it_depends.models import Package, SourcePackage
+    from it_depends.repository import SourceRepository
 
 
 @dataclass
@@ -85,7 +83,7 @@ class DependencyResolver(ABC):
     def resolve(self, dependency: Dependency) -> Iterator[Package]:
         """Yield all packages that satisfy the given dependency."""
         error_msg = f"{self} does not implement `resolve()`"
-        logger.info(error_msg)
+        diagnostic(Severity.INFO, __name__, error_msg)
         raise NotImplementedError
 
     @classmethod

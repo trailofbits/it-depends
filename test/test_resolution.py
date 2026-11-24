@@ -8,7 +8,6 @@ or skipped as duplicates).
 
 import gc
 import itertools
-import logging
 from collections.abc import Iterator
 from pathlib import Path
 from unittest import TestCase, mock
@@ -29,6 +28,7 @@ from it_depends.dependencies import (
     resolver_by_name,
     resolvers,
 )
+from it_depends.reporting import Diagnostic, Event, Progress, ResolutionProgress, reporting_session
 from it_depends.resolution import resolve, resolve_sbom
 
 _FAKE_IDS = itertools.count()
@@ -122,6 +122,74 @@ class TestResolution(TestCase):
             source=self.resolver,
             dependencies=dependencies,
         )
+
+    def test_progress_counts_distinct_packages_and_versions(self) -> None:
+        child = self._pkg("child")
+        other_version = self._pkg("child", "2.0.0")
+        root = self._pkg("root", dependencies=(self._dep("child"),))
+        self.resolver.resolved["child"] = [child, child, other_version]
+        for workers in (1, 2):
+            for shared_cache in (False, True):
+                repo = PackageRepository()
+                repo.extend([child, self._pkg("other")])
+                events: list[Event] = []
+                with reporting_session(events.append):
+                    resolve(root, cache=repo if shared_cache else None, repo=repo, max_workers=workers)
+                updates = [event for event in events if isinstance(event, ResolutionProgress)]
+                assert updates[0] == ResolutionProgress(2, 2, 0, 1)
+                assert updates[-1] == ResolutionProgress(3, 4, 0, 0)
+
+    def test_progress_scans_at_most_once_per_subscribed_resolution(self) -> None:
+        class CountScans(PackageRepository):
+            name_scans = 0
+            version_scans = 0
+
+            def package_full_names(self) -> frozenset[str]:
+                self.name_scans += 1
+                return super().package_full_names()
+
+            def __len__(self) -> int:
+                self.version_scans += 1
+                return super().__len__()
+
+        for workers in (1, 2):
+            repo = CountScans()
+            root = self._pkg("root", dependencies=(self._dep("child"),))
+            self.resolver.resolved["child"] = [self._pkg("child")]
+            resolve(root, repo=repo, max_workers=workers)
+            assert (repo.name_scans, repo.version_scans) == (0, 0)
+            with reporting_session([].append):
+                resolve(root, repo=repo, max_workers=workers)
+            assert repo.name_scans <= 1
+            assert repo.version_scans <= 1
+
+    def test_shared_cache_discoveries_are_included_in_progress(self) -> None:
+        repo = PackageRepository()
+        events: list[Event] = []
+        self.resolver.source_resolvable = True
+
+        def discover(source: SourceRepository, cache: PackageCache) -> SourcePackage:
+            cache.add(self._pkg("child"))
+            return SourcePackage("root", Version.coerce("1"), source, self.resolver)
+
+        with mock.patch.object(self.resolver, "resolve_from_source", discover), reporting_session(events.append):
+            resolve(SourceRepository(Path()), cache=repo, repo=repo, max_workers=1)
+        progress = [event for event in events if isinstance(event, ResolutionProgress)]
+        assert progress[0] == ResolutionProgress(1, 1, 0, 1)
+        assert progress[-1] == ResolutionProgress(2, 2, 0, 0)
+
+    def test_serial_completion_follows_resolver_work(self) -> None:
+        self.resolver.resolved["child"] = [self._pkg("child")]
+        self.resolver.updatable = {"child"}
+        progress = []
+
+        def observe(event: Event) -> None:
+            if isinstance(event, Progress) and not event.finished:
+                progress.append((event.completed, len(self.resolver.resolve_calls), len(self.resolver.update_calls)))
+
+        with reporting_session(observe):
+            resolve(self._dep("child"), max_workers=1)
+        assert progress == [(0, 0, 0), (1, 1, 0), (2, 1, 1)]
 
     def test_depth_limit_zero_returns_empty_repository(self) -> None:
         """`depth_limit=0` short-circuits before any resolver is consulted."""
@@ -227,12 +295,13 @@ class TestResolution(TestCase):
         self.resolver.updatable = {"root"}
         self.resolver.update_errors["root"] = ValueError("boom")
 
-        with self.assertLogs("it_depends.resolution", level=logging.WARNING) as logs:
+        events: list[Event] = []
+        with reporting_session(events.append):
             repo = resolve(root, max_workers=1)
 
         assert {p.name for p in repo} == {"root"}
         assert not next(p for p in repo if p.name == "root").dependencies
-        assert "boom" in "\n".join(logs.output)
+        assert "boom" in "\n".join(event.message for event in events if isinstance(event, Diagnostic))
 
     def test_unexpected_resolver_update_error_is_logged_and_does_not_abort(self) -> None:
         """A non-ValueError raised while updating is logged and resolution continues."""
@@ -241,11 +310,12 @@ class TestResolution(TestCase):
         self.resolver.updatable = {"child"}
         self.resolver.update_errors["child"] = RuntimeError("kaboom")
 
-        with self.assertLogs("it_depends.resolution", level=logging.ERROR) as logs:
+        events: list[Event] = []
+        with reporting_session(events.append):
             repo = resolve(root, max_workers=1)
 
         assert {p.name for p in repo} == {"root", "child"}
-        assert "kaboom" in "\n".join(logs.output)
+        assert "kaboom" in "\n".join(event.message for event in events if isinstance(event, Diagnostic))
 
     def test_root_already_recorded_as_updated_in_the_cache_is_not_updated_again(self) -> None:
         """A root package the cache already records as updated is added without re-updating it."""

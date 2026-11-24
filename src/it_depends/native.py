@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from logging import getLogger
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Lock
@@ -12,19 +11,16 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-from tqdm import tqdm
-
-from . import __version__ as it_depends_version
-from .dependencies import (
+from it_depends import __version__ as it_depends_version
+from it_depends.dependencies import (
     Dependency,
     DependencyResolver,
     DockerSetup,
     Package,
     SemanticVersion,
 )
-from .docker import DockerContainer, InMemoryDockerfile, InMemoryFile
-
-logger = getLogger(__name__)
+from it_depends.docker import DockerContainer, InMemoryDockerfile, InMemoryFile
+from it_depends.reporting import Task
 
 
 def make_dockerfile(docker_setup: DockerSetup) -> InMemoryDockerfile:
@@ -140,13 +136,7 @@ def container_for(source: DependencyResolver) -> DockerContainer:
             msg = f"source {source.name} does not support native dependency resolution"
             raise ValueError(msg)
         with (
-            tqdm(
-                desc=f"configuring Docker for {source.name}",
-                leave=False,
-                unit=" steps",
-                total=2,
-                initial=1,
-            ) as t,
+            Task(f"Configuring Docker for {source.name}", total=2).running() as t,
             make_dockerfile(docker_setup) as dockerfile,
         ):
             container = DockerContainer(
@@ -154,8 +144,9 @@ def container_for(source: DependencyResolver) -> DockerContainer:
                 dockerfile,
                 tag=it_depends_version,
             )
-            t.update(1)
+            t.advance(1)
             container.rebuild()
+            t.advance()
             CONTAINERS_BY_SOURCE[source] = container
             return container
 

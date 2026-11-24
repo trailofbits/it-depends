@@ -2,24 +2,39 @@
 
 from __future__ import annotations
 
-import logging
 import sys
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from multiprocessing import cpu_count
 from typing import TYPE_CHECKING
 
-from tqdm import tqdm
-
-from .cache import InMemoryPackageCache, PackageCache, PackageRepository
-from .models import Dependency, Package, SourcePackage
-from .repository import SourceRepository
-from .resolver import PartialResolution, resolvers
-from .sbom import SBOM
+from it_depends.cache import InMemoryPackageCache, PackageCache, PackageRepository
+from it_depends.models import Dependency, Package, SourcePackage
+from it_depends.reporting import ResolutionProgress, Severity, Task, diagnostic, emit, has_reporter, in_context
+from it_depends.repository import SourceRepository
+from it_depends.resolver import PartialResolution, resolvers
+from it_depends.sbom import SBOM
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
-logger = logging.getLogger(__name__)
+
+class _ResolutionResults:
+    """Record results and maintain discovery counts for a subscribed analysis."""
+
+    def __init__(self, repo: PackageRepository) -> None:
+        self.repo = repo
+        self.names = set(repo.package_full_names()) if has_reporter() else None
+        self.versions = len(repo) if self.names is not None else 0
+
+    def add(self, package: Package) -> None:
+        if self.names is not None and package not in self.repo:
+            self.names.add(package.full_name)
+            self.versions += 1
+        self.repo.add(package)
+
+    def report(self, active: int, queued: int) -> None:
+        if self.names is not None:
+            emit(ResolutionProgress(len(self.names), self.versions, active, queued))
 
 
 class _DependencyResult:
@@ -66,9 +81,23 @@ def _update_package(package: Package, depth: int) -> _PackageResult:
                     uir.append(resolver.name)
                     package = updated_package
             except ValueError as e:
-                logger.warning("Resolver %s error updating dependencies for %s: %s", resolver.name, package.name, e)
-            except Exception:
-                logger.exception("Resolver %s failed updating dependencies for %s", resolver.name, package.name)
+                diagnostic(
+                    Severity.WARNING,
+                    __name__,
+                    "Resolver %s error updating dependencies for %s: %s",
+                    resolver.name,
+                    package.name,
+                    e,
+                )
+            except Exception:  # noqa: BLE001 - Report resolver failures and retain other results.
+                diagnostic(
+                    Severity.ERROR,
+                    __name__,
+                    "Resolver %s failed updating dependencies for %s",
+                    resolver.name,
+                    package.name,
+                    exception=True,
+                )
     return _PackageResult(
         package=package,
         was_updated=len(uir) > 0,
@@ -84,8 +113,15 @@ def _resolve_dependency(dep: Dependency, depth: int) -> _DependencyResult:
             try:
                 packages = list(resolver.resolve(dep))
                 return _DependencyResult(dep=dep, packages=packages, depth=depth)
-            except Exception:
-                logger.exception("Resolver %s failed resolving dependency %s", resolver.name, dep)
+            except Exception:  # noqa: BLE001 - Report resolver failures and retain other results.
+                diagnostic(
+                    Severity.ERROR,
+                    __name__,
+                    "Resolver %s failed resolving dependency %s",
+                    resolver.name,
+                    dep,
+                    exception=True,
+                )
     return _DependencyResult(dep=dep, packages=[], depth=depth)
 
 
@@ -105,7 +141,13 @@ def resolve_sbom(root_package: Package, packages: PackageCache, order_ascending:
         yield SBOM(root_packages=(root_package,))
         return
 
-    logger.info("Resolving the %s possible SBOM for %s", ["newest", "oldest"][order_ascending], root_package.name)
+    diagnostic(
+        Severity.INFO,
+        __name__,
+        "Resolving the %s possible SBOM for %s",
+        ["newest", "oldest"][order_ascending],
+        root_package.name,
+    )
 
     stack: list[PartialResolution] = [PartialResolution(packages=(root_package,))]
 
@@ -159,7 +201,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
 
     pool: ThreadPoolExecutor | None = None
     try:
-        with tqdm(desc=f"resolving {repo_or_spec!s}", leave=False, unit=" dependencies") as t:
+        with Task(f"Resolving {repo_or_spec!s}", unit="operations").running() as t:
             # Initialize variables
             unresolved_dependencies: list[tuple[Dependency, int]] = []
             unupdated_packages: list[tuple[Package, int]] = []
@@ -168,7 +210,9 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 # Resolve from source repository
                 found_source_package = False
                 for resolver in resolvers():
-                    logger.debug("Trying to resolve %s using resolver %s", repo_or_spec, resolver.name)
+                    diagnostic(
+                        Severity.DEBUG, __name__, "Trying to resolve %s using resolver %s", repo_or_spec, resolver.name
+                    )
                     if resolver.can_resolve_from_source(repo_or_spec):
                         source_package = resolver.resolve_from_source(repo_or_spec, cache=cache)
                         if source_package is None:
@@ -191,8 +235,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 error_msg = "repo_or_spec must be either a Package, Dependency, or SourceRepository"
                 raise TypeError(error_msg)
 
-            t.total = len(unupdated_packages) + len(unresolved_dependencies)
-
+            results = _ResolutionResults(repo)
             futures: set[Future[_DependencyResult | _PackageResult]] = set()
             queued: set[Dependency] = {d for d, _ in unresolved_dependencies}
             if max_workers > 1:
@@ -204,7 +247,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 updated_in_resolvers: set[str],
                 was_updated: bool = True,  # noqa: FBT001, FBT002
             ) -> None:
-                repo.add(updated_package)
+                results.add(updated_package)
                 if not isinstance(updated_package, SourcePackage) and updated_package is not repo_or_spec:
                     if was_updated:
                         cache.add(updated_package)
@@ -214,7 +257,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 if depth_limit < 0 or at_depth < depth_limit:
                     new_deps = {d for d in updated_package.dependencies if d not in queued}
                     unresolved_dependencies.extend((d, at_depth + 1) for d in sorted(new_deps))
-                    t.total += len(new_deps)
+
                     queued.update(new_deps)
 
             def process_resolution(
@@ -228,11 +271,15 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 packages = list(packages)
                 if not already_cached and cache is not None and dep is not repo_or_spec:
                     cache.set_resolved(dep)
-                    cache.extend(packages)
+                    if cache is repo:
+                        for package in packages:
+                            results.add(package)
+                    else:
+                        cache.extend(packages)
                 unupdated_packages.extend((p, at_depth) for p in packages)
-                t.total += len(packages)
 
             while unresolved_dependencies or unupdated_packages or futures:
+                results.report(len(futures), len(unresolved_dependencies) + len(unupdated_packages))
                 # while there are more unresolved dependencies, unupdated packages,
                 # or concurrent jobs that are still running:
 
@@ -258,7 +305,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                                 except StopIteration:
                                     pass
                             process_updated_package(package, depth, updated_in_resolvers=set())
-                            t.update(1)
+                            t.advance(1)
 
                     if unupdated_packages != not_updated:
                         reached_fixed_point = False
@@ -270,7 +317,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                         if dep is not repo_or_spec and cache and cache.was_resolved(dep):
                             matches = cache.match(dep)
                             process_resolution(dep, matches, depth, already_cached=True)
-                            t.update(1)
+                            t.advance(1)
                         else:
                             not_cached.append((dep, depth))
                     if unresolved_dependencies != not_cached:
@@ -280,7 +327,6 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                 if pool is None:
                     # don't use concurrency
                     if unupdated_packages:
-                        t.update(1)
                         pkg_result = _update_package(*unupdated_packages[0])
                         unupdated_packages = unupdated_packages[1:]
                         process_updated_package(
@@ -289,29 +335,32 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                             pkg_result.updated_in_resolvers,
                             pkg_result.was_updated,
                         )
+                        t.advance(1)
                     if unresolved_dependencies:
-                        t.update(1)
                         dep_result = _process_dep(*unresolved_dependencies[0])
                         unresolved_dependencies = unresolved_dependencies[1:]
                         process_resolution(dep_result.dep, dep_result.packages, dep_result.depth)
+                        t.advance(1)
                 else:
                     # new_jobs is the number of new concurrent resolutions we can start without exceeding max_workers
                     new_jobs = max_workers - len(futures)
                     # create `new_jobs` package update jobs:
                     futures |= {
-                        pool.submit(_update_package, package, depth) for package, depth in unupdated_packages[:new_jobs]
+                        pool.submit(in_context(_update_package, package, depth))
+                        for package, depth in unupdated_packages[:new_jobs]
                     }
                     unupdated_packages = unupdated_packages[new_jobs:]
                     new_jobs = max_workers - len(futures)
                     # create `new_jobs` new resolution jobs:
                     futures |= {
-                        pool.submit(_process_dep, dep, depth) for dep, depth in unresolved_dependencies[:new_jobs]
+                        pool.submit(in_context(_process_dep, dep, depth))
+                        for dep, depth in unresolved_dependencies[:new_jobs]
                     }
                     unresolved_dependencies = unresolved_dependencies[new_jobs:]
+                    results.report(len(futures), len(unresolved_dependencies) + len(unupdated_packages))
                     if futures:
                         done, futures = wait(futures, return_when=FIRST_COMPLETED)
                         for finished in done:
-                            t.update(1)
                             result = finished.result()
                             if isinstance(result, _PackageResult):
                                 process_updated_package(
@@ -325,6 +374,7 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
                             else:
                                 error_msg = f"Unexpected future result: {result!r}"
                                 raise NotImplementedError(error_msg)
+                            t.advance(1)
 
     except KeyboardInterrupt:
         if sys.stderr.isatty() and sys.stdin.isatty():
@@ -342,4 +392,5 @@ def resolve(  # noqa: C901, PLR0912, PLR0915
     finally:
         if pool is not None:
             pool.shutdown(wait=True, cancel_futures=True)
+    results.report(0, 0)
     return repo

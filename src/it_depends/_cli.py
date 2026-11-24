@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
 import sys
 import webbrowser
@@ -11,23 +10,21 @@ from pathlib import Path
 from sqlite3 import OperationalError
 from typing import TYPE_CHECKING
 
+from it_depends._output import PlainReporter, third_party_reporting
+from it_depends.audit import vulnerabilities
+from it_depends.config import Settings
+from it_depends.db import DBPackageCache
+from it_depends.dependencies import Dependency, SourceRepository, resolve, resolve_sbom, resolvers
+from it_depends.html import graph_to_html
+from it_depends.maintenance import check_maintenance_status
+from it_depends.reporting import Severity, diagnostic, reporting_session
+from it_depends.sbom import cyclonedx_to_json
 from it_depends.trust import TrustError, require_trust
-
-from .audit import vulnerabilities
-from .config import Settings
-from .db import DBPackageCache
-from .dependencies import Dependency, SourceRepository, resolve, resolve_sbom, resolvers
-from .html import graph_to_html
-from .logger import setup_logger
-from .maintenance import check_maintenance_status
-from .sbom import cyclonedx_to_json
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .cache import PackageRepository
-
-logger = logging.getLogger(__name__)
+    from it_depends.cache import PackageRepository
 
 
 def parse_path_or_package_name(
@@ -58,13 +55,13 @@ def _parse_targets(
             to_compare = None
     except ValueError as e:
         msg = str(e)
-        logger.exception(msg)
+        diagnostic(Severity.ERROR, __name__, msg, exception=True)
         sys.exit(1)
 
     for target in (repo, to_compare):
         if isinstance(target, SourceRepository):
             if not target.path.is_dir():
-                logger.error("The specified path is not a directory: %r", str(target.path))
+                diagnostic(Severity.ERROR, __name__, "The specified path is not a directory: %r", str(target.path))
                 sys.exit(1)
             target.path = target.path.resolve()
 
@@ -95,9 +92,9 @@ def _clear_cache(settings: Settings) -> None:
     db_path = Path(settings.database)
     if db_path.exists():
         db_path.unlink()
-        logger.info("Cache cleared.")
+        diagnostic(Severity.INFO, __name__, "Cache cleared.")
     else:
-        logger.info("No cache exists.")
+        diagnostic(Severity.INFO, __name__, "No cache exists.")
 
 
 def _list_resolvers(repo: SourceRepository | Dependency, target: str) -> None:
@@ -131,9 +128,14 @@ def _list_resolvers(repo: SourceRepository | Dependency, target: str) -> None:
 
 def _get_output_writer(settings: Settings) -> Callable[[str], object]:
     if settings.output_file is None:
-        return logger.info
+        return _write_stdout
     if not settings.force and settings.output_file.exists():
-        logger.error("%s already exists. Re-run with `--force` to overwrite the file.", settings.output_file)
+        diagnostic(
+            Severity.ERROR,
+            __name__,
+            "%s already exists. Re-run with `--force` to overwrite the file.",
+            settings.output_file,
+        )
         sys.exit(1)
     return settings.output_file.write_text
 
@@ -171,7 +173,7 @@ def _write_output(
                 # TODO(@evandowning): Provide a means for enumerating all valid SBOMs # noqa: TD003, FIX002
                 break
         if sbom is None:
-            logger.error("No SBOM found for %s", settings.target)
+            diagnostic(Severity.ERROR, __name__, "No SBOM found for %s", settings.target)
         else:
             output_write(cyclonedx_to_json(sbom.to_cyclonedx()))
     else:
@@ -187,16 +189,31 @@ def _enrich_packages(settings: Settings, packages: PackageRepository) -> Package
     return packages
 
 
+def _write_stdout(text: str) -> None:
+    sys.stdout.write(text)
+    if not text.endswith("\n"):
+        sys.stdout.write("\n")
+    sys.stdout.flush()
+
+
 def main() -> None:
     settings = Settings()  # type: ignore[call-arg]
-    setup_logger(settings.log_level)
+    try:
+        reporter = PlainReporter(settings.log_level)
+    except ValueError as error:
+        sys.stderr.write(f"{error}\n")
+        sys.exit(2)
+    with reporting_session(reporter), third_party_reporting():
+        _run(settings)
 
+
+def _run(settings: Settings) -> None:
     # If max_workers isn't provided, use the number of CPUs.
     # If that fails, use 1.
     if settings.max_workers == -1:
         settings.max_workers = os.cpu_count() or 1
 
-    logger.info("Starting it-depends with settings: %s", settings)
+    diagnostic(Severity.DEBUG, __name__, "Starting it-depends with settings: %s", settings)
 
     repo, to_compare = _parse_targets(settings)
 
@@ -221,10 +238,12 @@ def main() -> None:
             except ValueError as e:
                 if not settings.clear_cache or settings.target.strip():
                     msg = f"{e!s}"
-                    logger.exception(msg)
+                    diagnostic(Severity.ERROR, __name__, msg, exception=True)
                 sys.exit(1)
             if not package_list:
-                logger.error("Try --list to check for available resolvers for %s", settings.target)
+                diagnostic(
+                    Severity.ERROR, __name__, "Try --list to check for available resolvers for %s", settings.target
+                )
 
             package_list = _enrich_packages(settings, package_list)
 
@@ -237,10 +256,7 @@ def main() -> None:
             "`it-depends --clear-cache` and try again, the database will automatically be rebuilt from "
             "scratch."
         )
-        logger.exception(msg)
+        diagnostic(Severity.ERROR, __name__, msg, exception=True)
         sys.exit(1)
-    finally:
-        if settings.output_file is not None and settings.output_file.exists():
-            logger.info("Output saved to %s", settings.output_file.absolute())
-        if settings.output_file is not None and not settings.output_file.exists():
-            logger.error("Output wasn't saved. Output file %s does not exist.", settings.output_file.absolute())
+    if settings.output_file is not None and settings.output_file.exists():
+        diagnostic(Severity.INFO, __name__, "Output saved to %s", settings.output_file.absolute())

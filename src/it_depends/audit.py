@@ -2,20 +2,18 @@
 
 from __future__ import annotations
 
-import logging
 from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, ClassVar
 
 from requests import post
-from tqdm import tqdm
+
+from it_depends.reporting import Severity, Task, diagnostic, in_context
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-from .dependencies import Package, PackageRepository, Vulnerability
-
-logger = logging.getLogger(__name__)
+from it_depends.dependencies import Package, PackageRepository, Vulnerability
 
 
 class OSVVulnerability(Vulnerability):
@@ -88,17 +86,17 @@ def vulnerabilities(repo: PackageRepository, nworkers: int | None = None) -> Pac
 
     with (
         ThreadPoolExecutor(max_workers=nworkers) as executor,
-        tqdm(desc="Checking for vulnerabilities", leave=False, unit=" packages") as t,
+        Task("Checking for vulnerabilities", unit="packages").running() as t,
     ):
-        futures = {executor.submit(_get_vulninfo, pkg): pkg for pkg in repo}
-        t.total = len(futures)
+        futures = {executor.submit(in_context(_get_vulninfo, pkg)): pkg for pkg in repo}
+        t.set_total(len(futures))
 
         for future in as_completed(futures):
             try:
-                t.update(1)
+                t.advance(1)
                 pkg, vulns = future.result()
-            except Exception:  # noqa: PERF203
-                logger.exception("Failed to retrieve vulnerability information")
+            except Exception:  # noqa: BLE001, PERF203 - Report each failed lookup and continue.
+                diagnostic(Severity.ERROR, __name__, "Failed to retrieve vulnerability information", exception=True)
             else:
                 pkg.update_vulnerabilities(vulns)
 

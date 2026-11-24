@@ -12,6 +12,7 @@ from urllib.parse import quote, urlsplit
 import requests
 
 from it_depends.models import AliasedDependency, MaintenanceInfo, Package, SourcePackage
+from it_depends.reporting import Task
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -203,12 +204,14 @@ def check_maintenance_status(
         return result
 
     npm_dependencies = _npm_dependencies(repo)
-    for package in repo:
-        registry_package = _npm_registry_package(package, npm_dependencies.get(package.name, []))
-        if registry_package is None:
-            message = f"Cannot verify npm alias target for {package}"
-            message += "; re-resolve with unambiguous dependency metadata"
-            package.maintenance_info = MaintenanceInfo(error=message)
-        else:
-            package.maintenance_info = _check_package(registry_package, stale_threshold_days, get_json)
+    with Task("Checking maintenance", total=len(repo), unit="packages").running() as task:
+        for package in repo:
+            registry_package = _npm_registry_package(package, npm_dependencies.get(package.name, []))
+            if registry_package is None:
+                message = f"Cannot verify npm alias target for {package}"
+                message += "; re-resolve with unambiguous dependency metadata"
+                package.maintenance_info = MaintenanceInfo(error=message)
+            else:
+                package.maintenance_info = _check_package(registry_package, stale_threshold_days, get_json)
+            task.advance()
     return repo

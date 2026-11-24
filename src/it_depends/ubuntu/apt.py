@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import functools
 import gzip
-import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,10 +11,8 @@ from threading import Lock
 from urllib import request
 
 from it_depends.it_depends import APP_DIRS
-
-from .docker import run_command
-
-logger = logging.getLogger(__name__)
+from it_depends.reporting import Severity, diagnostic
+from it_depends.ubuntu.docker import run_command
 
 
 @dataclass(frozen=True)
@@ -147,11 +144,11 @@ def get_apt_packages() -> tuple[str, ...]:
     with _APT_LOCK:
         global all_packages  # noqa: PLW0603
         if all_packages is None:
-            logger.info("Rebuilding global apt package list.")
+            diagnostic(Severity.INFO, __name__, "Rebuilding global apt package list.")
             raw_packages = run_command("apt", "list").decode("utf-8")
             all_packages = tuple(x.split("/")[0] for x in raw_packages.splitlines() if x)
 
-            logger.info("Global apt package count %d", len(all_packages))
+            diagnostic(Severity.INFO, __name__, "Global apt package count %d", len(all_packages))
         return all_packages
 
 
@@ -170,7 +167,9 @@ def search_package(package: str) -> str:
     if not found_packages:
         error_msg = f"Package {package} not found in apt package list."
         raise ValueError(error_msg)
-    logger.info("Found %d matching packages, Choosing %s", len(found_packages), found_packages[0])
+    diagnostic(
+        Severity.INFO, __name__, "Found %d matching packages, Choosing %s", len(found_packages), found_packages[0]
+    )
     return found_packages[0]
 
 
@@ -197,7 +196,7 @@ def _file_to_package_contents(filename: str, arch: str = "amd64") -> str:  # noq
             dbfile,
         )
     if dbfile not in _loaded_dbs:
-        logger.info("Rebuilding contents db")
+        diagnostic(Severity.INFO, __name__, "Rebuilding contents db")
         with gzip.open(str(dbfile), "rt") as contents:
             for line in contents.readlines():
                 filename_i, *packages_i = re.split(r"\s+", line[:-1])
@@ -215,7 +214,9 @@ def _file_to_package_contents(filename: str, arch: str = "amd64") -> str:  # noq
                 if selected is None or len(selected[0]) > len(filename_i):
                     selected = filename_i, package_i
     if selected:
-        logger.info("Found %d matching packages for %s. Choosing %s", matches, filename, selected[1])
+        diagnostic(
+            Severity.INFO, __name__, "Found %d matching packages for %s. Choosing %s", matches, filename, selected[1]
+        )
     else:
         error_msg = f"{filename} not found in Contents database"
         raise ValueError(error_msg)
@@ -240,11 +241,11 @@ def _file_to_packages_optimized(
     regex = re.compile(query.filter_regex)
 
     for term in query.search_terms:
-        logger.debug("Running [apt-file -i search %s]", term)
+        diagnostic(Severity.DEBUG, __name__, "Running [apt-file -i search %s]", term)
         try:
             contents = run_command("apt-file", "-i", "search", term).decode("utf-8")
         except Exception:  # noqa: BLE001
-            logger.debug("apt-file search failed for term: %s", term)
+            diagnostic(Severity.DEBUG, __name__, "apt-file search failed for term: %s", term)
             continue
 
         for line in contents.split("\n"):
@@ -254,7 +255,7 @@ def _file_to_packages_optimized(
             if regex.search(file_path):
                 all_packages.add(package_name)
 
-    logger.debug("Finished apt-file, found %d packages", len(all_packages))
+    diagnostic(Severity.DEBUG, __name__, "Finished apt-file, found %d packages", len(all_packages))
     return sorted(all_packages)
 
 
@@ -278,7 +279,7 @@ def file_to_packages(filename: str | AptFileQuery, arch: str = "amd64") -> list[
         return _file_to_packages_optimized(filename, arch)
 
     # Legacy regex mode for backward compatibility
-    logger.debug("Running [apt-file -x search %s]", filename)
+    diagnostic(Severity.DEBUG, __name__, "Running [apt-file -x search %s]", filename)
     contents = run_command("apt-file", "-x", "search", filename).decode("utf-8")
     selected: list[str] = []
     for line in contents.split("\n"):
@@ -286,7 +287,7 @@ def file_to_packages(filename: str | AptFileQuery, arch: str = "amd64") -> list[
             continue
         package_i, _ = line.split(": ")
         selected.append(package_i)
-    logger.debug("Finished running apt-file")
+    diagnostic(Severity.DEBUG, __name__, "Finished running apt-file")
     return sorted(selected)
 
 
@@ -307,7 +308,9 @@ def file_to_package(filename: str | AptFileQuery, arch: str = "amd64") -> str:
     packages = file_to_packages(filename, arch)
     if packages:
         _, result = min((len(pkg), pkg) for pkg in packages)
-        logger.info("Found %d matching packages for %s. Choosing %s", len(packages), filename, result)
+        diagnostic(
+            Severity.INFO, __name__, "Found %d matching packages for %s. Choosing %s", len(packages), filename, result
+        )
         return result
     error_msg = f"{filename} not found in apt-file"
     raise ValueError(error_msg)
