@@ -10,6 +10,7 @@ import subprocess
 import sys
 from sys import version_info
 
+from it_depends._commands import CommandCapture, run_command
 from it_depends.reporting import Severity, diagnostic
 
 if version_info < (3, 11):
@@ -33,6 +34,21 @@ if TYPE_CHECKING:
 from it_depends import __version__ as it_depends_version
 from it_depends._exec import resolve_executable
 from it_depends.reporting import Task
+
+
+def _build_message(line: bytes, image: str) -> str:
+    try:
+        message = json.loads(line)
+    except json.decoder.JSONDecodeError:
+        return ""
+    if "error" in message:
+        error = f"Docker build failed for {image}: {message['error']}"
+        raise DockerException(error)
+    stream = message.get("stream", "")
+    if not isinstance(stream, str):
+        error = f"Docker returned invalid build output for {image}"
+        raise DockerException(error)
+    return stream
 
 
 def _discover_podman_socket() -> str | None:
@@ -292,7 +308,7 @@ class DockerContainer:
         if interactive:
             returncode = subprocess.call(cmd_args, cwd=cwd, stdout=sys.stderr)
             return subprocess.CompletedProcess(cmd_args, returncode)
-        return subprocess.run(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
+        return run_command(cmd_args, check=False, stdin=stdin, stdout=stdout, stderr=stderr, cwd=cwd)
 
     @property
     def name(self) -> str:
@@ -318,7 +334,7 @@ class DockerContainer:
         # However, that doesn't include progress bars. So call the `docker` command instead:
         name = f"{self.image_name}:{[self.tag, 'latest'][latest]}"
         try:
-            subprocess.check_call([self.docker_path, "pull", name], stdout=2)
+            run_command([self.docker_path, "pull", name])
             for image in self.client.images.list():
                 if name in image.tags:
                     return image
@@ -341,7 +357,10 @@ class DockerContainer:
         except DockerException as e:
             msg = f"Could not connect to container runtime: {e}"
             raise ValueError(msg) from e
-        with Task("Archiving the build directory").running() as t:
+        with (
+            Task("Archiving the build directory").running() as t,
+            CommandCapture(("docker", "build", self.name)).running() as build_output,
+        ):
             last_line = 0
             last_step = None
             for raw_line in cli.build(
@@ -353,14 +372,11 @@ class DockerContainer:
             ):
                 t.set_label(f"Building {self.name}")
                 for line in raw_line.split(b"\n"):
-                    try:
-                        parsed_line = json.loads(line)
-                    except json.decoder.JSONDecodeError:
-                        continue
-                    if "stream" in parsed_line:
+                    stream = _build_message(line, self.name)
+                    if stream:
                         m = re.match(
                             r"^Step\s+(\d+)(/(\d+))?\s+:\s+(.+)$",
-                            parsed_line["stream"],
+                            stream,
                             re.MULTILINE,
                         )
                         if m:
@@ -381,4 +397,4 @@ class DockerContainer:
                                 if new_line is not None:
                                     t.advance(new_line - last_line)
                                     last_line = new_line
-                        diagnostic(Severity.INFO, __name__, parsed_line["stream"].strip())
+                        build_output.write(stream)

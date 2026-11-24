@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import re
-import shutil
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from it_depends._commands import run_command as execute
 from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Iterator
 
     from it_depends.models import Package
-from os import chdir
 
 from it_depends.ubuntu.apt import (
     cached_file_to_package as file_to_package,
@@ -50,10 +48,49 @@ from it_depends.dependencies import (
 from it_depends.ubuntu.docker import run_command
 
 
+def _configure_trace(cmake: str, project: Path) -> str:
+    """Trace a private copy of the top-level script with project-relative files available."""
+    with tempfile.TemporaryDirectory() as directory:
+        scratch = Path(directory)
+        project = project.absolute()
+        source = scratch / "source" / project.name
+        source.mkdir(parents=True)
+        for entry in project.iterdir():
+            if entry.name == "CMakeLists.txt":
+                script = entry.read_bytes().removeprefix(b"\xef\xbb\xbf")
+                (source / entry.name).write_bytes(b"function(message)\nendfunction()\n" + script)
+            elif entry != scratch:
+                (source / entry.name).symlink_to(entry, target_is_directory=entry.is_dir())
+        output = scratch / "trace"
+        result = execute(
+            [
+                cmake,
+                "-Wno-dev",
+                "--trace-expand",
+                f"--trace-redirect={output}",
+                "-S",
+                str(source),
+                "-B",
+                str(scratch / "build"),
+            ],
+            check=False,
+            capture_output=True,
+        )
+        if result.returncode:
+            diagnostic(
+                Severity.ERROR,
+                __name__,
+                "Error running cmake:\n%s\n%s",
+                result.stdout.decode("utf-8", errors="replace"),
+                result.stderr.decode("utf-8", errors="replace"),
+            )
+        return output.read_text()
+
+
 class CMakeResolver(DependencyResolver):
     """Parse CMakeLists.txt in a cmake-based repository.
 
-    CMakeLists.txt is patched so no errors are fatal and then we trace cmake
+    A temporary copy of CMakeLists.txt suppresses message() calls while CMake traces
     attempts to find the needed software.
 
     Every traced command is translated in a search to a specific file in the list
@@ -411,62 +448,9 @@ class CMakeResolver(DependencyResolver):
         if cmake_parsing is None:
             msg = "cmake resolver invoked without parse_cmake installed"
             raise RuntimeError(msg)
-        cmake_path = self.tool_path
-
         path = repo.path
         diagnostic(Severity.INFO, __name__, "Getting dependencies for cmake repo %s", path)
-        apath = str(path.absolute())
-        orig_dir = Path.cwd()
-        try:
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                diagnostic(Severity.DEBUG, __name__, "Created temporary directory %s", tmpdirname)
-                # This is a hack to modify the original cmake language temporarily
-                # TODO(@evandowning): Think a better way that does not modify the original repo  # noqa: FIX002
-                # Maybe use newer cmake feature:
-                # https://cmake.org/cmake/help/latest/manual/cmake-file-api.7.html#manual:cmake-file-api(7)
-                orig_cmakelists = Path(apath) / "CMakeLists.txt"
-                backup = Path(tmpdirname) / "backup"
-                shutil.copyfile(orig_cmakelists, backup)
-                output = Path(tmpdirname) / "output"
-                build_dir = Path(tmpdirname) / "build"
-                build_dir.mkdir()
-                try:
-                    # Replaces the message function by a no-op
-                    # Not that message(FATAL_ERROR ...) terminates cmake
-                    with orig_cmakelists.open("r+") as cmake_lists:
-                        patched = """function(message)\nendfunction()\n"""
-                        patched += cmake_lists.read()
-                        cmake_lists.seek(0)
-                        cmake_lists.write(patched)
-                        cmake_lists.flush()
-                    cmake_lists.close()
-                    p = subprocess.run(
-                        [
-                            cmake_path,
-                            "-Wno-dev",
-                            "--trace",
-                            "--trace-expand",
-                            f"--trace-redirect={output}",
-                            apath,
-                        ],
-                        check=False,
-                        capture_output=True,
-                        cwd=build_dir,
-                    )
-                    if p.returncode != 0:
-                        diagnostic(
-                            Severity.ERROR,
-                            __name__,
-                            "Error running cmake:\n%s\n%s",
-                            p.stdout.decode("utf-8"),
-                            p.stderr.decode("utf-8"),
-                        )
-                    with output.open() as outfd:
-                        trace = outfd.read()
-                finally:
-                    shutil.copyfile(backup, orig_cmakelists)
-        finally:
-            chdir(orig_dir)
+        trace = _configure_trace(self.tool_path, path)
 
         package_name = None
         package_version = None

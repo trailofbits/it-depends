@@ -370,11 +370,11 @@ class TestNPMResolver(TestCase):
         assert result.name == "repo-pkg"
         assert result.source_repo == mock_repo
 
-    @patch("it_depends.npm.subprocess.check_output")
+    @patch("it_depends.npm.run_command")
     def test_resolve_single_version(self, mock_subprocess: Mock) -> None:
         """Test resolving when npm view returns single package."""
         npm_output = {"name": "lodash", "version": "4.17.21", "dependencies": {"dep1": "^1.0.0"}}
-        mock_subprocess.return_value = json.dumps(npm_output).encode()
+        mock_subprocess.return_value.stdout = json.dumps(npm_output).encode()
 
         dep = Dependency(package="lodash", semantic_version=SimpleSpec("^4.17.0"), source="npm")
         packages = list(self.resolver.resolve(dep))
@@ -383,14 +383,14 @@ class TestNPMResolver(TestCase):
         assert packages[0].name == "lodash"
         assert str(packages[0].version) == "4.17.21"
 
-    @patch("it_depends.npm.subprocess.check_output")
+    @patch("it_depends.npm.run_command")
     def test_resolve_multiple_versions(self, mock_subprocess: Mock) -> None:
         """Test resolving when npm view returns multiple packages."""
         npm_output = [
             {"name": "lodash", "version": "4.17.21", "dependencies": {}},
             {"name": "lodash", "version": "4.17.20", "dependencies": {}},
         ]
-        mock_subprocess.return_value = json.dumps(npm_output).encode()
+        mock_subprocess.return_value.stdout = json.dumps(npm_output).encode()
 
         dep = Dependency(package="lodash", semantic_version=SimpleSpec("^4.17.0"), source="npm")
         packages = list(self.resolver.resolve(dep))
@@ -407,11 +407,11 @@ class TestNPMResolver(TestCase):
 
         assert packages == []
 
-    @patch("it_depends.npm.subprocess.check_output")
+    @patch("it_depends.npm.run_command")
     def test_resolve_scoped_package(self, mock_subprocess: Mock) -> None:
         """Test resolving scoped package (@scope/name)."""
         npm_output = {"name": "@babel/core", "version": "7.20.0", "dependencies": {}}
-        mock_subprocess.return_value = json.dumps(npm_output).encode()
+        mock_subprocess.return_value.stdout = json.dumps(npm_output).encode()
 
         dep = Dependency(package="babel/core", semantic_version=SimpleSpec("^7.0.0"), source="npm")
         list(self.resolver.resolve(dep))
@@ -419,11 +419,11 @@ class TestNPMResolver(TestCase):
         call_args = mock_subprocess.call_args[0][0]
         assert "@babel/core@" in " ".join(call_args)
 
-    @patch("it_depends.npm.subprocess.check_output")
+    @patch("it_depends.npm.run_command")
     def test_resolve_aliased_dependency(self, mock_subprocess: Mock) -> None:
         """Test resolving AliasedDependency."""
         npm_output = {"name": "my-lodash", "version": "4.17.21", "dependencies": {}}
-        mock_subprocess.return_value = json.dumps(npm_output).encode()
+        mock_subprocess.return_value.stdout = json.dumps(npm_output).encode()
 
         dep = AliasedDependency(
             package="my-lodash",
@@ -436,7 +436,7 @@ class TestNPMResolver(TestCase):
         call_args = mock_subprocess.call_args[0][0]
         assert "@lodash@" in " ".join(call_args)
 
-    @patch("it_depends.npm.subprocess.check_output")
+    @patch("it_depends.npm.run_command")
     def test_resolve_subprocess_error(self, mock_subprocess: Mock) -> None:
         """Test handles CalledProcessError gracefully."""
         mock_subprocess.side_effect = subprocess.CalledProcessError(1, "npm")
@@ -446,10 +446,10 @@ class TestNPMResolver(TestCase):
 
         assert packages == []
 
-    @patch("it_depends.npm.subprocess.check_output")
+    @patch("it_depends.npm.run_command")
     def test_resolve_json_parse_error(self, mock_subprocess: Mock) -> None:
         """Test raises ValueError for invalid JSON output."""
-        mock_subprocess.return_value = b"invalid json"
+        mock_subprocess.return_value.stdout = b"invalid json"
 
         dep = Dependency(package="lodash", semantic_version=SimpleSpec("*"), source="npm")
 

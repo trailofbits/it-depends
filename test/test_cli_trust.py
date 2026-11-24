@@ -31,6 +31,29 @@ def _arguments(monkeypatch: pytest.MonkeyPatch, *arguments: str) -> None:
     monkeypatch.setattr(sys, "argv", ["it-depends", *arguments])
 
 
+def test_partial_cyclonedx_without_a_root_does_not_report_a_saved_file(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    terminal: pytest.CaptureFixture[str],
+    resolution: Mock,
+) -> None:
+    output = tmp_path / "report.json"
+    output.write_text("existing report")
+    resolution.side_effect = KeyboardInterrupt
+    _arguments(
+        monkeypatch, "pip:demo", "--trust", "--output-format", "cyclonedx", "--output-file", str(output), "--force"
+    )
+    with patch.object(_cli, "_approve_partial", return_value=True), pytest.raises(SystemExit) as raised:
+        _cli.main()
+    expected_status = 130
+    assert raised.value.code == expected_status
+    assert output.read_text() == "existing report"
+    stderr = terminal.readouterr().err
+    assert "No SBOM found" in stderr
+    assert "Output saved" not in stderr
+    assert "exported partial results" not in stderr
+
+
 def test_denial_prevents_resolution_cache_deletion_and_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, resolution: Mock
 ) -> None:

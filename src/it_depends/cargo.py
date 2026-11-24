@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from it_depends._commands import run_command
 from it_depends.reporting import Severity, diagnostic
 
 if TYPE_CHECKING:
@@ -94,7 +95,9 @@ def get_dependencies(
         cargo_path = resolve_executable("cargo")
 
     try:
-        output = subprocess.check_output([cargo_path, "metadata", "--format-version", "1"], cwd=repo.path)
+        output = run_command(
+            [cargo_path, "metadata", "--format-version", "1"], cwd=repo.path, capture_stdout=True
+        ).stdout
     except subprocess.CalledProcessError:
         # A single crate whose temp-project `cargo metadata` fails must not abort the whole
         # resolution; mirror pip.py's handling of johnnydep failures (see #125).
@@ -228,7 +231,7 @@ class CargoResolver(DependencyResolver):
 
                 diagnostic(Severity.DEBUG, __name__, "Found %s for %s in crates.io", cargo_dep, dependency)
                 with tempfile.TemporaryDirectory() as tmpdir:
-                    subprocess.check_output([cargo_path, "init"], cwd=tmpdir)
+                    run_command([cargo_path, "init"], cwd=tmpdir, capture_stdout=True)
                     with Path(tmpdir).joinpath("Cargo.toml").open("a") as f:
                         f.write(f"{cargo_dep}\n")
                     self.resolve_from_source(SourceRepository(path=tmpdir), cache)

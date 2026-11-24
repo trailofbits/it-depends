@@ -49,6 +49,16 @@ Python API calls do not configure global logging. To receive application events,
 `it_depends.reporting.reporting_session(callback)` around your analysis call. The callback
 receives diagnostic and progress events, including events from resolver worker threads.
 
+When stdin, stdout, and stderr are capable terminals, analysis displays a live Rich dashboard
+with discovery counts, active tasks, and bounded subtool output panels. Redirecting any stream
+disables the dashboard. Analysis exits automatically when finished; warnings and a summary remain
+in scrollback. `NO_COLOR` disables colors, and dumb terminals receive plain diagnostics.
+
+Ctrl+C cancels queued work and owned subprocesses. In a terminal, you can choose to export partial
+results; interrupted runs exit with status 130. A second Ctrl+C forces exit. In-process library
+calls may need to finish after the first interrupt. Python API calls propagate interruption
+without prompting.
+
 ### Checking package maintenance
 
 ```shell
