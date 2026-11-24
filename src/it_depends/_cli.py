@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import sys
 import webbrowser
 from pathlib import Path
@@ -200,6 +201,9 @@ def _write_stdout(text: str) -> None:
 
 def main() -> None:
     settings = Settings()  # type: ignore[call-arg]
+    if settings.explore:
+        _explore(settings)
+        return
     try:
         reporter = make_reporter(settings.log_level)
     except ValueError as error:
@@ -221,6 +225,37 @@ def main() -> None:
             sys.exit(1)
         finally:
             reporter.stop()
+
+
+def _explore(settings: Settings) -> None:
+    if not interactive_terminal():
+        sys.stderr.write("--explore requires interactive stdin, stdout, and stderr.\n")
+        sys.exit(2)
+    if any(
+        (
+            settings.audit,
+            settings.check_maintenance,
+            settings.clear_cache,
+            settings.list,
+            settings.compare,
+            settings.output_file,
+            settings.trust,
+        )
+    ):
+        sys.stderr.write("Use --explore with a saved JSON file, without analysis or export options.\n")
+        sys.exit(2)
+    from it_depends.explorer.app import SavedExplorer  # noqa: PLC0415 - Load the UI only on request.
+    from it_depends.explorer.loaders import load_saved  # noqa: PLC0415 - Keep analysis startup light.
+
+    try:
+        graph = load_saved(Path(settings.target))
+    except ValueError as error:
+        sys.stderr.write(f"{error}\n")
+        sys.exit(2)
+    app = SavedExplorer(graph, settings.target)
+    app.run()
+    if app.return_code:
+        sys.exit(app.return_code)
 
 
 def _approve_partial() -> bool:
@@ -285,10 +320,14 @@ def _run(settings: Settings, reporter: PlainReporter) -> None:
     _approve_targets(settings, repo, to_compare)
     _clear_cache(settings)
     output_write = _get_output_writer(settings)
+    wrote_output = False
 
     def write_result(text: str) -> object:
+        nonlocal wrote_output
         reporter.stop()
-        return output_write(text)
+        result = output_write(text)
+        wrote_output = True
+        return result
 
     partial = False
     reporter.start()
@@ -308,8 +347,11 @@ def _run(settings: Settings, reporter: PlainReporter) -> None:
         sys.exit(130 if partial else 1)
     except OperationalError as error:
         _database_error(settings, error)
-    if settings.output_file is not None and settings.output_file.exists():
+    if wrote_output and settings.output_file is not None and settings.output_file.exists():
         diagnostic(Severity.INFO, __name__, "Output saved to %s", settings.output_file.absolute())
+        if not settings.compare and settings.output_format in {"json", "cyclonedx"}:
+            command = shlex.join(["it-depends", "--explore", str(settings.output_file.absolute())])
+            diagnostic(Severity.INFO, __name__, "Explore this result: %s", command)
     if partial:
         diagnostic(Severity.WARNING, __name__, "Analysis interrupted; exported partial results")
         sys.exit(130)

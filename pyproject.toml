@@ -30,6 +30,7 @@ dependencies = [
     "rich==15.0.0",
     "semantic_version >= 2.10.0",
     "sqlalchemy >= 2.0.43",
+    "textual==8.2.8",
 ]
 requires-python = ">=3.10"
 
@@ -38,7 +39,15 @@ version = { attr = "it_depends.__version__" }
 
 [project.optional-dependencies]
 doc = ["pdoc"]
-test = ["pytest", "pytest-cov", "pytest-timeout", "pytest-rerunfailures", "pretend", "coverage[toml]"]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "pytest-rerunfailures",
+    "pretend",
+    "coverage[toml]",
+    "hypothesis==6.168.4",
+]
 lint = [
     # 0.16 resolves string literal bindings for S310, which the `urlopen` call in
     # go.py relies on to pass without a `noqa`.
@@ -66,7 +75,7 @@ Source = "https://github.com/trailofbits/it-depends"
 exclude-newer = "1 week"
 
 [tool.pytest.ini_options]
-norecursedirs = ["test/repos"]
+norecursedirs = ["test/repos", ".hypothesis"]
 # These tests are synchronous; the unused AnyIO plugin imports a deprecated pytest API.
 addopts = ["-p", "no:anyio"]
 filterwarnings = [
